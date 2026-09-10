@@ -1,10 +1,13 @@
 // ==UserScript==
 // @name         Star Fury - Custom Race Portraits
 // @namespace    https://game.starfuryx.com/
-// @version      1.2.1
+// @version      1.2.2
 // @description  Customize Star Fury race portraits with an embedded portrait pack or your own locally stored images.
 // @author       Zathman
 // @license      MIT
+// @homepageURL  https://github.com/Katorthoma/star-fury-scripts
+// @updateURL    https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-Custom-Race-Portraits.user.js
+// @downloadURL  https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-Custom-Race-Portraits.user.js
 // @match        https://game.starfuryx.com/*
 // @icon         https://game.starfuryx.com/images/favicon/favicon-32x32.png
 // @grant        GM_getValue
@@ -20,7 +23,7 @@
 
     /*
      * Star Fury - Custom Race Portraits
-     * Public Release 1.2.1
+     * Public Release 1.2.2
      * Author: Zathman
      * License: MIT
      * ---------------------------------------------------------------------
