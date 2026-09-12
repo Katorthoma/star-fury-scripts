@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury UX Suite
 // @namespace    starfuryx.com
-// @version      2.0.2
+// @version      2.2.6
 // @author       Zathman
 // @license      MIT
 // @homepageURL  https://github.com/Katorthoma/star-fury-scripts
@@ -20,10 +20,10 @@
 
 (() => {
 'use strict';
-/* StarFury UX Suite 2.0.1 | Shared runtime. No globals are published by the bundle. */
+/* StarFury UX Suite 2.2.6 | Shared runtime. No globals are published by the bundle. */
 function createSFUX() {
     'use strict';
-    const SFUX = { version: '2.0.1', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
+    const SFUX = { version: '2.2.6', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
     // UI ASSUMPTION: dense building columns and nine navigation items need earlier stacking.
     SFUX.responsive = Object.freeze({ mobile: 640, navigation: 768, buildings: 800, phone: 430, narrowHeader: 460, tinyHud: 360 });
     SFUX.page = new URL(window.location.href);
@@ -66,6 +66,95 @@ function createSFUX() {
     SFUX.format.clamp = (value, min = 0, max = Infinity, round = Math.round) => {
         const parsed = Number(value);
         return Math.min(max, Math.max(min, Number.isFinite(parsed) ? round(parsed) : min));
+    };
+
+    /*
+     * Shared Star Dock operational-status palette.
+     * Keep this as the single source of truth for the header mini-dock,
+     * fleet-card badges, state rails, and View Ship status treatment.
+     */
+    SFUX.ui.dockStatusVisuals = statusLabel => {
+        const key = String(statusLabel || '').toLowerCase();
+
+        if (key.includes('return')) {
+            return {
+                key: 'returning',
+                color: '#ff3b52',
+                background: 'rgba(185,24,45,0.94)',
+                border: 'rgba(255,116,132,0.96)',
+                glow: 'rgba(255,59,82,0.48)'
+            };
+        }
+
+        if (key.includes('build')) {
+            return {
+                key: 'building',
+                color: '#ff981f',
+                background: 'rgba(174,88,7,0.95)',
+                border: 'rgba(255,179,79,0.96)',
+                glow: 'rgba(255,152,31,0.46)'
+            };
+        }
+
+        if (key.includes('upgrad')) {
+            return {
+                key: 'upgrading',
+                color: '#2d9cff',
+                background: 'rgba(17,91,160,0.95)',
+                border: 'rgba(112,190,255,0.96)',
+                glow: 'rgba(45,156,255,0.48)'
+            };
+        }
+
+        if (key.includes('disable')) {
+            return {
+                key: 'disabled',
+                color: '#eef1f5',
+                background: 'rgba(72,78,86,0.96)',
+                border: 'rgba(174,182,192,0.96)',
+                glow: 'rgba(185,193,203,0.30)'
+            };
+        }
+
+        if (key.includes('explor')) {
+            return {
+                key: 'exploring',
+                color: '#dfffe5',
+                background: 'rgba(27,118,54,0.95)',
+                border: 'rgba(113,226,137,0.96)',
+                glow: 'rgba(73,211,104,0.42)'
+            };
+        }
+
+        if (key.includes('repair')) {
+            return {
+                key: 'repairing',
+                color: '#f2cf62',
+                background: 'rgba(132,104,25,0.95)',
+                border: 'rgba(255,224,121,0.96)',
+                glow: 'rgba(242,207,98,0.42)'
+            };
+        }
+
+        if (key.includes('defend')) {
+            // Defending is nominal. Keep it aligned with the header's defence
+            // role blue while deliberately quieter than exceptional statuses.
+            return {
+                key: 'defending',
+                color: '#8dbfe5',
+                background: 'rgba(24,62,91,0.72)',
+                border: 'rgba(69,137,190,0.72)',
+                glow: 'rgba(35,139,214,0.18)'
+            };
+        }
+
+        return {
+            key: 'neutral',
+            color: '#f4f6f8',
+            background: 'rgba(48,52,57,0.95)',
+            border: 'rgba(232,236,240,0.90)',
+            glow: 'rgba(244,246,248,0.28)'
+        };
     };
     SFUX.storage.get = (key, fallback) => {
         try { return typeof GM_getValue === 'function' ? GM_getValue(key, fallback) : fallback; }
@@ -384,7 +473,7 @@ html body input.sfux-number:disabled { color: var(--sfux-text-disabled); }
     return SFUX;
 }
 
-/* StarFury UX Suite 2.0.1 | Global UX module. */
+/* StarFury UX Suite 2.2.6 | Global UX module. */
 function registerGlobalUX(SFUX) {
     SFUX.register({
         id: 'global', phase: 'early',
@@ -511,6 +600,8 @@ function registerGlobalUX(SFUX) {
             const NAV_CLASS = 'sfgu-nav';
             const STAT_HUD_CLASS = 'sfgu-stat-hud';
             const CONTEXT_ROW_CLASS = 'sfgu-context-row';
+            const CONTEXT_PREP_CLASS = 'sfgu-context-preparing';
+            const CONTEXT_COLLAPSED_KEY = 'sfgu-context-collapsed';
             const STARFIELD_FALLBACK_CLASS = 'sfgu-starfield-fallback';
             const DOCK_TOOLTIP_ID = 'sfgu-dock-tooltip';
             const DOCK_CLICKABLE_CLASS = 'sfgu-dock-ship-clickable';
@@ -1168,6 +1259,18 @@ function registerGlobalUX(SFUX) {
                        ADVISOR + STAR DOCK CONTEXT ROW
                        ================================================================ */
 
+                    /*
+                     * document-start anti-flash shell.
+                     *
+                     * The native Advisor/Star Dock remains in layout (visibility rather
+                     * than display) while Global UX replaces it. This prevents the native
+                     * minimap from visibly flashing before the compact dock is applied.
+                     */
+                    html.${CONTEXT_PREP_CLASS}
+                        #advisor-dock:not(.${CONTEXT_ROW_CLASS}) {
+                        visibility: hidden !important;
+                    }
+
                     #advisor-dock.${CONTEXT_ROW_CLASS} {
                         box-sizing: border-box !important;
                         width: 100% !important;
@@ -1221,13 +1324,15 @@ function registerGlobalUX(SFUX) {
                         align-items: center !important;
                         justify-content: center !important;
                         min-width: 0 !important;
+                        height: 28px !important;
                         min-height: 28px !important;
-                        padding: 3px 10px !important;
+                        padding: 0 10px !important;
                         color: var(--sfux-text-primary) !important;
                         font-size: 14px !important;
                         font-weight: 700 !important;
-                        line-height: 1.1 !important;
+                        line-height: 1 !important;
                         text-align: center !important;
+                        transform: translateY(-1px) !important;
                     }
 
                     #advisor-dock.${CONTEXT_ROW_CLASS}
@@ -1335,18 +1440,56 @@ function registerGlobalUX(SFUX) {
                     }
 
                     #advisor-dock.${CONTEXT_ROW_CLASS} .advice {
+                        box-sizing: border-box !important;
+                        min-width: 0 !important;
                         max-width: 62ch !important;
-                        padding-top: 10px !important;
-                        padding-bottom: 10px !important;
+                        padding-top: 9px !important;
+                        padding-bottom: 9px !important;
                         color: rgba(255,255,255,0.94) !important;
-                        font-size: 14px !important;
-                        line-height: 1.42 !important;
+                        font-size: 13px !important;
+                        line-height: 1.34 !important;
+                        white-space: normal !important;
+                        overflow-wrap: break-word !important;
+                        word-break: normal !important;
+                        hyphens: auto !important;
+                        text-wrap: pretty !important;
                     }
 
                     #advisor-dock.${CONTEXT_ROW_CLASS} .advice p {
                         margin-top: 0 !important;
-                        margin-bottom: 5px !important;
+                        margin-bottom: 4px !important;
                         line-height: inherit !important;
+                    }
+
+                    #advisor-dock.${CONTEXT_ROW_CLASS}
+                        .advice.sfgu-advisor-copy-dense {
+                        padding-top: 7px !important;
+                        padding-bottom: 7px !important;
+                        font-size: 12px !important;
+                        line-height: 1.28 !important;
+                    }
+
+                    #advisor-dock.${CONTEXT_ROW_CLASS}
+                        .advice.sfgu-advisor-copy-dense p {
+                        margin-bottom: 3px !important;
+                    }
+
+                    #advisor-dock.${CONTEXT_ROW_CLASS}
+                        .advice.sfgu-advisor-copy-tight {
+                        padding-top: 6px !important;
+                        padding-bottom: 6px !important;
+                        font-size: 11.5px !important;
+                        line-height: 1.24 !important;
+                    }
+
+                    #advisor-dock.${CONTEXT_ROW_CLASS}
+                        .advice.sfgu-advisor-copy-scroll {
+                        max-height: 100% !important;
+                        overflow-y: auto !important;
+                        scrollbar-width: thin !important;
+                        scrollbar-color:
+                            rgba(255,255,255,0.22)
+                            rgba(255,255,255,0.035) !important;
                     }
 
                     #advisor-dock.${CONTEXT_ROW_CLASS} .advice .bold {
@@ -1868,13 +2011,15 @@ function registerGlobalUX(SFUX) {
                             align-items: center !important;
                             justify-content: center !important;
                             width: 100% !important;
+                            height: 28px !important;
                             min-height: 28px !important;
-                            padding: 3px 34px 3px 10px !important;
+                            padding: 0 34px 0 10px !important;
                             color: var(--sfux-text-primary) !important;
                             font-size: 14px !important;
                             font-weight: 700 !important;
-                            line-height: 1.1 !important;
+                            line-height: 1 !important;
                             text-align: center !important;
+                            transform: translateY(-1px) !important;
                         }
 
                         #advisor-dock.${CONTEXT_ROW_CLASS} > .advisor-container,
@@ -2568,68 +2713,7 @@ function registerGlobalUX(SFUX) {
             }
 
             function getDockStatusVisuals(statusLabel) {
-                const key = String(statusLabel || '').toLowerCase();
-
-                if (key.includes('return')) {
-                    return {
-                        color: '#ff3b52',
-                        background: 'rgba(185,24,45,0.94)',
-                        border: 'rgba(255,116,132,0.96)',
-                        glow: 'rgba(255,59,82,0.48)'
-                    };
-                }
-
-                if (key.includes('build')) {
-                    return {
-                        color: '#ff981f',
-                        background: 'rgba(174,88,7,0.95)',
-                        border: 'rgba(255,179,79,0.96)',
-                        glow: 'rgba(255,152,31,0.46)'
-                    };
-                }
-
-                if (key.includes('upgrad')) {
-                    return {
-                        color: '#2d9cff',
-                        background: 'rgba(17,91,160,0.95)',
-                        border: 'rgba(112,190,255,0.96)',
-                        glow: 'rgba(45,156,255,0.48)'
-                    };
-                }
-
-                if (key.includes('disable')) {
-                    return {
-                        color: '#eef1f5',
-                        background: 'rgba(72,78,86,0.96)',
-                        border: 'rgba(174,182,192,0.96)',
-                        glow: 'rgba(185,193,203,0.30)'
-                    };
-                }
-
-                if (key.includes('explor')) {
-                    return {
-                        color: '#dfffe5',
-                        background: 'rgba(27,118,54,0.95)',
-                        border: 'rgba(113,226,137,0.96)',
-                        glow: 'rgba(73,211,104,0.42)'
-                    };
-                }
-
-                if (key.includes('repair')) {
-                    return {
-                        color: '#f2cf62',
-                        background: 'rgba(132,104,25,0.95)',
-                        border: 'rgba(255,224,121,0.96)',
-                        glow: 'rgba(242,207,98,0.42)'
-                    };
-                }
-
-                return {
-                    color: '#f4f6f8',
-                    background: 'rgba(48,52,57,0.95)',
-                    border: 'rgba(232,236,240,0.90)',
-                    glow: 'rgba(244,246,248,0.28)'
-                };
+                return SFUX.ui.dockStatusVisuals(statusLabel);
             }
 
             function renderDockStatusCountdown(avatar, scale = 1) {
@@ -3228,6 +3312,54 @@ function registerGlobalUX(SFUX) {
             }
 
 
+            function fitAdvisorCopy(contextRow) {
+                const content = contextRow?.querySelector(
+                    '.advisor-container #advisor-content'
+                );
+                const advice = content?.querySelector('.advice');
+
+                if (!content || !advice) return;
+
+                advice.classList.remove(
+                    'sfgu-advisor-copy-dense',
+                    'sfgu-advisor-copy-tight',
+                    'sfgu-advisor-copy-scroll'
+                );
+
+                /*
+                 * Mobile owns an auto-height layout, so density fitting is unnecessary
+                 * there. The fixed-height desktop context row is where clipping matters.
+                 */
+                if (window.innerWidth <= BREAKPOINT) return;
+
+                const availableHeight = content.getBoundingClientRect().height;
+                if (!Number.isFinite(availableHeight) || availableHeight <= 0) {
+                    return;
+                }
+
+                const overflows = () =>
+                    advice.getBoundingClientRect().height >
+                    availableHeight + 0.5;
+
+                if (overflows()) {
+                    advice.classList.add('sfgu-advisor-copy-dense');
+                }
+
+                if (overflows()) {
+                    advice.classList.add('sfgu-advisor-copy-tight');
+                }
+
+                /*
+                 * Extremely verbose native Advisor copy should remain readable rather
+                 * than being silently clipped. This is a last-resort fallback after
+                 * reflow and two modest typography reductions.
+                 */
+                if (overflows()) {
+                    advice.classList.add('sfgu-advisor-copy-scroll');
+                }
+            }
+
+
             function captureNativeContextHeight(contextRow) {
                 if (!contextRow) return;
 
@@ -3288,6 +3420,14 @@ function registerGlobalUX(SFUX) {
             function initializeUnifiedContextHeader(contextRow) {
                 if (!contextRow) return;
 
+                const savedCollapsed =
+                    SFUX.storage.localGet(CONTEXT_COLLAPSED_KEY, '0') === '1';
+
+                contextRow.classList.toggle(
+                    'sfgu-context-collapsed',
+                    savedCollapsed
+                );
+
                 let header = contextRow.querySelector(':scope > .sfgu-context-header');
 
                 if (!header) {
@@ -3328,6 +3468,11 @@ function registerGlobalUX(SFUX) {
                             'sfgu-context-collapsed'
                         );
 
+                        SFUX.storage.localSet(
+                            CONTEXT_COLLAPSED_KEY,
+                            collapsed ? '1' : '0'
+                        );
+
                         toggle.setAttribute(
                             'aria-expanded',
                             collapsed ? 'false' : 'true'
@@ -3352,8 +3497,9 @@ function registerGlobalUX(SFUX) {
                 }
 
                 /*
-                 * The new group control is authoritative. Remove any stale collapsed
-                 * class left by partial script reloads and ensure its ARIA state agrees.
+                 * The unified control is authoritative. Persisted state is applied on
+                 * every page, and ARIA/icon state is synchronized before the row is
+                 * revealed by the document-start anti-flash shell.
                  */
                 const toggle = header.querySelector('.sfgu-context-toggle');
                 const collapsed = contextRow.classList.contains(
@@ -3365,6 +3511,18 @@ function registerGlobalUX(SFUX) {
                         'aria-expanded',
                         collapsed ? 'false' : 'true'
                     );
+                    toggle.setAttribute(
+                        'aria-label',
+                        collapsed
+                            ? 'Expand Advisor and Star Dock'
+                            : 'Collapse Advisor and Star Dock'
+                    );
+
+                    const icon = toggle.querySelector('.fa');
+                    if (icon) {
+                        icon.classList.toggle('fa-compress', !collapsed);
+                        icon.classList.toggle('fa-expand', collapsed);
+                    }
                 }
             }
 
@@ -3395,6 +3553,10 @@ function registerGlobalUX(SFUX) {
                     layoutMinimapShips(contextRow);
                     improveMinimapAccessibility(contextRow);
                     initializeDockShipInteractions(contextRow);
+                    fitAdvisorCopy(contextRow);
+                    document.documentElement?.classList.remove(
+                        CONTEXT_PREP_CLASS
+                    );
                     return true;
                 }
 
@@ -3422,6 +3584,16 @@ function registerGlobalUX(SFUX) {
                 layoutMinimapShips(contextRow);
                 improveMinimapAccessibility(contextRow);
                 initializeDockShipInteractions(contextRow);
+                fitAdvisorCopy(contextRow);
+
+                /*
+                 * Reveal only after native Advisor/Dock markup has been transformed.
+                 * visibility kept its original layout footprint during initialization,
+                 * so this removes the native-to-custom flash without a layout jump.
+                 */
+                document.documentElement?.classList.remove(
+                    CONTEXT_PREP_CLASS
+                );
 
                 /*
                  * The minimap contents can be rebuilt by native page logic. Watch only
@@ -3460,6 +3632,7 @@ function registerGlobalUX(SFUX) {
                     ensureDockStarfield(contextRow);
                     layoutMinimapShips(contextRow);
                     initializeDockShipInteractions(contextRow);
+                    fitAdvisorCopy(contextRow);
                 }, { once: true });
 
                 /*
@@ -3470,7 +3643,10 @@ function registerGlobalUX(SFUX) {
                 ctx.on(window, 'scroll', hideDockTooltip, {
                     passive: true
                 });
-                ctx.on(window, 'resize', hideDockTooltip, {
+                ctx.on(window, 'resize', () => {
+                    hideDockTooltip();
+                    fitAdvisorCopy(contextRow);
+                }, {
                     passive: true
                 });
 
@@ -3831,12 +4007,27 @@ function registerGlobalUX(SFUX) {
              * integration should prefer explicit lifecycle hooks when available.
              * --------------------------------------------------------------------- */
             function start() {
+                /*
+                 * Styles and the anti-flash marker are installed at document-start,
+                 * before StarFury paints the native Advisor/Star Dock on normal loads.
+                 */
+                injectStyles();
+                document.documentElement?.classList.add(CONTEXT_PREP_CLASS);
+
+                // Safety valve: never leave the native context invisible if a page is
+                // unusually slow, omits the expected markup, or another script fails.
+                ctx.timeout(() => {
+                    document.documentElement?.classList.remove(
+                        CONTEXT_PREP_CLASS
+                    );
+                }, 2200);
+
                 ctx.find('#cssmenu', prepareEarlyNavigationShell);
                 ctx.ready(() => ctx.timeout(() => {
                     ctx.find('#cssmenu', initializeNavigation);
                     ctx.find('#statbar', initializeStatHud);
                     ctx.find('#advisor-dock', initializeContextRow);
-                }, 60));
+                }, 20));
             }
 
             return { init() { return start(); }, destroy: ctx.destroy };
@@ -3844,7 +4035,7 @@ function registerGlobalUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.0.1 | Research Optimizer module. */
+/* StarFury UX Suite 2.2.6 | Research Optimizer module. */
 function registerResearchOptimizer(SFUX) {
     SFUX.register({
         id: 'research', phase: 'ready',
@@ -6555,7 +6746,7 @@ function registerResearchOptimizer(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.0.1 | Buildings UX module. */
+/* StarFury UX Suite 2.2.6 | Buildings UX module. */
 function registerBuildingsUX(SFUX) {
     SFUX.register({
         id: 'buildings', phase: 'ready',
@@ -9684,7 +9875,7 @@ function registerBuildingsUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.0.1 | Ship Power Routing module. */
+/* StarFury UX Suite 2.2.6 | Ship Power Routing module. */
 function registerShipPowerRouting(SFUX) {
     SFUX.register({
         id: 'ship', phase: 'ready',
@@ -10090,6 +10281,10 @@ function registerShipPowerRouting(SFUX) {
                         --route-color: var(--sfux-sensor-rgb);
                     }
 
+                    .sfux-leecher-preset-main {
+                        grid-template-columns: minmax(0, 1fr) 116px !important;
+                    }
+
                     .sfux-power-route-main {
                         display: grid;
                         grid-template-columns: minmax(0, 1fr) 116px 34px;
@@ -10295,10 +10490,19 @@ function registerShipPowerRouting(SFUX) {
 
                     .sfux-power-engine-number-wrap {
                         display: grid;
-                        grid-template-columns: 1fr auto;
+                        grid-template-columns: minmax(0, 1fr) auto;
                         align-items: center;
-                        gap: 2px;
+                        gap: 3px;
                         min-width: 0;
+                    }
+
+                    .sfux-power-engine-number-wrap .sfux-number-stepper {
+                        width: 58px;
+                        max-width: 58px;
+                    }
+
+                    .sfux-power-engine-number-wrap .sfux-number-controls {
+                        width: 17px;
                     }
 
                     .sfux-power-engine-input {
@@ -10362,20 +10566,6 @@ function registerShipPowerRouting(SFUX) {
                     .sfux-leecher-router {
                         margin-top: 8px;
                         font-variant-numeric: tabular-nums;
-                    }
-
-                    .sfux-leecher-preset .sfux-power-route-main {
-                        grid-template-columns: minmax(0, 1fr) 116px;
-                    }
-
-                    .sfux-leecher-preset .sfux-power-route-name {
-                        color: rgba(var(--sfux-weapon-rgb), .98);
-                    }
-
-                    @media (max-width: ${SFUX.responsive.phone}px) {
-                        .sfux-leecher-preset .sfux-power-route-main {
-                            grid-template-columns: minmax(0, 1fr) 108px;
-                        }
                     }
 
                     .sfux-leecher-rule {
@@ -10852,34 +11042,21 @@ function registerShipPowerRouting(SFUX) {
                         left: 8px;
                         max-width: calc(100% - 16px);
                         padding: 4px 8px;
-                        border: 1px solid rgba(255,255,255,.12);
+                        border: 1px solid var(--sfux-status-border, rgba(255,255,255,.12));
                         border-radius: var(--sfux-radius-xs);
-                        background: rgba(18,18,18,.82);
-                        color: rgba(255,255,255,.86);
+                        background: var(--sfux-status-bg, rgba(18,18,18,.82));
+                        color: var(--sfux-status-color, rgba(255,255,255,.86));
                         font-size: var(--sfux-type-md);
                         font-weight: 700;
                         line-height: 1.2;
                         letter-spacing: .035em;
                         text-transform: uppercase;
                         white-space: nowrap;
-                    }
-
-                    .sfux-ship-status--upgrading {
-                        border-color: rgba(var(--sfux-sensor-rgb), .48);
-                        background: rgba(var(--sfux-sensor-rgb), .12);
-                        color: rgba(103,190,249,.98);
-                    }
-
-                    .sfux-ship-status--returning {
-                        border-color: rgba(var(--sfux-weapon-rgb), .45);
-                        background: rgba(var(--sfux-weapon-rgb), .10);
-                        color: rgba(238,113,104,.96);
+                        box-shadow: none;
                     }
 
                     .sfux-ship-status--defending {
-                        border-color: rgba(var(--sfux-defence), .45);
-                        background: rgba(var(--sfux-defence), .11);
-                        color: rgba(91,153,255,.96);
+                        opacity: .88;
                     }
 
                     .sfux-ship-profile {
@@ -11817,6 +11994,11 @@ function registerShipPowerRouting(SFUX) {
                         margin-top: 8px;
                     }
 
+                    .sfux-cadet-inline-form > .sfux-number-stepper {
+                        width: 100%;
+                        max-width: none;
+                    }
+
                     .sfux-cadet-inline-form .inputBox,
                     .sfux-cadet-inline-form .button-primary {
                         width: 100% !important;
@@ -11828,12 +12010,6 @@ function registerShipPowerRouting(SFUX) {
                     .sfux-cadet-inline-form .inputBox {
                         text-align: center;
                         font-variant-numeric: tabular-nums;
-                    }
-
-                    .sfux-cadet-inline-form .sfux-number-stepper {
-                        width: 100%;
-                        max-width: none;
-                        margin: 0;
                     }
 
                     .sfux-cadet-inline-form .button-primary {
@@ -11913,12 +12089,20 @@ function registerShipPowerRouting(SFUX) {
                         .sfux-power-route-main {
                             grid-template-columns: minmax(0, 1fr) 116px 34px;
                         }
+
+                        .sfux-leecher-preset-main {
+                            grid-template-columns: minmax(0, 1fr) 116px !important;
+                        }
                     }
 
                     @media (max-width: ${SFUX.responsive.phone}px) {
                         .sfux-power-route-main {
                             grid-template-columns: minmax(0, 1fr) 108px 32px;
                             gap: 5px;
+                        }
+
+                        .sfux-leecher-preset-main {
+                            grid-template-columns: minmax(0, 1fr) 108px !important;
                         }
 
                         .sfux-power-action {
@@ -12107,10 +12291,18 @@ function registerShipPowerRouting(SFUX) {
                         align-items: center;
                         gap: 4px;
                         margin-left: auto;
-                        color: rgba(110,215,130,.9);
+                        color: rgba(255,255,255,.58);
                         font-size: var(--sfux-type-md);
                         font-weight: 700;
                         text-transform: uppercase;
+                    }
+
+                    .sfux-dock-category-comms--online {
+                        color: rgba(var(--sfux-success-rgb), .94);
+                    }
+
+                    .sfux-dock-category-comms--offline {
+                        color: rgba(var(--sfux-danger-rgb), .96);
                     }
 
                     .sfux-dock-category-comms::before {
@@ -12120,6 +12312,419 @@ function registerShipPowerRouting(SFUX) {
                         border-radius: 50%;
                         background: currentColor;
                         box-shadow: 0 0 6px currentColor;
+                    }
+
+                    /*
+                     * CIC rule: nominal is quiet. ONLINE stays crisp; OFFLINE
+                     * retains the stronger alarm treatment.
+                     */
+                    .sfux-dock-category-comms--online::before {
+                        box-shadow: none;
+                    }
+
+                    .sfux-dock-category-attention {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 4px;
+                        min-height: 21px;
+                        padding: 2px 7px;
+                        border: 1px solid rgba(var(--sfux-warning-rgb), .36);
+                        background: rgba(var(--sfux-warning-rgb), .08);
+                        color: rgba(255,220,140,.96);
+                        line-height: 1;
+                        font-variant-numeric: tabular-nums;
+                        white-space: nowrap;
+                    }
+
+                    .sfux-dock-category-attention-icon {
+                        font-size: 9px;
+                        font-weight: 700;
+                        line-height: 1;
+                        opacity: .82;
+                    }
+
+                    .sfux-dock-category-attention-count {
+                        font-size: 12px;
+                        font-weight: 900;
+                        line-height: 1;
+                    }
+
+                    .sfux-dock-category-attention--critical {
+                        border-color: rgba(var(--sfux-danger-rgb), .46);
+                        background: rgba(var(--sfux-danger-rgb), .09);
+                        color: rgba(255,190,176,.99);
+                    }
+
+                    /* ---------------------------------------------------------
+                     * Per-dock bulk operations
+                     * ---------------------------------------------------------
+                     * Bulk actions are deliberately quiet until invoked. The menu
+                     * only exposes actions for which StarFury supplied native,
+                     * enabled confirmation controls on the current page.
+                     */
+                    .sfux-dock-bulk {
+                        position: relative;
+                        display: inline-flex;
+                        flex: 0 0 auto;
+                        align-items: center;
+                        align-self: center;
+                        margin: 0 0 0 2px;
+                        padding: 0;
+                        line-height: 1;
+                    }
+
+                    /*
+                     * Standard dock-header command area:
+                     * [ ... section info ... ] [ Dock Options ▾ ] [ ● ONLINE ]
+                     *
+                     * When options exist, they own the auto margin so the whole
+                     * command/status pair stays pinned to the right while ONLINE
+                     * remains the right-most item. Sections without options keep
+                     * the normal ONLINE/OFFLINE auto alignment.
+                     */
+                    .sfux-dock-category-head--has-options .sfux-dock-bulk {
+                        margin-left: auto;
+                    }
+
+                    .sfux-dock-category-head--has-options
+                    .sfux-dock-category-comms {
+                        margin-left: 0;
+                        align-self: center;
+                    }
+
+                    .sfux-dock-bulk-button {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        box-sizing: border-box;
+                        position: static !important;
+                        height: 20px;
+                        min-height: 0;
+                        margin: 0 !important;
+                        padding: 0 7px;
+                        border: 1px solid rgba(255,255,255,.13);
+                        background: rgba(255,255,255,.035);
+                        color: rgba(255,255,255,.68);
+                        font: inherit;
+                        font-size: 9px;
+                        font-weight: 800;
+                        line-height: 1;
+                        letter-spacing: .02em;
+                        text-transform: uppercase;
+                        white-space: nowrap;
+                        cursor: pointer;
+                    }
+
+                    .sfux-dock-bulk-button:hover,
+                    .sfux-dock-bulk-button:focus {
+                        outline: none;
+                        border-color: rgba(var(--sfux-dock-role-rgb), .58);
+                        background: rgba(var(--sfux-dock-role-rgb), .09);
+                        color: #fff;
+                    }
+
+                    .sfux-dock-bulk-menu {
+                        position: absolute;
+                        z-index: 2000;
+                        top: calc(100% + 3px);
+                        right: 0;
+                        display: none;
+                        min-width: 168px;
+                        padding: 2px;
+                        border: 1px solid rgba(255,255,255,.13);
+                        background: #15181a;
+                        box-shadow: 0 8px 24px rgba(0,0,0,.46);
+                    }
+
+                    .sfux-dock-bulk.sfux-dock-bulk--open .sfux-dock-bulk-menu {
+                        display: block;
+                    }
+
+                    .sfux-dock-bulk-menu button {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        gap: 10px;
+                        width: 100%;
+                        min-height: 26px;
+                        margin: 0 !important;
+                        padding: 4px 7px;
+                        border: 0;
+                        background: transparent;
+                        color: rgba(255,255,255,.78);
+                        font: inherit;
+                        font-size: 10px;
+                        font-weight: 750;
+                        line-height: 1.15;
+                        text-align: left;
+                        cursor: pointer;
+                    }
+
+                    .sfux-dock-bulk-menu button:hover,
+                    .sfux-dock-bulk-menu button:focus {
+                        outline: none;
+                        background: rgba(var(--sfux-dock-role-rgb), .10);
+                        color: #fff;
+                    }
+
+                    .sfux-dock-bulk-menu-count {
+                        flex: 0 0 auto;
+                        min-width: 1ch;
+                        color: rgba(255,255,255,.46);
+                        font-variant-numeric: tabular-nums;
+                        text-align: right;
+                    }
+
+                    .sfux-dock-bulk-overlay {
+                        position: fixed;
+                        z-index: 100000;
+                        inset: 0;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 18px;
+                        background: rgba(0,0,0,.72);
+                        backdrop-filter: blur(2px);
+                    }
+
+                    .sfux-dock-bulk-dialog {
+                        width: min(620px, 100%);
+                        max-height: min(760px, calc(100vh - 36px));
+                        display: flex;
+                        flex-direction: column;
+                        overflow: hidden;
+                        border: 1px solid rgba(255,255,255,.15);
+                        background: #151719;
+                        box-shadow:
+                            0 18px 56px rgba(0,0,0,.65),
+                            inset 0 1px 0 rgba(255,255,255,.025);
+                    }
+
+                    .sfux-dock-bulk-dialog-head {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        padding: 12px 14px;
+                        border-bottom: 1px solid rgba(255,255,255,.09);
+                        background:
+                            linear-gradient(
+                                180deg,
+                                rgba(var(--sfux-dock-role-rgb, 80,170,220), .10),
+                                rgba(255,255,255,.02)
+                            );
+                    }
+
+                    .sfux-dock-bulk-dialog-title {
+                        min-width: 0;
+                        flex: 1 1 auto;
+                        color: #fff;
+                        font-size: 16px;
+                        font-weight: 800;
+                        line-height: 1.15;
+                    }
+
+                    .sfux-dock-bulk-dialog-close {
+                        flex: 0 0 auto;
+                        width: 28px;
+                        height: 28px;
+                        padding: 0;
+                        border: 1px solid rgba(255,255,255,.12);
+                        background: rgba(255,255,255,.025);
+                        color: rgba(255,255,255,.65);
+                        font: inherit;
+                        font-size: 18px;
+                        line-height: 1;
+                        cursor: pointer;
+                    }
+
+                    .sfux-dock-bulk-dialog-close:hover,
+                    .sfux-dock-bulk-dialog-close:focus {
+                        outline: none;
+                        border-color: rgba(255,255,255,.30);
+                        color: #fff;
+                    }
+
+                    .sfux-dock-bulk-dialog-body {
+                        min-height: 0;
+                        overflow: auto;
+                        padding: 12px 14px 8px;
+                    }
+
+                    .sfux-dock-bulk-note {
+                        margin: 0 0 10px;
+                        padding: 8px 9px;
+                        border-left: 2px solid rgba(var(--sfux-dock-role-rgb, 80,170,220), .62);
+                        background: rgba(255,255,255,.025);
+                        color: rgba(255,255,255,.62);
+                        font-size: 11px;
+                        line-height: 1.35;
+                    }
+
+                    .sfux-dock-bulk-list {
+                        display: grid;
+                        gap: 5px;
+                    }
+
+                    .sfux-dock-bulk-row {
+                        display: grid;
+                        grid-template-columns: 20px minmax(0, 1fr) auto;
+                        align-items: center;
+                        gap: 8px;
+                        min-height: 38px;
+                        padding: 6px 8px;
+                        border: 1px solid rgba(255,255,255,.07);
+                        background: rgba(255,255,255,.022);
+                    }
+
+                    .sfux-dock-bulk-row input[type="checkbox"] {
+                        width: 15px;
+                        height: 15px;
+                        margin: 0 !important;
+                    }
+
+                    .sfux-dock-bulk-row-name {
+                        min-width: 0;
+                        overflow: hidden;
+                        color: rgba(255,255,255,.86);
+                        font-size: 12px;
+                        font-weight: 750;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
+
+                    .sfux-dock-bulk-row-meta {
+                        color: rgba(255,255,255,.48);
+                        font-size: 10px;
+                        font-weight: 800;
+                        font-variant-numeric: tabular-nums;
+                        white-space: nowrap;
+                    }
+
+                    .sfux-dock-bulk-row-state {
+                        display: none;
+                        color: rgba(255,255,255,.52);
+                        font-size: 10px;
+                        font-weight: 800;
+                        white-space: nowrap;
+                    }
+
+                    .sfux-dock-bulk-row--running .sfux-dock-bulk-row-state,
+                    .sfux-dock-bulk-row--success .sfux-dock-bulk-row-state,
+                    .sfux-dock-bulk-row--failed .sfux-dock-bulk-row-state,
+                    .sfux-dock-bulk-row--skipped .sfux-dock-bulk-row-state {
+                        display: inline;
+                    }
+
+                    .sfux-dock-bulk-row--running {
+                        border-color: rgba(var(--sfux-warning-rgb), .36);
+                    }
+
+                    .sfux-dock-bulk-row--success {
+                        border-color: rgba(var(--sfux-success-rgb), .34);
+                    }
+
+                    .sfux-dock-bulk-row--success .sfux-dock-bulk-row-state {
+                        color: rgba(var(--sfux-success-rgb), .96);
+                    }
+
+                    .sfux-dock-bulk-row--failed {
+                        border-color: rgba(var(--sfux-danger-rgb), .48);
+                        background: rgba(var(--sfux-danger-rgb), .045);
+                    }
+
+                    .sfux-dock-bulk-row--failed .sfux-dock-bulk-row-state {
+                        color: rgba(255,184,170,.98);
+                    }
+
+                    .sfux-dock-bulk-dialog-foot {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 10px 14px 12px;
+                        border-top: 1px solid rgba(255,255,255,.09);
+                        background: rgba(0,0,0,.12);
+                    }
+
+                    .sfux-dock-bulk-summary {
+                        min-width: 0;
+                        flex: 1 1 auto;
+                        color: rgba(255,255,255,.55);
+                        font-size: 11px;
+                        font-weight: 700;
+                        font-variant-numeric: tabular-nums;
+                    }
+
+                    .sfux-dock-bulk-dialog-foot button {
+                        min-height: 30px;
+                        padding: 5px 10px;
+                        border: 1px solid rgba(255,255,255,.14);
+                        background: rgba(255,255,255,.04);
+                        color: rgba(255,255,255,.74);
+                        font: inherit;
+                        font-size: 11px;
+                        font-weight: 800;
+                        letter-spacing: .025em;
+                        text-transform: uppercase;
+                        cursor: pointer;
+                    }
+
+                    .sfux-dock-bulk-dialog-foot button:hover,
+                    .sfux-dock-bulk-dialog-foot button:focus {
+                        outline: none;
+                        border-color: rgba(255,255,255,.30);
+                        color: #fff;
+                    }
+
+                    .sfux-dock-bulk-dialog-foot button:disabled {
+                        cursor: default;
+                        opacity: .42;
+                    }
+
+                    .sfux-dock-bulk-confirm--repair {
+                        border-color: rgba(var(--sfux-warning-rgb), .52) !important;
+                        background: rgba(var(--sfux-warning-rgb), .12) !important;
+                        color: rgba(255,225,148,.98) !important;
+                    }
+
+                    .sfux-dock-bulk-confirm--disable {
+                        border-color: rgba(var(--sfux-danger-rgb), .54) !important;
+                        background: rgba(var(--sfux-danger-rgb), .12) !important;
+                        color: rgba(255,190,176,.99) !important;
+                    }
+
+                    .sfux-dock-bulk-confirm--enable {
+                        border-color: rgba(var(--sfux-success-rgb), .46) !important;
+                        background: rgba(var(--sfux-success-rgb), .09) !important;
+                        color: rgba(170,238,180,.98) !important;
+                    }
+
+                    @media (max-width: 720px) {
+                        .sfux-dock-bulk-dialog {
+                            max-height: calc(100vh - 16px);
+                        }
+
+                        .sfux-dock-bulk-overlay {
+                            padding: 8px;
+                        }
+
+                        .sfux-dock-bulk-row {
+                            grid-template-columns: 20px minmax(0, 1fr);
+                        }
+
+                        .sfux-dock-bulk-row-meta,
+                        .sfux-dock-bulk-row-state {
+                            grid-column: 2;
+                            justify-self: start;
+                        }
+
+                        .sfux-dock-bulk-dialog-foot {
+                            flex-wrap: wrap;
+                        }
+
+                        .sfux-dock-bulk-summary {
+                            flex-basis: 100%;
+                        }
                     }
 
                     .sfux-counter-emp-control {
@@ -12284,33 +12889,23 @@ function registerShipPowerRouting(SFUX) {
                         justify-content: center;
                         min-height: 19px;
                         padding: 2px 6px;
-                        border: 1px solid rgba(255,255,255,.1);
-                        background: rgba(255,255,255,.035);
-                        color: rgba(255,255,255,.68);
+                        border: 1px solid var(--sfux-status-border, rgba(255,255,255,.1));
+                        background: var(--sfux-status-bg, rgba(255,255,255,.035));
+                        color: var(--sfux-status-color, rgba(255,255,255,.68));
                         font-size: var(--sfux-type-sm);
                         font-weight: 700;
                         line-height: 1;
                         text-transform: uppercase;
+                        box-shadow: none;
                     }
 
+                    /*
+                     * All operational status badges now inherit the exact same
+                     * palette as the header mini-dock. Defending intentionally
+                     * remains the quietest nominal badge.
+                     */
                     .sfux-dock-status--defending {
-                        border-color: rgba(90,205,105,.38);
-                        color: rgba(110,225,125,.95);
-                    }
-
-                    .sfux-dock-status--returning {
-                        border-color: rgba(var(--sfux-engine-rgb), .42);
-                        color: rgba(var(--sfux-engine-rgb), .96);
-                    }
-
-                    .sfux-dock-status--upgrading {
-                        border-color: rgba(var(--sfux-sensor-rgb), .5);
-                        color: rgba(70,175,240,.98);
-                    }
-
-                    .sfux-dock-status--exploring {
-                        border-color: rgba(120,180,240,.4);
-                        color: rgba(130,195,250,.95);
+                        opacity: .88;
                     }
 
                     .sfux-dock-engine {
@@ -12359,7 +12954,12 @@ function registerShipPowerRouting(SFUX) {
 
                     .sfux-dock-power .sfux-power-full {
                         font-weight: 800;
-                        text-shadow: 0 0 4px currentColor;
+                        text-shadow: none;
+                    }
+
+                    .sfux-dock-card .sfux-dock-power span {
+                        text-shadow: none !important;
+                        filter: none !important;
                     }
 
                     .sfux-dock-vitals {
@@ -12655,6 +13255,24 @@ function registerShipPowerRouting(SFUX) {
                             font-size: var(--sfux-type-xs);
                         }
 
+                        .sfux-dock-category-head--has-options .sfux-dock-bulk {
+                            margin-left: auto;
+                        }
+
+                        .sfux-dock-category-head--has-options
+                        .sfux-dock-category-comms {
+                            margin-left: 0;
+                        }
+
+                        .sfux-dock-bulk-button {
+                            height: 20px;
+                            min-height: 0;
+                            margin: 0 !important;
+                            padding-inline: 6px;
+                            font-size: 9px;
+                            line-height: 1;
+                        }
+
                         table.stardocktable.sfux-dock-table tr.sfux-dock-row {
                             grid-template-columns: 54px minmax(0,1fr) 88px;
                         }
@@ -12669,6 +13287,785 @@ function registerShipPowerRouting(SFUX) {
                             padding: 0 17px 0 8px !important;
                             font-size: var(--sfux-type-xs);
                         }
+                    }
+
+                    /* =============================================================
+                       Star Dock compact fleet cards
+                       ============================================================= */
+                    table.stardocktable.sfux-dock-table {
+                        display: block !important;
+                        width: 100% !important;
+                        border: 0 !important;
+                        border-spacing: 0 !important;
+                        background: transparent !important;
+                    }
+                    table.stardocktable.sfux-dock-table > tbody {
+                        display: grid !important;
+                        grid-template-columns: repeat(3, minmax(0, 1fr));
+                        gap: 7px;
+                        width: 100%;
+                    }
+                    table.stardocktable.sfux-dock-table tr.sfux-dock-card-row {
+                        position: relative;
+                        display: block !important;
+                        min-width: 0;
+                        margin: 0 !important;
+
+                        /*
+                         * Raised CIC equipment-panel surface.
+                         * The dock remains the darker workspace; each ship card
+                         * sits one luminance step above it so the fleet grid reads
+                         * as discrete operational objects without looking glossy.
+                         */
+                        border: 1px solid rgba(255,255,255,.085);
+                        border-top-color: rgba(var(--sfux-dock-role-rgb), .30);
+                        background:
+                            linear-gradient(
+                                180deg,
+                                #1d2022 0%,
+                                #1b1e20 48%,
+                                #191c1e 100%
+                            ) !important;
+                        box-shadow:
+                            inset 0 1px 0 rgba(255,255,255,.025),
+                            0 1px 2px rgba(0,0,0,.18);
+                        transition:
+                            border-color .12s ease,
+                            box-shadow .12s ease,
+                            filter .12s ease;
+                    }
+                    table.stardocktable.sfux-dock-table tr.sfux-dock-card-row:hover,
+                    table.stardocktable.sfux-dock-table tr.sfux-dock-card-row:focus-within {
+                        border-color: rgba(var(--sfux-dock-role-rgb), .50);
+                        box-shadow:
+                            inset 0 1px 0 rgba(255,255,255,.035),
+                            inset 0 0 0 999px rgba(var(--sfux-dock-role-rgb), .018),
+                            0 2px 5px rgba(0,0,0,.24);
+                        filter: brightness(1.055);
+                    }
+
+                    /*
+                     * Operational state rail.
+                     * The card surface itself stays neutral. Only meaningful,
+                     * non-normal activity gets a narrow fixed-position cue.
+                     */
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row::before {
+                        content: "";
+                        position: absolute;
+                        z-index: 6;
+                        top: -1px;
+                        bottom: -1px;
+                        left: -1px;
+                        width: 3px;
+                        background: transparent;
+                        pointer-events: none;
+                    }
+
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--status-returning::before {
+                        background: #ff3b52;
+                    }
+
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--status-exploring::before {
+                        background: #49d368;
+                    }
+
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--status-building::before {
+                        background: #ff981f;
+                    }
+
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--status-upgrading::before {
+                        background: #2d9cff;
+                    }
+
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--repairing::before {
+                        background: #f2cf62;
+                    }
+
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--status-disabled::before {
+                        background: #9fa7b0;
+                    }
+
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--terminal::before {
+                        background: rgba(var(--sfux-danger-rgb), .92);
+                    }
+                    table.stardocktable.sfux-dock-table tr.sfux-dock-card-row > td {
+                        border: 0 !important;
+                        background: transparent !important;
+                    }
+                    table.stardocktable.sfux-dock-table tr.sfux-dock-card-row > td.sfux-dock-source-cell {
+                        display: none !important;
+                    }
+                    table.stardocktable.sfux-dock-table tr.sfux-dock-card-row > td.sfux-dock-card-cell {
+                        display: block !important;
+                        width: auto !important;
+                        min-width: 0 !important;
+                        padding: 0 !important;
+                    }
+                    .sfux-dock-card {
+                        display: grid;
+                        grid-template-rows: auto 76px auto auto auto;
+                        gap: 6px;
+                        min-height: 188px;
+                        padding: 8px;
+                        box-sizing: border-box;
+                    }
+                    .sfux-dock-card-head {
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        min-width: 0;
+                        min-height: 28px;
+                    }
+                    .sfux-dock-card-head .sfux-dock-ship-name {
+                        flex: 1 1 auto;
+                        min-width: 0;
+                        padding-right: 2px;
+                        font-size: var(--sfux-type-title);
+                        font-weight: 800;
+                        line-height: 1.08;
+                        letter-spacing: .005em;
+                    }
+                    .sfux-dock-card-image {
+                        /*
+                         * Compact CIC ship viewport:
+                         * reuse StarFury's native Star Dock starfield when present,
+                         * then darken/vignette it so ship silhouette and operational
+                         * state remain dominant. Text and meters stay on solid panels.
+                         */
+                        position: relative;
+                        isolation: isolate;
+                        overflow: hidden;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 100%;
+                        height: 76px;
+                        min-width: 0;
+                        border: 1px solid rgba(255,255,255,.045);
+                        background: #010308;
+                        box-shadow:
+                            inset 0 0 20px rgba(0,0,0,.56),
+                            inset 0 -12px 18px rgba(0,0,0,.20);
+                        text-decoration: none !important;
+                    }
+
+                    .sfux-dock-card-image::before {
+                        content: "";
+                        position: absolute;
+                        inset: 0;
+                        z-index: 0;
+                        pointer-events: none;
+                        background-color: #010308;
+
+                        /*
+                         * JavaScript copies the computed Star Dock minimap
+                         * background into these variables. The radial-gradient
+                         * stack is the same low-noise fallback used by Global UX.
+                         */
+                        background-image:
+                            var(
+                                --sfux-dock-card-starfield-image,
+                                radial-gradient(
+                                    circle at center,
+                                    rgba(255,255,255,.82) 0 .8px,
+                                    transparent 1.05px
+                                ),
+                                radial-gradient(
+                                    circle at center,
+                                    rgba(138,190,255,.58) 0 .65px,
+                                    transparent .95px
+                                ),
+                                radial-gradient(
+                                    circle at center,
+                                    rgba(255,255,255,.44) 0 .55px,
+                                    transparent .85px
+                                )
+                            );
+                        background-size:
+                            var(
+                                --sfux-dock-card-starfield-size,
+                                47px 43px,
+                                83px 71px,
+                                131px 109px
+                            );
+                        background-position:
+                            var(
+                                --sfux-dock-card-starfield-position,
+                                7px 9px,
+                                29px 17px,
+                                13px 51px
+                            );
+                        background-repeat:
+                            var(--sfux-dock-card-starfield-repeat, repeat);
+                        opacity: .74;
+                        transform: scale(1.025);
+                        transform-origin: center;
+                    }
+
+                    .sfux-dock-card-image::after {
+                        content: "";
+                        position: absolute;
+                        inset: 0;
+                        z-index: 1;
+                        pointer-events: none;
+                        background:
+                            radial-gradient(
+                                ellipse at 50% 48%,
+                                rgba(var(--sfux-dock-role-rgb), .095) 0%,
+                                rgba(var(--sfux-dock-role-rgb), .035) 38%,
+                                transparent 68%
+                            ),
+                            radial-gradient(
+                                ellipse at center,
+                                transparent 35%,
+                                rgba(0,0,0,.18) 68%,
+                                rgba(0,0,0,.55) 100%
+                            ),
+                            linear-gradient(
+                                180deg,
+                                rgba(1,3,8,.08) 0%,
+                                transparent 42%,
+                                rgba(1,3,8,.30) 100%
+                            );
+                    }
+
+                    .sfux-dock-card-image:hover::after,
+                    .sfux-dock-card-image:focus::after {
+                        background:
+                            radial-gradient(
+                                ellipse at 50% 48%,
+                                rgba(var(--sfux-dock-role-rgb), .14) 0%,
+                                rgba(var(--sfux-dock-role-rgb), .05) 42%,
+                                transparent 70%
+                            ),
+                            radial-gradient(
+                                ellipse at center,
+                                transparent 35%,
+                                rgba(0,0,0,.15) 68%,
+                                rgba(0,0,0,.50) 100%
+                            ),
+                            linear-gradient(
+                                180deg,
+                                rgba(1,3,8,.04) 0%,
+                                transparent 42%,
+                                rgba(1,3,8,.26) 100%
+                            );
+                    }
+
+                    .sfux-dock-card-image-link {
+                        position: absolute;
+                        inset: 0;
+                        z-index: 2;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        text-decoration: none !important;
+                    }
+
+                    .sfux-dock-card-image-mode,
+                    .sfux-dock-card-image-action {
+                        position: absolute;
+                        top: 5px;
+                        z-index: 4;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 24px;
+                        height: 24px;
+                        box-sizing: border-box;
+                        border: 1px solid rgba(255,255,255,.12);
+                        background: rgba(4,7,10,.76);
+                        box-shadow: 0 1px 4px rgba(0,0,0,.34);
+                        backdrop-filter: blur(2px);
+                    }
+
+                    .sfux-dock-card-image-mode {
+                        left: 5px;
+                        pointer-events: none;
+                    }
+
+                    .sfux-dock-card-image-action {
+                        right: 5px;
+                    }
+
+                    .sfux-dock-card-image-mode .sfux-dock-mode-icon {
+                        width: 100%;
+                        height: 100%;
+                        font-size: 11px;
+                    }
+
+                    /*
+                     * Disable is available action, not an alarm. Keep it neutral
+                     * until the operator intentionally targets it.
+                     */
+                    .sfux-dock-card-image-action.sfux-dock-inline-disable {
+                        flex: none;
+                        width: 24px;
+                        min-width: 24px;
+                        max-width: 24px;
+                        height: 24px;
+                        border-color: rgba(255,255,255,.15) !important;
+                        background: rgba(4,7,10,.78) !important;
+                        color: rgba(255,255,255,.62) !important;
+                    }
+                    .sfux-dock-card-image-action.sfux-dock-inline-disable:hover,
+                    .sfux-dock-card-image-action.sfux-dock-inline-disable:focus {
+                        border-color: rgba(var(--sfux-danger-rgb), .76) !important;
+                        background: rgba(var(--sfux-danger-rgb), .18) !important;
+                        color: #fff !important;
+                        box-shadow: 0 0 7px rgba(var(--sfux-danger-rgb), .22);
+                    }
+
+                    .sfux-dock-card-image-asset {
+                        position: relative;
+                        z-index: 2;
+                        display: block;
+                        width: 74px !important;
+                        height: 74px !important;
+                        max-width: 92%;
+                        object-fit: contain;
+                        filter:
+                            drop-shadow(0 3px 5px rgba(0,0,0,.72))
+                            drop-shadow(0 0 4px rgba(var(--sfux-dock-role-rgb), .08));
+                    }
+                    .sfux-dock-card-status-wrap {
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        min-height: 19px;
+                        padding: 1px 4px 2px;
+                        text-align: center;
+                    }
+                    .sfux-dock-card .sfux-dock-status {
+                        display: inline-block;
+                        min-height: 0;
+                        padding: 0;
+                        border: 0 !important;
+                        background: transparent !important;
+                        box-shadow: none !important;
+                        color: var(--sfux-status-color, rgba(255,255,255,.72));
+                        font-size: var(--sfux-type-md);
+                        font-weight: 800;
+                        line-height: 1.2;
+                        letter-spacing: .02em;
+                        text-transform: none;
+                        white-space: nowrap;
+                    }
+                    .sfux-dock-card .sfux-dock-status--defending {
+                        opacity: .82;
+                    }
+                    /*
+                     * Contextual repair controls
+                     * ---------------------------------------------------------
+                     * Damaged Hull/Shield bars become the repair control when
+                     * StarFury exposes an enabled native Repair action.
+                     *
+                     * Normal: exact telemetry
+                     * Hover/focus: REPAIR · XT
+                     * Click/Enter/Space: invoke the original native Repair link
+                     *
+                     * No timer-driven text rotation. Motion remains reserved for
+                     * genuinely critical unattended hull damage.
+                     */
+                    .sfux-dock-vital--repairable .sfux-dock-vital-track {
+                        cursor: pointer;
+                        transition:
+                            border-color .12s ease,
+                            box-shadow .12s ease,
+                            filter .12s ease;
+                    }
+
+                    .sfux-dock-vital--repairable .sfux-dock-vital-track:hover,
+                    .sfux-dock-vital--repairable .sfux-dock-vital-track:focus {
+                        outline: none;
+                        filter: brightness(1.08);
+                    }
+
+                    .sfux-dock-vital--repairable.sfux-dock-repair-severity--warning
+                    .sfux-dock-vital-track:hover,
+                    .sfux-dock-vital--repairable.sfux-dock-repair-severity--warning
+                    .sfux-dock-vital-track:focus {
+                        border-color: rgba(var(--sfux-warning-rgb), .78);
+                        box-shadow:
+                            0 0 7px rgba(var(--sfux-warning-rgb), .18),
+                            inset 0 0 0 1px rgba(var(--sfux-warning-rgb), .16);
+                    }
+
+                    .sfux-dock-vital--repairable.sfux-dock-repair-severity--danger
+                    .sfux-dock-vital-track:hover,
+                    .sfux-dock-vital--repairable.sfux-dock-repair-severity--danger
+                    .sfux-dock-vital-track:focus,
+                    .sfux-dock-vital--repairable.sfux-dock-repair-severity--critical
+                    .sfux-dock-vital-track:hover,
+                    .sfux-dock-vital--repairable.sfux-dock-repair-severity--critical
+                    .sfux-dock-vital-track:focus,
+                    .sfux-dock-vital--repairable.sfux-dock-repair-severity--terminal
+                    .sfux-dock-vital-track:hover,
+                    .sfux-dock-vital--repairable.sfux-dock-repair-severity--terminal
+                    .sfux-dock-vital-track:focus {
+                        border-color: rgba(var(--sfux-danger-rgb), .90);
+                        box-shadow:
+                            0 0 9px rgba(var(--sfux-danger-rgb), .26),
+                            inset 0 0 0 1px rgba(var(--sfux-danger-rgb), .18);
+                    }
+
+                    .sfux-dock-vital-action-text {
+                        display: none;
+                        position: relative;
+                        z-index: 2;
+                        color: rgba(255,255,255,.98);
+                        font-size: 10px;
+                        font-weight: 900;
+                        line-height: 1;
+                        letter-spacing: .035em;
+                        font-variant-numeric: tabular-nums;
+                        text-shadow:
+                            0 1px 2px rgba(0,0,0,.98),
+                            0 0 4px rgba(0,0,0,.88);
+                        white-space: nowrap;
+                        pointer-events: none;
+                    }
+
+                    .sfux-dock-vital--repairable .sfux-dock-vital-track:hover
+                    .sfux-dock-vital-text,
+                    .sfux-dock-vital--repairable .sfux-dock-vital-track:focus
+                    .sfux-dock-vital-text {
+                        display: none;
+                    }
+
+                    .sfux-dock-vital--repairable .sfux-dock-vital-track:hover
+                    .sfux-dock-vital-action-text,
+                    .sfux-dock-vital--repairable .sfux-dock-vital-track:focus
+                    .sfux-dock-vital-action-text {
+                        display: inline;
+                    }
+
+                    /*
+                     * The original StarFury Repair anchor stays in the document
+                     * as an invisible native-action proxy. We trigger that exact
+                     * element instead of reconstructing its URL or modal logic.
+                     */
+                    .sfux-dock-native-action-proxy {
+                        position: absolute !important;
+                        width: 1px !important;
+                        height: 1px !important;
+                        padding: 0 !important;
+                        margin: -1px !important;
+                        overflow: hidden !important;
+                        clip: rect(0, 0, 0, 0) !important;
+                        white-space: nowrap !important;
+                        border: 0 !important;
+                    }
+
+                    .sfux-dock-card .sfux-dock-vitals {
+                        display: grid;
+                        grid-template-columns: 1fr;
+                        gap: 4px;
+                    }
+                    .sfux-dock-card .sfux-dock-vital-track {
+                        position: relative;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        height: 16px;
+                        overflow: hidden;
+                    }
+                    .sfux-dock-card .sfux-dock-vital-fill {
+                        position: absolute;
+                        top: 0;
+                        bottom: 0;
+                        left: 0;
+                    }
+                    .sfux-dock-vital-text {
+                        position: relative;
+                        z-index: 1;
+                        color: rgba(255,255,255,.96);
+                        font-size: 10px;
+                        font-weight: 900;
+                        line-height: 1;
+                        font-variant-numeric: tabular-nums;
+                        text-shadow: 0 1px 2px rgba(0,0,0,.96), 0 0 2px rgba(0,0,0,.86);
+                        white-space: nowrap;
+                        pointer-events: none;
+                    }
+
+                    /*
+                     * CIC damage language
+                     * ---------------------------------------------------------
+                     * Normal state stays quiet. Hull is treated as more urgent
+                     * than shields. Only unattended critical hull damage pulses.
+                     *
+                     * Hull:
+                     *   >=75% nominal cyan
+                     *   50-74% amber
+                     *   25-49% red
+                     *   1-24% red + slow attention pulse
+                     *   0% red terminal/static
+                     *
+                     * Shields:
+                     *   >=75% nominal green
+                     *   40-74% amber
+                     *   1-39% red/static
+                     *   0% red terminal/static
+                     */
+                    .sfux-dock-vital-state--warning .sfux-dock-vital-fill {
+                        background: rgba(var(--sfux-warning-rgb), .90) !important;
+                    }
+                    .sfux-dock-vital-state--warning .sfux-dock-vital-text {
+                        color: rgba(255,255,255,.98);
+                    }
+
+                    .sfux-dock-vital-state--danger .sfux-dock-vital-fill,
+                    .sfux-dock-vital-state--critical .sfux-dock-vital-fill,
+                    .sfux-dock-vital-state--terminal .sfux-dock-vital-fill {
+                        background: rgba(var(--sfux-danger-rgb), .92) !important;
+                    }
+                    .sfux-dock-vital-state--danger .sfux-dock-vital-text,
+                    .sfux-dock-vital-state--critical .sfux-dock-vital-text,
+                    .sfux-dock-vital-state--terminal .sfux-dock-vital-text {
+                        color: rgba(255,255,255,.99);
+                    }
+
+                    .sfux-dock-vital-state--warning .sfux-dock-vital-track {
+                        border-color: rgba(var(--sfux-warning-rgb), .26);
+                    }
+                    .sfux-dock-vital-state--danger .sfux-dock-vital-track,
+                    .sfux-dock-vital-state--critical .sfux-dock-vital-track,
+                    .sfux-dock-vital-state--terminal .sfux-dock-vital-track {
+                        border-color: rgba(var(--sfux-danger-rgb), .34);
+                    }
+
+                    @keyframes sfux-cic-critical-text-pulse {
+                        0%, 100% {
+                            color: rgba(255,255,255,.96);
+                            text-shadow:
+                                0 1px 2px rgba(0,0,0,.96),
+                                0 0 2px rgba(0,0,0,.86);
+                        }
+                        50% {
+                            color: #ffffff;
+                            text-shadow:
+                                0 1px 2px rgba(0,0,0,.96),
+                                0 0 7px rgba(var(--sfux-danger-rgb), .88);
+                        }
+                    }
+
+                    @keyframes sfux-cic-critical-card-pulse {
+                        0%, 100% {
+                            border-color: rgba(var(--sfux-danger-rgb), .42);
+                            box-shadow: inset 0 0 0 1px rgba(var(--sfux-danger-rgb), .04);
+                        }
+                        50% {
+                            border-color: rgba(var(--sfux-danger-rgb), .84);
+                            box-shadow:
+                                inset 0 0 0 1px rgba(var(--sfux-danger-rgb), .16),
+                                0 0 8px rgba(var(--sfux-danger-rgb), .12);
+                        }
+                    }
+
+                    /*
+                     * Pulse only means: critical hull damage requiring action.
+                     * Repairing/disabled/terminal ships remain visually serious
+                     * but static because the condition is already being handled
+                     * or is no longer an evolving unattended state.
+                     */
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--critical-attention {
+                        animation: sfux-cic-critical-card-pulse 1.8s ease-in-out infinite;
+                    }
+
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--critical-attention
+                    .sfux-dock-vital--hull.sfux-dock-vital-state--critical
+                    .sfux-dock-vital-text {
+                        animation: sfux-cic-critical-text-pulse 1.8s ease-in-out infinite;
+                    }
+
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--terminal {
+                        border-color: rgba(var(--sfux-danger-rgb), .58);
+                        box-shadow:
+                            inset 0 1px 0 rgba(255,255,255,.02),
+                            inset 0 0 0 999px rgba(var(--sfux-danger-rgb), .035),
+                            0 1px 2px rgba(0,0,0,.18);
+                    }
+
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--repairing {
+                        border-color: rgba(var(--sfux-warning-rgb), .30);
+                    }
+
+                    @media (prefers-reduced-motion: reduce) {
+                        table.stardocktable.sfux-dock-table
+                        tr.sfux-dock-card-row.sfux-dock-card-row--critical-attention,
+                        table.stardocktable.sfux-dock-table
+                        tr.sfux-dock-card-row.sfux-dock-card-row--critical-attention
+                        .sfux-dock-vital--hull.sfux-dock-vital-state--critical
+                        .sfux-dock-vital-text {
+                            animation: none !important;
+                        }
+
+                        table.stardocktable.sfux-dock-table
+                        tr.sfux-dock-card-row.sfux-dock-card-row--critical-attention {
+                            border-color: rgba(var(--sfux-danger-rgb), .78);
+                            box-shadow: inset 0 0 0 1px rgba(var(--sfux-danger-rgb), .12);
+                        }
+                    }
+                    .sfux-dock-card-footer {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        gap: 8px;
+                        min-width: 0;
+                        padding-top: 5px;
+                        border-top: 1px solid rgba(255,255,255,.055);
+                    }
+                    .sfux-dock-card .sfux-dock-power {
+                        display: flex;
+                        flex: 1 1 auto;
+                        align-items: center;
+                        gap: 7px;
+                        width: auto;
+                        min-width: 0;
+                        margin: 0;
+                    }
+                    .sfux-dock-card .sfux-dock-power span {
+                        font-size: 10px;
+                        line-height: 1;
+                    }
+                    .sfux-dock-power-empty {
+                        color: rgba(255,255,255,.24) !important;
+                        font-weight: 600 !important;
+                    }
+                    .sfux-dock-card-config {
+                        display: inline-flex;
+                        flex: 0 0 auto;
+                        align-items: center;
+                        gap: 5px;
+                        margin-left: auto;
+                        white-space: nowrap;
+                    }
+                    .sfux-dock-mode-icon {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 14px;
+                        height: 14px;
+                        font-size: 10px;
+                        line-height: 1;
+                        text-align: center;
+                    }
+                    .sfux-dock-mode-icon--fixed { color: rgba(var(--sfux-danger-rgb), .95); }
+                    .sfux-dock-mode-icon--flexible { color: rgba(var(--sfux-success-rgb), .95); }
+                    .sfux-dock-card .sfux-dock-engine {
+                        color: rgba(255,255,255,.55);
+                        font-size: 10px;
+                        font-weight: 700;
+                        line-height: 1;
+                    }
+                    .sfux-dock-inline-disable {
+                        display: inline-flex !important;
+                        flex: 0 0 26px;
+                        align-items: center;
+                        justify-content: center;
+                        width: 26px;
+                        min-width: 26px;
+                        max-width: 26px;
+                        height: 26px;
+                        padding: 0 !important;
+                        border: 1px solid rgba(var(--sfux-danger-rgb), .30) !important;
+                        background: rgba(var(--sfux-danger-rgb), .055) !important;
+                        color: rgba(255,150,135,.82) !important;
+                        text-decoration: none !important;
+                    }
+                    .sfux-dock-inline-disable:hover,
+                    .sfux-dock-inline-disable:focus {
+                        border-color: rgba(var(--sfux-danger-rgb), .72) !important;
+                        background: rgba(var(--sfux-danger-rgb), .14) !important;
+                        color: #fff !important;
+                    }
+                    .sfux-dock-inline-disable .fa {
+                        font-size: 11px;
+                        line-height: 1;
+                    }
+                    .sfux-dock-card-head .sfux-dock-action-menu {
+                        position: relative;
+                        display: block;
+                        flex: 0 0 26px;
+                        width: 26px !important;
+                        max-width: 26px !important;
+                        margin: 0 !important;
+                    }
+                    .sfux-dock-card-head .sfux-dock-action-menu .dd-button {
+                        display: flex !important;
+                        align-items: center;
+                        justify-content: center;
+                        width: 26px !important;
+                        min-width: 26px !important;
+                        max-width: 26px !important;
+                        min-height: 26px !important;
+                        height: 26px;
+                        padding: 0 !important;
+                        border: 1px solid rgba(255,255,255,.12);
+                        background: rgba(255,255,255,.035);
+                        color: rgba(255,255,255,.76);
+                        font-size: 18px !important;
+                        font-weight: 700;
+                        line-height: 20px;
+                        letter-spacing: 0;
+                        text-indent: 0;
+                    }
+                    .sfux-dock-card-head .sfux-dock-action-menu .dd-button::after { display: none !important; }
+                    .sfux-dock-card-head .sfux-dock-action-menu .dd-menu {
+                        right: 0 !important;
+                        left: auto !important;
+                        z-index: 25;
+                        min-width: 118px;
+                    }
+                    @media (max-width: 1050px) and (min-width: 641px) {
+                        table.stardocktable.sfux-dock-table > tbody {
+                            grid-template-columns: repeat(2, minmax(0, 1fr));
+                        }
+                    }
+                    @media (max-width: ${SFUX.responsive.mobile}px) {
+                        table.stardocktable.sfux-dock-table > tbody {
+                            grid-template-columns: 1fr;
+                            gap: 6px;
+                        }
+                        .sfux-dock-card {
+                            grid-template-columns: 70px minmax(0,1fr);
+                            grid-template-rows: auto auto auto auto;
+                            grid-template-areas:
+                                "image head"
+                                "image status"
+                                "vitals vitals"
+                                "footer footer";
+                            min-height: 0;
+                            padding: 7px;
+                        }
+                        .sfux-dock-card-head { grid-area: head; }
+                        .sfux-dock-card-image { grid-area: image; width: 70px; height: 70px; }
+                        .sfux-dock-card-image-link { inset: 0; }
+                        .sfux-dock-card-image-asset { width: 68px !important; height: 68px !important; }
+                        .sfux-dock-card-image-mode,
+                        .sfux-dock-card-image-action {
+                            top: 3px;
+                            width: 20px;
+                            height: 20px;
+                        }
+                        .sfux-dock-card-image-mode { left: 3px; }
+                        .sfux-dock-card-image-action { right: 3px; }
+                        .sfux-dock-card-status-wrap { grid-area: status; justify-content: flex-start; }
+                        .sfux-dock-card .sfux-dock-vitals { grid-area: vitals; }
+                        .sfux-dock-card-footer { grid-area: footer; }
                     }
 
                 `); }
@@ -12763,7 +14160,7 @@ function registerShipPowerRouting(SFUX) {
 
                 actions.append(reset, save);
                 editor.append(head, bar, legend, control, actions);
-                SFUX.ui.number(ctx, engineInput, { min: 0, max: 100, step: 1 });
+                SFUX.ui.number(ctx, engineInput, { min: 0, max: 100, step: 1, spinner: true });
 
                 function setEngineValue(value) {
                     const engine = clampPercent(value);
@@ -12976,13 +14373,7 @@ function registerShipPowerRouting(SFUX) {
             }
 
             function shipStatusClass(value) {
-                const normalized = normalizeText(value);
-
-                if (normalized.includes('upgrad')) return 'upgrading';
-                if (normalized.includes('return')) return 'returning';
-                if (normalized.includes('defend')) return 'defending';
-
-                return 'neutral';
+                return SFUX.ui.dockStatusVisuals(value).key;
             }
 
             function createShipTag(value, extraClass = '') {
@@ -13382,9 +14773,13 @@ function registerShipPowerRouting(SFUX) {
 
                 if (shipDetails.status) {
                     const status = ctx.element('div');
-                    const statusKind = shipStatusClass(shipDetails.status);
+                    const visuals = SFUX.ui.dockStatusVisuals(shipDetails.status);
+                    const statusKind = visuals.key;
                     status.className = `sfux-ship-status sfux-ship-status--${statusKind}`;
                     status.textContent = shipDetails.status;
+                    status.style.setProperty('--sfux-status-color', visuals.color);
+                    status.style.setProperty('--sfux-status-bg', visuals.background);
+                    status.style.setProperty('--sfux-status-border', visuals.border);
                     imageCard.appendChild(status);
                 }
 
@@ -13626,144 +15021,120 @@ function registerShipPowerRouting(SFUX) {
             }
 
             // ---------------------------------------------------------------------
-            // Leecher-specific native 5%/25% one-click routing
+            // Leecher-specific 5%/25% weapon routing + remaining-power slider
             // ---------------------------------------------------------------------
             function buildLeecherPowerRouter(form) {
                 const fields = getPowerFields(form);
                 const nativeTable = form.querySelector('table.formtable');
                 const nativeSubmit = Array.from(form.querySelectorAll('input[type="submit"], button[type="submit"]'))
-                    .find(input => normalizeText(input.value || input.textContent).includes('modify power'));
+                    .find(control => normalizeText(control.value || control.textContent).includes('modify power'));
 
-                if (!fields || !nativeTable || !nativeSubmit || form.querySelector('.sfux-leecher-preset')) return;
+                if (!fields || !nativeTable || !nativeSubmit || form.querySelector('.sfux-leecher-presets')) return;
 
-                // CONFIRMED NATIVE UI (2026-09-10): Modify Ship exposes only 5% or
-                // 25% Weapons. Star Fury's own change handler maps those selections to
-                // 95% or 75% Engines respectively; Sensors remains disabled at 0.
-                // If that contract changes, leave the native form visible instead of
-                // guessing at a replacement behavior.
-                const legalValues = Array.from(fields.weapons.options || [])
+                const legalWeapons = Array.from(fields.weapons.options || [])
                     .map(option => Number(option.value))
-                    .filter(Number.isFinite)
+                    .filter(value => Number.isFinite(value))
                     .sort((a, b) => a - b);
 
-                const exactNativeOptions = (
-                    legalValues.length === 2 &&
-                    legalValues[0] === 5 &&
-                    legalValues[1] === 25
-                );
-
-                const nativeShapeMatches = (
-                    fields.weapons.tagName === 'SELECT' &&
-                    exactNativeOptions &&
-                    fields.engine.readOnly &&
-                    fields.sensors.matches(':disabled') &&
-                    Number(fields.sensors.value) === 0
-                );
-
-                if (!nativeShapeMatches) return;
+                // The enhanced Leecher UI is intentionally narrow: it exists only for
+                // the confirmed native 5% / 25% selector. If StarFury changes that
+                // contract, leave the native form visible instead of guessing.
+                if (
+                    legalWeapons.length !== 2 ||
+                    legalWeapons[0] !== 5 ||
+                    legalWeapons[1] !== 25
+                ) {
+                    return;
+                }
 
                 injectStyles();
 
-                const presets = [
-                    { weapons: 5, engine: 95, sensors: 0 },
-                    { weapons: 25, engine: 75, sensors: 0 }
-                ];
+                // Read the actual live distribution before hiding StarFury's display.
+                // The native form remains the source of truth for submission.
+                const current = readDisplayedDistribution(form);
 
-                let current = readDisplayedDistribution(form);
                 const router = ctx.element('div');
-                router.className = 'sfux-power-router sfux-leecher-router sfux-leecher-preset';
+                router.className = 'sfux-power-router sfux-leecher-presets';
 
-                const states = [];
-
-                function restoreNativeFallback() {
-                    router.remove();
-                    nativeTable.classList.remove('sfux-power-native-hidden');
-                    nativeSubmit.classList.remove('sfux-power-native-hidden');
-                }
-
-                function applyPreset(preset, state) {
+                function submitLeecherPreset(weaponsValue, action) {
                     if (nativeSubmit.matches(':disabled')) return;
 
-                    fields.weapons.value = String(preset.weapons);
+                    fields.weapons.value = String(weaponsValue);
                     fields.weapons.dispatchEvent(new Event('input', { bubbles: true }));
                     fields.weapons.dispatchEvent(new Event('change', { bubbles: true }));
 
-                    // Star Fury's native onchange is authoritative. Verify that it
-                    // produced the confirmed complementary Engine value before using
-                    // the native Modify Power submit path.
-                    const nativeResultMatches = (
-                        Number(fields.weapons.value) === preset.weapons &&
-                        Number(fields.engine.value) === preset.engine &&
-                        Number(fields.sensors.value) === preset.sensors &&
-                        fields.engine.readOnly &&
-                        fields.sensors.matches(':disabled')
-                    );
+                    // StarFury's native onchange handler owns the complementary Engine
+                    // value. Verify its result rather than writing the readonly field.
+                    const engineValue = Number(fields.engine.value);
+                    const sensorValue = Number(fields.sensors.value);
+                    const expectedEngine = 100 - weaponsValue;
 
-                    if (!nativeResultMatches) {
-                        restoreNativeFallback();
+                    if (
+                        engineValue !== expectedEngine ||
+                        sensorValue !== 0
+                    ) {
+                        // A changed native contract is safer to expose than to submit.
+                        nativeTable.classList.remove('sfux-power-native-hidden');
+                        nativeSubmit.classList.remove('sfux-power-native-hidden');
+                        router.remove();
                         return;
                     }
 
-                    state.action.disabled = true;
-                    state.action.classList.remove('sfux-power-active');
-                    state.action.textContent = 'Applying…';
-
+                    action.disabled = true;
+                    action.classList.remove('sfux-power-active');
+                    action.textContent = 'Applying…';
                     SFUX.ui.submit(form, nativeSubmit);
-
-                    // If native validation cancels navigation, keep the helper usable.
-                    refresh();
                 }
 
-                function createPreset(preset) {
+                for (const weaponsValue of legalWeapons) {
+                    const enginesValue = 100 - weaponsValue;
                     const route = ctx.element('div');
-                    route.className = 'sfux-power-route sfux-power-route--weapons';
+                    route.className = 'sfux-power-route sfux-power-route--weapons sfux-leecher-preset-route';
 
                     const main = ctx.element('div');
-                    main.className = 'sfux-power-route-main';
+                    main.className = 'sfux-power-route-main sfux-leecher-preset-main';
 
                     const labelWrap = ctx.element('div');
                     labelWrap.className = 'sfux-power-route-label';
 
                     const name = ctx.element('span');
                     name.className = 'sfux-power-route-name';
-                    name.textContent = `${preset.weapons}% Weapons`;
+                    name.textContent = `${weaponsValue}% Weapons`;
 
                     const split = ctx.element('span');
                     split.className = 'sfux-power-route-split';
-                    split.textContent = `${preset.weapons}% W · ${preset.engine}% engines · 0% sensors`;
-
-                    labelWrap.append(name, split);
+                    split.textContent = `${enginesValue}% engines`;
 
                     const action = ctx.element('button');
                     action.type = 'button';
                     action.className = 'sfux-power-action';
 
-                    const state = { preset, route, action };
-                    states.push(state);
-                    ctx.on(action, 'click', () => applyPreset(preset, state));
+                    const active =
+                        current.weapons === weaponsValue &&
+                        current.engine === enginesValue &&
+                        current.sensors === 0;
 
+                    action.disabled = active || nativeSubmit.matches(':disabled');
+                    action.classList.toggle('sfux-power-active', active);
+                    action.textContent = active ? 'Active' : 'Switch';
+                    action.setAttribute(
+                        'aria-label',
+                        active
+                            ? `${weaponsValue}% weapons and ${enginesValue}% engines is active`
+                            : `Switch to ${weaponsValue}% weapons and ${enginesValue}% engines`
+                    );
+
+                    ctx.on(action, 'click', () => submitLeecherPreset(weaponsValue, action));
+
+                    labelWrap.append(name, split);
                     main.append(labelWrap, action);
-                    route.appendChild(main);
-                    router.appendChild(route);
+                    route.append(main);
+                    router.append(route);
                 }
-
-                function refresh() {
-                    current = readDisplayedDistribution(form);
-
-                    for (const state of states) {
-                        const active = distributionsMatch(current, state.preset);
-                        state.action.disabled = active || nativeSubmit.matches(':disabled');
-                        state.action.classList.toggle('sfux-power-active', active);
-                        state.action.textContent = active ? 'Active' : 'Switch';
-                    }
-                }
-
-                for (const preset of presets) createPreset(preset);
 
                 form.insertBefore(router, nativeTable);
                 nativeTable.classList.add('sfux-power-native-hidden');
                 nativeSubmit.classList.add('sfux-power-native-hidden');
-                refresh();
                 hideNativePowerDistributionTable();
             }
 
@@ -14133,41 +15504,127 @@ function registerShipPowerRouting(SFUX) {
             }
 
             function createDockPowerMetric(label, value, className) {
+                if (!Number.isFinite(value) || value <= 0) return null;
+
                 const item = ctx.element('span');
                 item.className = className;
 
-                if (value === 0) {
-                    item.classList.add('sfux-power-zero');
-                } else if (value === 100) {
+                if (value === 100) {
                     item.classList.add('sfux-power-full');
                 }
 
-                item.textContent = `${label} ${value ?? '—'}%`;
+                // Dense roster cards only show power that is actually allocated.
+                // Example: W100, W25 E75, S100. Zero-value channels are omitted.
+                item.textContent = `${label}${value}`;
                 return item;
             }
 
-            function createDockVital(kind, label, stats) {
-                const wrap = ctx.element('div');
-                wrap.className = `sfux-dock-vital sfux-dock-vital--${kind}`;
+            function compactDockStatusLabel(statusText) {
+                const raw = String(statusText || '').replace(/\s+/g, ' ').trim();
+                if (!raw) return '';
 
-                const head = ctx.element('div');
-                head.className = 'sfux-dock-vital-head';
+                const normalized = normalizeText(raw);
 
-                const labelEl = ctx.element('span');
-                labelEl.className = 'sfux-dock-vital-label';
-                labelEl.textContent = label;
+                /*
+                 * Match the meaning exposed by StarFury's header-dock tooltip,
+                 * but use a compact tick suffix for the roster:
+                 *   Returning · 7T
+                 *   Building · 17T
+                 *   Exploring Asteroids
+                 *   Defending
+                 */
+                const tickMatch =
+                    raw.match(/\(\s*(\d+)\s*(?:ticks?|t)\s*\)/i) ||
+                    raw.match(/[-–—]?\s*(\d+)\s*(?:ticks?|t)\b/i);
 
-                const valueEl = ctx.element('span');
-                valueEl.className = 'sfux-dock-vital-value';
+                const tickSuffix = tickMatch
+                    ? ` · ${Number(tickMatch[1])}T`
+                    : '';
 
-                if (stats) {
-                    valueEl.textContent =
-                        `${stats.current.toLocaleString()} / ${stats.maximum.toLocaleString()}`;
-                } else {
-                    valueEl.textContent = '—';
+                if (normalized.includes('return')) return `Returning${tickSuffix}`;
+                if (normalized.includes('build')) return `Building${tickSuffix}`;
+                if (normalized.includes('repair')) return `Repairing${tickSuffix}`;
+                if (normalized.includes('upgrad')) return `Upgrading${tickSuffix}`;
+                if (normalized.includes('disabled')) return 'Disabled';
+                if (normalized.includes('defend')) return 'Defending';
+
+                if (normalized.includes('explor')) {
+                    if (normalized.includes('asteroid')) return 'Exploring Asteroids';
+                    if (
+                        normalized.includes('planet') ||
+                        normalized.includes('land')
+                    ) {
+                        return 'Exploring Land';
+                    }
+                    return 'Exploring';
                 }
 
-                head.append(labelEl, valueEl);
+                // Preserve unknown/native states rather than inventing labels.
+                return raw
+                    .replace(/\(\s*(\d+)\s*(?:ticks?|t)\s*\)/i, ' · $1T')
+                    .replace(/[-–—]\s*(\d+)\s*(?:ticks?|t)\b/i, ' · $1T')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            }
+
+            function createDockModeIcon(mode) {
+                if (!mode) return null;
+
+                const icon = ctx.element('span');
+                const fixed = normalizeText(mode) === 'fixed';
+                icon.className = `fa ${fixed ? 'fa-lock' : 'fa-unlock'} sfux-dock-mode-icon ${fixed ? 'sfux-dock-mode-icon--fixed' : 'sfux-dock-mode-icon--flexible'}`;
+                icon.title = mode;
+                icon.setAttribute('aria-label', mode);
+                return icon;
+            }
+
+            function dockVitalSeverity(kind, stats) {
+                if (!stats || !Number.isFinite(stats.percent)) return 'unknown';
+
+                const percent = Math.max(0, Math.min(100, stats.percent));
+
+                if (kind === 'hull') {
+                    if (percent <= 0) return 'terminal';
+                    if (percent < 25) return 'critical';
+                    if (percent < 50) return 'danger';
+                    if (percent < 75) return 'warning';
+                    return 'nominal';
+                }
+
+                // Shields are allowed to degrade considerably before becoming
+                // visually urgent, and they never pulse on their own.
+                if (percent <= 0) return 'terminal';
+                if (percent < 40) return 'danger';
+                if (percent < 75) return 'warning';
+                return 'nominal';
+            }
+
+            function dockRepairSeverity(hullStats, shieldStats) {
+                const hullSeverity = dockVitalSeverity('hull', hullStats);
+                const shieldSeverity = dockVitalSeverity('shield', shieldStats);
+
+                // Critical flashing is intentionally hull-only. Shields can make
+                // Repair red, but never cause the urgent pulse by themselves.
+                if (hullSeverity === 'critical') return 'critical';
+                if (hullSeverity === 'terminal') return 'terminal';
+
+                if (
+                    hullSeverity === 'danger' ||
+                    shieldSeverity === 'danger' ||
+                    shieldSeverity === 'terminal'
+                ) {
+                    return 'danger';
+                }
+
+                return 'warning';
+            }
+
+            function createDockVital(kind, label, stats, repairContext = null) {
+                const wrap = ctx.element('div');
+                const severity = dockVitalSeverity(kind, stats);
+                wrap.className =
+                    `sfux-dock-vital sfux-dock-vital--${kind} sfux-dock-vital-state--${severity}`;
+                wrap.dataset.severity = severity;
 
                 const track = ctx.element('div');
                 track.className = 'sfux-dock-vital-track';
@@ -14176,10 +15633,637 @@ function registerShipPowerRouting(SFUX) {
                 fill.className = 'sfux-dock-vital-fill';
                 fill.style.width = `${stats?.percent ?? 0}%`;
 
-                track.appendChild(fill);
-                wrap.append(head, track);
+                const value = ctx.element('span');
+                value.className = 'sfux-dock-vital-text';
 
+                const longLabel = label === 'H' ? 'Hull' : 'Shields';
+                const damaged = Boolean(
+                    stats &&
+                    Number.isFinite(stats.current) &&
+                    Number.isFinite(stats.maximum) &&
+                    stats.maximum > 0 &&
+                    stats.current < stats.maximum
+                );
+
+                if (stats) {
+                    const exact = `${stats.current.toLocaleString()} / ${stats.maximum.toLocaleString()}`;
+                    value.textContent = exact;
+                    wrap.title = `${longLabel}: ${exact} (${Math.round(stats.percent)}%)`;
+                } else {
+                    value.textContent = '—';
+                    wrap.title = `${longLabel}: unavailable`;
+                }
+
+                track.append(fill, value);
+
+                if (damaged && repairContext?.action) {
+                    wrap.classList.add(
+                        'sfux-dock-vital--repairable',
+                        `sfux-dock-repair-severity--${repairContext.severity || 'warning'}`
+                    );
+
+                    const actionText = ctx.element('span');
+                    actionText.className = 'sfux-dock-vital-action-text';
+                    actionText.textContent = repairContext.label || 'REPAIR';
+                    track.appendChild(actionText);
+
+                    const exact = stats
+                        ? `${stats.current.toLocaleString()} / ${stats.maximum.toLocaleString()}`
+                        : '';
+
+                    const repairDescription =
+                        `${longLabel} ${exact}. ${repairContext.label || 'Repair ship'}.`;
+
+                    track.tabIndex = 0;
+                    track.setAttribute('role', 'button');
+                    track.setAttribute('aria-label', repairDescription);
+                    track.title = `${repairDescription} Click to use StarFury's native repair action.`;
+
+                    const triggerNativeRepair = event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        repairContext.action.click();
+                    };
+
+                    track.addEventListener('click', triggerNativeRepair);
+                    track.addEventListener('keydown', event => {
+                        if (event.key !== 'Enter' && event.key !== ' ') return;
+                        triggerNativeRepair(event);
+                    });
+                }
+
+                wrap.appendChild(track);
                 return wrap;
+            }
+
+            const dockBulkActionRegistry = new WeakMap();
+
+            function resolveDockConfirmedNativeAction(actionAnchor, kind) {
+                if (!actionAnchor) return null;
+
+                const rawHref = String(actionAnchor.getAttribute('href') || '').trim();
+                if (!rawHref || rawHref === '#') return null;
+
+                let confirmAnchor = null;
+                let modal = null;
+
+                if (rawHref.startsWith('#')) {
+                    const modalId = decodeURIComponent(rawHref.slice(1));
+                    if (!modalId) return null;
+
+                    modal = document.getElementById(modalId);
+                    if (!modal) return null;
+
+                    const candidateLinks = Array.from(modal.querySelectorAll('a[href]'));
+                    confirmAnchor = candidateLinks.find(link => {
+                        const href = String(link.getAttribute('href') || '');
+                        if (!/confirm/i.test(href)) return false;
+
+                        const label = normalizeText(link.textContent);
+                        if (kind === 'repair') return label.includes('repair');
+                        if (kind === 'disable') return label.includes('disable');
+                        if (kind === 'enable') return label.includes('enable');
+                        return false;
+                    }) || candidateLinks.find(link =>
+                        /confirm/i.test(String(link.getAttribute('href') || ''))
+                    ) || null;
+                } else {
+                    confirmAnchor = actionAnchor;
+                }
+
+                if (!confirmAnchor) return null;
+
+                const confirmHref = String(
+                    confirmAnchor.getAttribute('href') || ''
+                ).trim();
+
+                if (!confirmHref || confirmHref === '#') return null;
+
+                let url;
+                try {
+                    url = new URL(confirmHref, window.location.href);
+                } catch (error) {
+                    return null;
+                }
+
+                // Hard safety boundary: bulk execution may only call the current
+                // StarFury origin and the Star Dock endpoint.
+                if (url.origin !== window.location.origin) return null;
+                if (!/\/stardock\.php$/i.test(url.pathname)) return null;
+                if (!url.searchParams.has('confirm')) return null;
+
+                if (kind === 'repair' && !url.searchParams.has('repair')) {
+                    return null;
+                }
+
+                if (
+                    kind === 'disable' &&
+                    !(
+                        url.searchParams.has('disable') ||
+                        /(?:[?&])disable(?:[=&]|$)/i.test(url.search)
+                    )
+                ) {
+                    return null;
+                }
+
+                // Re-enable is supported only if StarFury itself exposes an
+                // enabled native Enable/Re-enable action whose confirmed URL
+                // explicitly identifies itself as enable. No endpoint guessing.
+                if (
+                    kind === 'enable' &&
+                    !(
+                        url.searchParams.has('enable') ||
+                        /(?:[?&])(?:re-?enable|enable)(?:[=&]|$)/i.test(url.search)
+                    )
+                ) {
+                    return null;
+                }
+
+                return {
+                    kind,
+                    url: url.href,
+                    nativeAction: actionAnchor,
+                    confirmAnchor,
+                    modal
+                };
+            }
+
+            function dockBulkKindMeta(kind) {
+                if (kind === 'repair') {
+                    return {
+                        menuLabel: 'Repair Damaged',
+                        title: 'Bulk Repair',
+                        verb: 'Repair',
+                        confirmVerb: 'REPAIR',
+                        note:
+                            'Selected repairs will be sent sequentially using StarFury’s native confirmed repair actions. The dock refreshes once after the batch completes.'
+                    };
+                }
+
+                if (kind === 'disable') {
+                    return {
+                        menuLabel: 'Disable Available',
+                        title: 'Bulk Disable',
+                        verb: 'Disable',
+                        confirmVerb: 'DISABLE',
+                        note:
+                            'Only ships for which StarFury currently exposes an enabled native Disable action are listed. Review the selection before committing.'
+                    };
+                }
+
+                return {
+                    menuLabel: 'Re-enable Available',
+                    title: 'Bulk Re-enable',
+                    verb: 'Re-enable',
+                    confirmVerb: 'RE-ENABLE',
+                    note:
+                        'Only ships for which StarFury currently exposes an enabled native Re-enable action are listed. No enable endpoint is inferred or hard-coded.'
+                };
+            }
+
+            async function executeDockBulkNativeAction(action) {
+                const url = new URL(action.url, window.location.href);
+
+                if (url.origin !== window.location.origin) {
+                    throw new Error('Blocked non-StarFury action URL.');
+                }
+
+                if (!/\/stardock\.php$/i.test(url.pathname)) {
+                    throw new Error('Blocked non-Star-Dock action URL.');
+                }
+
+                const response = await fetch(url.href, {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    redirect: 'follow'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`StarFury returned HTTP ${response.status}.`);
+                }
+
+                const finalUrl = new URL(response.url || url.href, window.location.href);
+                if (finalUrl.origin !== window.location.origin) {
+                    throw new Error('StarFury redirected outside the game origin.');
+                }
+
+                if (/\/(?:login|logout)\.php$/i.test(finalUrl.pathname)) {
+                    throw new Error('StarFury session is no longer active.');
+                }
+
+                // Consume the response body before advancing to the next action.
+                // This keeps execution intentionally sequential.
+                await response.text();
+
+                return true;
+            }
+
+            function openDockBulkDialog(dockTitle, role, kind, actions) {
+                const previous = document.querySelector('.sfux-dock-bulk-overlay');
+                if (previous) previous.remove();
+
+                const meta = dockBulkKindMeta(kind);
+                const overlay = ctx.element('div');
+                overlay.className = 'sfux-dock-bulk-overlay';
+                overlay.style.setProperty(
+                    '--sfux-dock-role-rgb',
+                    getComputedStyle(
+                        document.querySelector(
+                            `.sfux-dock-category--${role}`
+                        ) || document.documentElement
+                    ).getPropertyValue('--sfux-dock-role-rgb') || '80,170,220'
+                );
+
+                const dialog = ctx.element('div');
+                dialog.className = 'sfux-dock-bulk-dialog';
+                dialog.setAttribute('role', 'dialog');
+                dialog.setAttribute('aria-modal', 'true');
+
+                const head = ctx.element('div');
+                head.className = 'sfux-dock-bulk-dialog-head';
+
+                const title = ctx.element('div');
+                title.className = 'sfux-dock-bulk-dialog-title';
+                title.textContent = `${meta.title} · ${dockTitle}`;
+
+                const close = ctx.element('button');
+                close.type = 'button';
+                close.className = 'sfux-dock-bulk-dialog-close';
+                close.textContent = '×';
+                close.setAttribute('aria-label', 'Close bulk action dialog');
+
+                head.append(title, close);
+
+                const body = ctx.element('div');
+                body.className = 'sfux-dock-bulk-dialog-body';
+
+                const note = ctx.element('p');
+                note.className = 'sfux-dock-bulk-note';
+                note.textContent = meta.note;
+
+                const list = ctx.element('div');
+                list.className = 'sfux-dock-bulk-list';
+
+                const rowMap = new Map();
+
+                for (const action of actions) {
+                    const row = ctx.element('label');
+                    row.className = 'sfux-dock-bulk-row';
+
+                    const checkbox = ctx.element('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.checked = true;
+
+                    const name = ctx.element('span');
+                    name.className = 'sfux-dock-bulk-row-name';
+                    name.textContent = action.shipName || 'Unnamed ship';
+                    name.title = action.shipName || '';
+
+                    const metaText = ctx.element('span');
+                    metaText.className = 'sfux-dock-bulk-row-meta';
+
+                    if (kind === 'repair' && Number.isFinite(action.ticks)) {
+                        metaText.textContent = `${action.ticks}T`;
+                    } else if (action.status) {
+                        metaText.textContent = compactDockStatusLabel(action.status);
+                    } else {
+                        metaText.textContent = '';
+                    }
+
+                    const state = ctx.element('span');
+                    state.className = 'sfux-dock-bulk-row-state';
+
+                    row.append(checkbox, name, metaText, state);
+                    list.appendChild(row);
+
+                    rowMap.set(action, {
+                        row,
+                        checkbox,
+                        metaText,
+                        state
+                    });
+                }
+
+                body.append(note, list);
+
+                const foot = ctx.element('div');
+                foot.className = 'sfux-dock-bulk-dialog-foot';
+
+                const summary = ctx.element('div');
+                summary.className = 'sfux-dock-bulk-summary';
+
+                const cancel = ctx.element('button');
+                cancel.type = 'button';
+                cancel.textContent = 'Cancel';
+
+                const confirm = ctx.element('button');
+                confirm.type = 'button';
+                confirm.className =
+                    `sfux-dock-bulk-confirm sfux-dock-bulk-confirm--${kind}`;
+
+                foot.append(summary, cancel, confirm);
+                dialog.append(head, body, foot);
+                overlay.appendChild(dialog);
+                document.body.appendChild(overlay);
+
+                const priorOverflow = document.body.style.overflow;
+                document.body.style.overflow = 'hidden';
+
+                let running = false;
+
+                function selectedActions() {
+                    return actions.filter(action =>
+                        rowMap.get(action)?.checkbox.checked
+                    );
+                }
+
+                function refreshSelectionSummary() {
+                    const selected = selectedActions();
+                    const count = selected.length;
+
+                    summary.textContent =
+                        `${count} of ${actions.length} ship${
+                            actions.length === 1 ? '' : 's'
+                        } selected`;
+
+                    confirm.textContent =
+                        `${meta.confirmVerb} ${count} SHIP${count === 1 ? '' : 'S'}`;
+                    confirm.disabled = count === 0 || running;
+                }
+
+                function closeDialog() {
+                    if (running) return;
+                    document.body.style.overflow = priorOverflow;
+                    overlay.remove();
+                }
+
+                for (const { checkbox } of rowMap.values()) {
+                    checkbox.addEventListener('change', refreshSelectionSummary);
+                }
+
+                close.addEventListener('click', closeDialog);
+                cancel.addEventListener('click', closeDialog);
+
+                overlay.addEventListener('click', event => {
+                    if (event.target === overlay) closeDialog();
+                });
+
+                const onKeyDown = event => {
+                    if (event.key !== 'Escape') return;
+                    closeDialog();
+                };
+                document.addEventListener('keydown', onKeyDown, { once: false });
+
+                const cleanupKeyHandler = () => {
+                    document.removeEventListener('keydown', onKeyDown);
+                };
+
+                const observer = new MutationObserver(() => {
+                    if (!document.body.contains(overlay)) {
+                        cleanupKeyHandler();
+                        observer.disconnect();
+                    }
+                });
+                observer.observe(document.body, { childList: true });
+
+                confirm.addEventListener('click', async () => {
+                    const selected = selectedActions();
+                    if (!selected.length || running) return;
+
+                    running = true;
+                    close.disabled = true;
+                    cancel.disabled = true;
+
+                    for (const entry of rowMap.values()) {
+                        entry.checkbox.disabled = true;
+                    }
+
+                    refreshSelectionSummary();
+                    summary.textContent =
+                        `Starting ${selected.length} ${meta.verb.toLowerCase()} action${
+                            selected.length === 1 ? '' : 's'
+                        }…`;
+
+                    let completed = 0;
+                    let failedAction = null;
+                    let failureMessage = '';
+
+                    for (const action of selected) {
+                        const entry = rowMap.get(action);
+                        if (!entry) continue;
+
+                        entry.row.classList.add('sfux-dock-bulk-row--running');
+                        entry.state.textContent = 'Working…';
+
+                        try {
+                            await executeDockBulkNativeAction(action);
+                            completed += 1;
+
+                            entry.row.classList.remove(
+                                'sfux-dock-bulk-row--running'
+                            );
+                            entry.row.classList.add(
+                                'sfux-dock-bulk-row--success'
+                            );
+                            entry.state.textContent = '✓ Done';
+
+                            summary.textContent =
+                                `${completed} of ${selected.length} complete`;
+                        } catch (error) {
+                            failedAction = action;
+                            failureMessage =
+                                error instanceof Error
+                                    ? error.message
+                                    : String(error || 'Unknown error');
+
+                            entry.row.classList.remove(
+                                'sfux-dock-bulk-row--running'
+                            );
+                            entry.row.classList.add(
+                                'sfux-dock-bulk-row--failed'
+                            );
+                            entry.state.textContent = 'Failed';
+                            break;
+                        }
+                    }
+
+                    if (failedAction) {
+                        let afterFailure = false;
+
+                        for (const action of selected) {
+                            if (action === failedAction) {
+                                afterFailure = true;
+                                continue;
+                            }
+
+                            if (!afterFailure) continue;
+
+                            const entry = rowMap.get(action);
+                            if (!entry) continue;
+
+                            entry.row.classList.add(
+                                'sfux-dock-bulk-row--skipped'
+                            );
+                            entry.state.textContent = 'Not run';
+                        }
+
+                        running = false;
+                        close.disabled = false;
+                        cancel.disabled = false;
+                        cancel.textContent = 'Close';
+                        confirm.disabled = false;
+                        confirm.textContent = 'REFRESH DOCK';
+
+                        summary.textContent =
+                            `${completed} completed before failure: ${failureMessage}`;
+
+                        confirm.onclick = () => window.location.reload();
+                        return;
+                    }
+
+                    summary.textContent =
+                        `${completed} action${
+                            completed === 1 ? '' : 's'
+                        } complete · refreshing Star Dock…`;
+
+                    // One navigation only, after every confirmed native request.
+                    window.setTimeout(() => {
+                        window.location.reload();
+                    }, 550);
+                });
+
+                refreshSelectionSummary();
+
+                // Put keyboard focus in a predictable place.
+                window.setTimeout(() => close.focus(), 0);
+            }
+
+            function installDockBulkControls(sectionTitle, dockTitle, role, table) {
+                if (!sectionTitle || !table) return;
+                if (sectionTitle.querySelector('.sfux-dock-bulk')) return;
+
+                const buckets = {
+                    repair: [],
+                    disable: [],
+                    enable: []
+                };
+
+                const seen = {
+                    repair: new Set(),
+                    disable: new Set(),
+                    enable: new Set()
+                };
+
+                for (const row of Array.from(table.rows || [])) {
+                    const actions = dockBulkActionRegistry.get(row);
+                    if (!actions) continue;
+
+                    for (const kind of Object.keys(buckets)) {
+                        const action = actions[kind];
+                        if (!action?.url || seen[kind].has(action.url)) continue;
+
+                        seen[kind].add(action.url);
+                        buckets[kind].push(action);
+                    }
+                }
+
+                // "Bulk" should reduce clicks. A one-ship operation remains better
+                // served by the card's native individual control.
+                const availableKinds = ['repair', 'disable', 'enable'].filter(
+                    kind => buckets[kind].length >= 2
+                );
+
+                if (!availableKinds.length) return;
+
+                const wrap = ctx.element('span');
+                wrap.className = 'sfux-dock-bulk';
+
+                const button = ctx.element('button');
+                button.type = 'button';
+                button.className = 'sfux-dock-bulk-button';
+                button.textContent = 'Dock Options ▾';
+                button.setAttribute('aria-haspopup', 'menu');
+                button.setAttribute('aria-expanded', 'false');
+
+                const menu = ctx.element('span');
+                menu.className = 'sfux-dock-bulk-menu';
+                menu.setAttribute('role', 'menu');
+
+                for (const kind of availableKinds) {
+                    const meta = dockBulkKindMeta(kind);
+                    const actions = buckets[kind];
+
+                    const option = ctx.element('button');
+                    option.type = 'button';
+                    option.setAttribute('role', 'menuitem');
+
+                    const label = ctx.element('span');
+                    label.textContent = meta.menuLabel;
+
+                    const count = ctx.element('span');
+                    count.className = 'sfux-dock-bulk-menu-count';
+                    count.textContent = String(actions.length);
+
+                    option.append(label, count);
+
+                    option.addEventListener('click', event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+
+                        wrap.classList.remove('sfux-dock-bulk--open');
+                        button.setAttribute('aria-expanded', 'false');
+
+                        openDockBulkDialog(
+                            dockTitle,
+                            role,
+                            kind,
+                            actions
+                        );
+                    });
+
+                    menu.appendChild(option);
+                }
+
+                wrap.append(button, menu);
+
+                const setOpen = open => {
+                    wrap.classList.toggle('sfux-dock-bulk--open', open);
+                    button.setAttribute(
+                        'aria-expanded',
+                        open ? 'true' : 'false'
+                    );
+                };
+
+                button.addEventListener('click', event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setOpen(
+                        !wrap.classList.contains('sfux-dock-bulk--open')
+                    );
+                });
+
+                document.addEventListener('click', event => {
+                    if (!wrap.contains(event.target)) setOpen(false);
+                });
+
+                document.addEventListener('keydown', event => {
+                    if (event.key === 'Escape') setOpen(false);
+                });
+
+                const comms = sectionTitle.querySelector(
+                    '.sfux-dock-category-comms'
+                );
+
+                sectionTitle.classList.add(
+                    'sfux-dock-category-head--has-options'
+                );
+
+                if (comms) {
+                    comms.insertAdjacentElement('beforebegin', wrap);
+                } else {
+                    sectionTitle.appendChild(wrap);
+                }
             }
 
             function enhanceDockRow(row) {
@@ -14188,135 +16272,368 @@ function registerShipPowerRouting(SFUX) {
                 const data = parseDockShipRow(row);
                 if (!data) return false;
 
-                row.classList.add('sfux-dock-row');
+                row.classList.add('sfux-dock-row', 'sfux-dock-card-row');
 
-                data.imageCell.classList.add('sfux-dock-image-cell');
-                data.actionCell.classList.add('sfux-dock-actions');
+                const normalizedOperationalStatus = normalizeText(data.status);
+                const isRepairing =
+                    normalizedOperationalStatus.includes('repair');
+                const isDisabled =
+                    normalizedOperationalStatus.includes('disabled');
+                const hullSeverity = dockVitalSeverity('hull', data.hull);
+                const shieldSeverity = dockVitalSeverity('shield', data.shield);
 
-                const identity = ctx.element('div');
-                identity.className = 'sfux-dock-identity';
+                // Keep the card body neutral and put operational state in one
+                // fixed spatial location: a thin left-edge rail.
+                let operationalState = '';
+                if (isDisabled) {
+                    operationalState = 'disabled';
+                } else if (isRepairing) {
+                    operationalState = 'repairing';
+                } else if (normalizedOperationalStatus.includes('return')) {
+                    operationalState = 'returning';
+                } else if (normalizedOperationalStatus.includes('explor')) {
+                    operationalState = 'exploring';
+                } else if (normalizedOperationalStatus.includes('upgrad')) {
+                    operationalState = 'upgrading';
+                } else if (normalizedOperationalStatus.includes('build')) {
+                    operationalState = 'building';
+                }
 
-                const identityHead = ctx.element('div');
-                identityHead.className = 'sfux-dock-identity-head';
+                if (operationalState) {
+                    row.dataset.sfuxOperationalState = operationalState;
+                    if (operationalState !== 'repairing') {
+                        row.classList.add(
+                            `sfux-dock-card-row--status-${operationalState}`
+                        );
+                    }
+                }
+
+                /*
+                 * CIC attention rule:
+                 * pulse only for unattended critical hull damage.
+                 * Once repair is underway, or the ship is disabled/terminal,
+                 * the warning remains strong but static.
+                 */
+                if (isRepairing) {
+                    row.classList.add('sfux-dock-card-row--repairing');
+                }
+
+                if (isDisabled || hullSeverity === 'terminal') {
+                    row.classList.add('sfux-dock-card-row--terminal');
+                } else if (hullSeverity === 'critical' && !isRepairing) {
+                    row.classList.add('sfux-dock-card-row--critical-attention');
+                }
+
+                data.imageCell.classList.add('sfux-dock-source-cell');
+                data.healthCell.classList.add('sfux-dock-source-cell');
+                data.actionCell.classList.add('sfux-dock-source-cell', 'sfux-dock-actions');
+                data.infoCell.classList.add('sfux-dock-card-cell');
+
+                const card = ctx.element('div');
+                card.className = 'sfux-dock-card';
+                card.dataset.shipId = data.shipId || '';
+                card.title = data.className ? `Class: ${data.className}` : '';
+
+                const head = ctx.element('div');
+                head.className = 'sfux-dock-card-head';
 
                 const identityLink = ctx.element('a');
                 identityLink.className = 'sfux-dock-ship-name';
                 identityLink.href = data.shipLink.href;
                 identityLink.textContent = data.shipName || data.className;
+                identityLink.title = data.className ? `Open ship · ${data.className}` : 'Open ship';
 
-                if (data.shipId) {
-                    identityLink.dataset.sfuxShipId = data.shipId;
+                if (data.shipId) identityLink.dataset.sfuxShipId = data.shipId;
+                if (!data.shipName) identityLink.classList.add('sfux-dock-ship-name--fallback');
+                head.appendChild(identityLink);
+
+                // Promote the two native high-value actions out of StarFury's dropdown.
+                // The original anchors are MOVED, not reimplemented, so native modal
+                // targets and backend URLs remain authoritative.
+                const dropdown = data.actionCell.querySelector('.dropdown');
+                let repairAction = null;
+                let repairContext = null;
+                let disableAction = null;
+                let enableAction = null;
+
+                const bulkActions = {
+                    repair: null,
+                    disable: null,
+                    enable: null
+                };
+
+                if (dropdown) {
+                    const menuLinks = Array.from(dropdown.querySelectorAll('.dd-menu a'));
+                    const enabledLinks = menuLinks.filter(link => {
+                        if (link.classList.contains('dockyardIconDisabled')) return false;
+                        const href = String(link.getAttribute('href') || '').trim();
+                        return href && href !== '#';
+                    });
+
+                    repairAction = enabledLinks.find(link =>
+                        /^repair\b/i.test(String(link.textContent || '').trim())
+                    ) || null;
+
+                    disableAction = enabledLinks.find(link =>
+                        /^disable\b/i.test(String(link.textContent || '').trim())
+                    ) || null;
+
+                    enableAction = enabledLinks.find(link =>
+                        /^(?:re-?enable|enable)\b/i.test(
+                            String(link.textContent || '').trim()
+                        )
+                    ) || null;
+
+                    const resolvedRepair =
+                        resolveDockConfirmedNativeAction(
+                            repairAction,
+                            'repair'
+                        );
+
+                    const resolvedDisable =
+                        resolveDockConfirmedNativeAction(
+                            disableAction,
+                            'disable'
+                        );
+
+                    const resolvedEnable =
+                        resolveDockConfirmedNativeAction(
+                            enableAction,
+                            'enable'
+                        );
+
+                    if (disableAction) {
+                        const item = disableAction.closest('li');
+                        disableAction.classList.add('sfux-dock-inline-disable');
+                        disableAction.title = 'Disable ship';
+                        disableAction.setAttribute('aria-label', 'Disable ship');
+                        disableAction.replaceChildren();
+                        const icon = ctx.element('span');
+                        icon.className = 'fa fa-power-off';
+                        icon.setAttribute('aria-hidden', 'true');
+                        disableAction.appendChild(icon);
+                        if (item) item.remove();
+                    }
+
+                    if (repairAction) {
+                        const item = repairAction.closest('li');
+                        const rawRepair = String(repairAction.textContent || '').trim();
+                        const repairTicks =
+                            rawRepair.match(/\[\s*(\d+)\s*\]/) ||
+                            rawRepair.match(/(\d+)\s*ticks?/i);
+                        const repairSeverity = dockRepairSeverity(data.hull, data.shield);
+
+                        repairContext = {
+                            action: repairAction,
+                            severity: repairSeverity,
+                            label: repairTicks
+                                ? `REPAIR · ${Number(repairTicks[1])}T`
+                                : 'REPAIR',
+                            title: rawRepair || 'Repair ship'
+                        };
+
+                        if (resolvedRepair) {
+                            bulkActions.repair = {
+                                ...resolvedRepair,
+                                shipId: data.shipId || '',
+                                shipName:
+                                    data.shipName ||
+                                    data.className ||
+                                    `Ship ${data.shipId || ''}`.trim(),
+                                className: data.className || '',
+                                status: data.status || '',
+                                ticks: repairTicks
+                                    ? Number(repairTicks[1])
+                                    : null
+                            };
+                        }
+
+                        if (item) item.remove();
+                    }
+
+                    if (resolvedDisable) {
+                        bulkActions.disable = {
+                            ...resolvedDisable,
+                            shipId: data.shipId || '',
+                            shipName:
+                                data.shipName ||
+                                data.className ||
+                                `Ship ${data.shipId || ''}`.trim(),
+                            className: data.className || '',
+                            status: data.status || '',
+                            ticks: null
+                        };
+                    }
+
+                    if (resolvedEnable) {
+                        bulkActions.enable = {
+                            ...resolvedEnable,
+                            shipId: data.shipId || '',
+                            shipName:
+                                data.shipName ||
+                                data.className ||
+                                `Ship ${data.shipId || ''}`.trim(),
+                            className: data.className || '',
+                            status: data.status || '',
+                            ticks: null
+                        };
+                    }
+
+                    const remainingEnabled = Array.from(dropdown.querySelectorAll('.dd-menu a')).filter(link => {
+                        if (link.classList.contains('dockyardIconDisabled')) return false;
+                        const href = String(link.getAttribute('href') || '').trim();
+                        return href && href !== '#';
+                    });
+
+                    // Keep the ellipsis only if StarFury exposes some other enabled
+                    // action we do not explicitly understand. Unknown actions stay native.
+                    if (remainingEnabled.length) {
+                        dropdown.classList.add('sfux-dock-action-menu');
+                        const actionButton = dropdown.querySelector('.dd-button');
+                        if (actionButton) {
+                            actionButton.textContent = '⋮';
+                            actionButton.title = 'More ship actions';
+                            actionButton.setAttribute('aria-label', 'More ship actions');
+                        }
+                        head.appendChild(dropdown);
+                    }
                 }
 
-                if (!data.shipName) {
-                    identityLink.classList.add('sfux-dock-ship-name--fallback');
-                }
+                dockBulkActionRegistry.set(row, bulkActions);
 
-                identityHead.appendChild(identityLink);
-                identity.appendChild(identityHead);
+                /*
+                 * Section-level attention counts represent unresolved operator
+                 * work, not merely non-nominal activity. Ships already repairing
+                 * stay visually degraded on their own card but do not keep the
+                 * section warning lit.
+                 */
+                const seriousHull = ['warning', 'danger', 'critical', 'terminal']
+                    .includes(hullSeverity);
+                const seriousShield = ['warning', 'danger', 'terminal']
+                    .includes(shieldSeverity);
+                const needsAttention = !isRepairing && (
+                    Boolean(repairAction) ||
+                    isDisabled ||
+                    seriousHull ||
+                    seriousShield
+                );
 
-                const tags = ctx.element('div');
-                tags.className = 'sfux-dock-identity-tags';
-
-                const primaryTags = ctx.element('span');
-                primaryTags.className = 'sfux-dock-primary-tags';
-
-                if (data.status) {
-                    const status = ctx.element('span');
-                    const normalizedStatus = normalizeText(data.status);
-                    const statusKind = normalizedStatus.includes('explor')
-                        ? 'exploring'
-                        : shipStatusClass(data.status);
-                    status.className = `sfux-dock-status sfux-dock-status--${statusKind}`;
-
-                    const compactStatus = data.status
-                        .replace(/exploring\s+planets?/i, 'Exploring')
-                        .replace(/\(\s*(\d+)\s*ticks?\s*\)/i, ' · $1t')
-                        .replace(/\s+/g, ' ')
-                        .trim();
-
-                    status.textContent = compactStatus;
-
-                    primaryTags.appendChild(status);
-                }
-
-                if (data.mode) {
-                    const modeKindValue = modeKind(data.mode);
-                    const modeTag = createShipTag(
-                        data.mode,
-                        modeKindValue === 'neutral' ? '' : modeKindValue
-                    );
-                    primaryTags.appendChild(modeTag);
-                }
-
-                if (primaryTags.children.length) {
-                    tags.appendChild(primaryTags);
+                if (needsAttention) {
+                    row.dataset.sfuxAttention = '1';
                 }
 
                 if (
-                    data.className &&
-                    (!data.shipName || normalizeText(data.shipName) !== normalizeText(data.className))
+                    !isRepairing &&
+                    (
+                        isDisabled ||
+                        hullSeverity === 'critical' ||
+                        hullSeverity === 'terminal'
+                    )
                 ) {
-                    const classMeta = ctx.element('span');
-                    classMeta.className = 'sfux-dock-class-meta';
-                    classMeta.textContent = data.className;
-                    tags.appendChild(classMeta);
+                    row.dataset.sfuxCriticalAttention = '1';
                 }
 
-                if (tags.children.length) {
-                    identity.appendChild(tags);
+                const imageViewport = ctx.element('div');
+                imageViewport.className = 'sfux-dock-card-image';
+
+                const imageLink = ctx.element('a');
+                imageLink.className = 'sfux-dock-card-image-link';
+                imageLink.href = data.shipLink.href;
+                imageLink.title = data.className || 'Open ship';
+
+                const sourceImage = data.imageCell.querySelector('.dock-ship-image, img');
+                if (sourceImage) {
+                    const image = sourceImage.cloneNode(true);
+                    image.removeAttribute('width');
+                    image.removeAttribute('height');
+                    image.classList.add('sfux-dock-card-image-asset');
+                    imageLink.appendChild(image);
                 }
 
-                const hasPower =
-                    data.power.weapons !== null ||
-                    data.power.engines !== null ||
-                    data.power.sensors !== null;
+                imageViewport.appendChild(imageLink);
 
-                if (hasPower) {
-                    const power = ctx.element('div');
-                    power.className = 'sfux-dock-power';
-
-                    power.append(
-                        createDockPowerMetric('W', data.power.weapons, 'sfux-power-w'),
-                        createDockPowerMetric('E', data.power.engines, 'sfux-power-e'),
-                        createDockPowerMetric('S', data.power.sensors, 'sfux-power-s')
-                    );
-
-                    if (Number.isFinite(data.engineTicks)) {
-                        const engine = ctx.element('span');
-                        engine.className = 'sfux-dock-engine';
-                        engine.textContent = `ENG ${data.engineTicks}t`;
-                        power.appendChild(engine);
-                    }
-
-                    identity.appendChild(power);
-                } else if (Number.isFinite(data.engineTicks)) {
-                    const engine = ctx.element('span');
-                    engine.className = 'sfux-dock-engine';
-                    engine.textContent = `ENG ${data.engineTicks}t`;
-                    tags.appendChild(engine);
-
-                    if (!tags.isConnected) {
-                        identity.appendChild(tags);
-                    }
+                const viewportModeIcon = createDockModeIcon(data.mode);
+                if (viewportModeIcon) {
+                    const modePlate = ctx.element('span');
+                    modePlate.className = 'sfux-dock-card-image-mode';
+                    modePlate.appendChild(viewportModeIcon);
+                    imageViewport.appendChild(modePlate);
                 }
 
-                data.infoCell.replaceChildren(identity);
+                if (disableAction) {
+                    disableAction.classList.add('sfux-dock-card-image-action');
+                    imageViewport.appendChild(disableAction);
+                }
+
+                const statusWrap = ctx.element('div');
+                statusWrap.className = 'sfux-dock-card-status-wrap';
+                if (data.status) {
+                    const status = ctx.element('span');
+                    const visuals = SFUX.ui.dockStatusVisuals(data.status);
+                    const statusKind = visuals.key;
+                    status.className = `sfux-dock-status sfux-dock-status--${statusKind}`;
+                    status.textContent = compactDockStatusLabel(data.status);
+                    status.title = data.status;
+                    status.style.setProperty('--sfux-status-color', visuals.color);
+                    statusWrap.appendChild(status);
+                }
+
+                /*
+                 * Do not offer another Repair action when the ship is already
+                 * actively repairing, even if StarFury leaves a native link in
+                 * the markup for some reason.
+                 */
+                const activeRepairContext = isRepairing ? null : repairContext;
 
                 const vitals = ctx.element('div');
                 vitals.className = 'sfux-dock-vitals';
                 vitals.append(
-                    createDockVital('hull', 'Hull', data.hull),
-                    createDockVital('shield', 'Shields', data.shield)
+                    createDockVital('hull', 'H', data.hull, activeRepairContext),
+                    createDockVital('shield', 'S', data.shield, activeRepairContext)
                 );
 
-                data.healthCell.replaceChildren(vitals);
+                const footer = ctx.element('div');
+                footer.className = 'sfux-dock-card-footer';
 
-                const dropdown = data.actionCell.querySelector('.dropdown');
-                if (dropdown) {
-                    dropdown.classList.add('sfux-dock-action-menu');
+                const power = ctx.element('div');
+                power.className = 'sfux-dock-power';
+                const powerMetrics = [
+                    createDockPowerMetric('W', data.power.weapons, 'sfux-power-w'),
+                    createDockPowerMetric('E', data.power.engines, 'sfux-power-e'),
+                    createDockPowerMetric('S', data.power.sensors, 'sfux-power-s')
+                ].filter(Boolean);
+                for (const metric of powerMetrics) power.appendChild(metric);
+
+                if (!powerMetrics.length) {
+                    const noPower = ctx.element('span');
+                    noPower.className = 'sfux-dock-power-empty';
+                    noPower.textContent = '—';
+                    power.appendChild(noPower);
                 }
 
+                const config = ctx.element('div');
+                config.className = 'sfux-dock-card-config';
+
+                if (Number.isFinite(data.engineTicks)) {
+                    const engine = ctx.element('span');
+                    engine.className = 'sfux-dock-engine';
+                    engine.textContent = `ENG${data.engineTicks}`;
+                    engine.title = `Engine time: ${data.engineTicks} ticks`;
+                    config.appendChild(engine);
+                }
+
+                footer.append(power, config);
+                card.append(head, imageViewport, statusWrap, vitals, footer);
+
+                if (repairAction) {
+                    const nativeActionProxy = ctx.element('span');
+                    nativeActionProxy.className = 'sfux-dock-native-action-proxy';
+                    nativeActionProxy.setAttribute('aria-hidden', 'true');
+                    nativeActionProxy.appendChild(repairAction);
+                    card.appendChild(nativeActionProxy);
+                }
+
+                data.infoCell.replaceChildren(card);
                 return true;
             }
 
@@ -14384,6 +16701,83 @@ function registerShipPowerRouting(SFUX) {
                 }
             }
 
+            function dockCardStarfieldSource() {
+                const minimap =
+                    document.querySelector('#advisor-dock .minimap') ||
+                    document.querySelector('.dock-container .minimap') ||
+                    document.querySelector('.minimap');
+
+                if (!minimap) return null;
+
+                const candidates = [
+                    minimap,
+                    minimap.querySelector('.minimapships')
+                ].filter(Boolean);
+
+                for (const node of candidates) {
+                    const style = window.getComputedStyle(node);
+                    const image = String(style.backgroundImage || '').trim();
+
+                    if (
+                        !image ||
+                        image === 'none' ||
+                        image === 'initial' ||
+                        image === 'unset'
+                    ) {
+                        continue;
+                    }
+
+                    return {
+                        image,
+                        size: String(style.backgroundSize || '').trim() || 'auto',
+                        position:
+                            String(style.backgroundPosition || '').trim() || '0% 0%',
+                        repeat:
+                            String(style.backgroundRepeat || '').trim() || 'repeat'
+                    };
+                }
+
+                return null;
+            }
+
+            function syncDockCardStarfield(contentBox) {
+                if (!contentBox) return;
+
+                const source = dockCardStarfieldSource();
+
+                if (!source) {
+                    /*
+                     * Leave the CSS fallback in control. This keeps the fleet
+                     * board usable even if StarFury changes or removes its
+                     * native minimap starfield implementation.
+                     */
+                    contentBox.style.removeProperty('--sfux-dock-card-starfield-image');
+                    contentBox.style.removeProperty('--sfux-dock-card-starfield-size');
+                    contentBox.style.removeProperty('--sfux-dock-card-starfield-position');
+                    contentBox.style.removeProperty('--sfux-dock-card-starfield-repeat');
+                    contentBox.dataset.sfuxDockStarfield = 'fallback';
+                    return;
+                }
+
+                contentBox.style.setProperty(
+                    '--sfux-dock-card-starfield-image',
+                    source.image
+                );
+                contentBox.style.setProperty(
+                    '--sfux-dock-card-starfield-size',
+                    source.size
+                );
+                contentBox.style.setProperty(
+                    '--sfux-dock-card-starfield-position',
+                    source.position
+                );
+                contentBox.style.setProperty(
+                    '--sfux-dock-card-starfield-repeat',
+                    source.repeat
+                );
+                contentBox.dataset.sfuxDockStarfield = 'native';
+            }
+
             function enhanceStarDockOverview() {
                 if (!isStarDockOverviewPage()) return;
 
@@ -14402,6 +16796,7 @@ function registerShipPowerRouting(SFUX) {
                 }
 
                 contentBox.classList.add('sfux-stardock-overview');
+                syncDockCardStarfield(contentBox);
 
                 const containers = Array.from(
                     contentBox.querySelectorAll('.categoryContainer')
@@ -14413,6 +16808,18 @@ function registerShipPowerRouting(SFUX) {
 
                 for (const container of containers) {
                     const sectionTitle = container.querySelector(':scope > .sectionTitle');
+
+                    // Preserve StarFury's native Comms semantic state before rebuilding
+                    // the header. EMP'd docks are rendered as .negativeamount Offline (N),
+                    // while healthy docks use .positiveamount Online.
+                    const nativeCommsNode = sectionTitle?.querySelector(
+                        '.positiveamount, .negativeamount'
+                    ) || null;
+                    const nativeCommsState = nativeCommsNode?.classList.contains('negativeamount')
+                        ? 'offline'
+                        : nativeCommsNode?.classList.contains('positiveamount')
+                            ? 'online'
+                            : '';
 
                     // Keep native Counter EMP UI out of the text parser while preserving
                     // StarFury's own button, confirmation modal, and confirm link.
@@ -14456,6 +16863,21 @@ function registerShipPowerRouting(SFUX) {
                         comms.className = 'sfux-dock-category-comms';
                         comms.textContent = parsed.comms || 'Online';
 
+                        const normalizedComms = normalizeText(comms.textContent);
+                        const commsState = nativeCommsState || (
+                            normalizedComms.startsWith('offline')
+                                ? 'offline'
+                                : normalizedComms.startsWith('online')
+                                    ? 'online'
+                                    : ''
+                        );
+
+                        if (commsState) {
+                            comms.classList.add(
+                                `sfux-dock-category-comms--${commsState}`
+                            );
+                        }
+
                         sectionTitle.append(title, capacity, comms);
 
                         if (nativeHeaderActions.counterControl) {
@@ -14479,6 +16901,70 @@ function registerShipPowerRouting(SFUX) {
                         for (const row of Array.from(table.rows || [])) {
                             enhanceDockRow(row);
                         }
+
+                        const attentionRows = Array.from(
+                            table.querySelectorAll(
+                                'tr.sfux-dock-card-row[data-sfux-attention="1"]'
+                            )
+                        );
+
+                        if (sectionTitle && attentionRows.length) {
+                            const criticalCount = attentionRows.filter(row =>
+                                row.dataset.sfuxCriticalAttention === '1'
+                            ).length;
+
+                            const attention = ctx.element('span');
+                            attention.className = 'sfux-dock-category-attention';
+                            if (criticalCount > 0) {
+                                attention.classList.add(
+                                    'sfux-dock-category-attention--critical'
+                                );
+                            }
+
+                            const attentionIcon = ctx.element('span');
+                            attentionIcon.className =
+                                'sfux-dock-category-attention-icon';
+                            attentionIcon.textContent = '⚠';
+                            attentionIcon.setAttribute('aria-hidden', 'true');
+
+                            const attentionCount = ctx.element('span');
+                            attentionCount.className =
+                                'sfux-dock-category-attention-count';
+                            attentionCount.textContent =
+                                String(attentionRows.length);
+
+                            attention.append(attentionIcon, attentionCount);
+                            attention.setAttribute(
+                                'aria-label',
+                                `${attentionRows.length} ship${
+                                    attentionRows.length === 1 ? '' : 's'
+                                } require attention`
+                            );
+                            attention.title =
+                                `${attentionRows.length} ship${
+                                    attentionRows.length === 1 ? '' : 's'
+                                } require attention`;
+
+                            const comms = sectionTitle.querySelector(
+                                '.sfux-dock-category-comms'
+                            );
+
+                            if (comms) {
+                                comms.insertAdjacentElement(
+                                    'beforebegin',
+                                    attention
+                                );
+                            } else {
+                                sectionTitle.appendChild(attention);
+                            }
+                        }
+
+                        installDockBulkControls(
+                            sectionTitle,
+                            parsed.title,
+                            role,
+                            table
+                        );
                     }
 
                     categoryData.set(normalizeText(parsed.title), {
