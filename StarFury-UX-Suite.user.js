@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury UX Suite
 // @namespace    starfuryx.com
-// @version      2.2.6
+// @version      2.2.9
 // @author       Zathman
 // @license      MIT
 // @homepageURL  https://github.com/Katorthoma/star-fury-scripts
@@ -20,10 +20,10 @@
 
 (() => {
 'use strict';
-/* StarFury UX Suite 2.2.6 | Shared runtime. No globals are published by the bundle. */
+/* StarFury UX Suite 2.2.9 | Shared runtime. No globals are published by the bundle. */
 function createSFUX() {
     'use strict';
-    const SFUX = { version: '2.2.6', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
+    const SFUX = { version: '2.2.9', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
     // UI ASSUMPTION: dense building columns and nine navigation items need earlier stacking.
     SFUX.responsive = Object.freeze({ mobile: 640, navigation: 768, buildings: 800, phone: 430, narrowHeader: 460, tinyHud: 360 });
     SFUX.page = new URL(window.location.href);
@@ -133,6 +133,18 @@ function createSFUX() {
                 background: 'rgba(132,104,25,0.95)',
                 border: 'rgba(255,224,121,0.96)',
                 glow: 'rgba(242,207,98,0.42)'
+            };
+        }
+
+        if (key.includes('raid')) {
+            // StarFury exposes Raiding as a native operational state. Keep it
+            // distinct from the Raider dock role with a muted brown/amber cue.
+            return {
+                key: 'raiding',
+                color: '#d59a4a',
+                background: 'rgba(103,61,19,0.95)',
+                border: 'rgba(205,141,66,0.96)',
+                glow: 'rgba(184,112,39,0.34)'
             };
         }
 
@@ -449,6 +461,73 @@ html body input.sfux-number:focus { border-color: var(--sfux-info) !important; o
 .sfux-number-button:hover { background: var(--sfux-info-soft) !important; }
 .sfux-number-stepper:has(input:disabled) .sfux-number-controls, .sfux-number-stepper:has(input[readonly]) .sfux-number-controls { display: none; }
 html body input.sfux-number:disabled { color: var(--sfux-text-disabled); }
+
+/*
+ * Generic primary actions.
+ *
+ * Skeleton's native #33C3F0 primary button is too light for white text.
+ * Use a darker cyan-blue that retains StarFury's visual language while
+ * meeting normal-text contrast. Semantic destructive controls such as
+ * .sf-raze-submit retain their module-owned red treatment.
+ */
+html body .button.button-primary:not(.sf-raze-submit),
+html body button.button-primary:not(.sf-raze-submit),
+html body input[type="submit"].button-primary:not(.sf-raze-submit),
+html body input[type="reset"].button-primary:not(.sf-raze-submit),
+html body input[type="button"].button-primary:not(.sf-raze-submit) {
+    color: #fff !important;
+    background-color: #167aa3 !important;
+    border-color: #238fba !important;
+    text-shadow: 0 1px 1px rgba(0,0,0,.28);
+    transition:
+        background-color var(--sfux-transition-fast),
+        border-color var(--sfux-transition-fast),
+        box-shadow var(--sfux-transition-fast);
+}
+
+html body .button.button-primary:not(.sf-raze-submit):hover,
+html body button.button-primary:not(.sf-raze-submit):hover,
+html body input[type="submit"].button-primary:not(.sf-raze-submit):hover,
+html body input[type="reset"].button-primary:not(.sf-raze-submit):hover,
+html body input[type="button"].button-primary:not(.sf-raze-submit):hover {
+    color: #fff !important;
+    background-color: #1b789c !important;
+    border-color: #38bfe8 !important;
+}
+
+html body .button.button-primary:not(.sf-raze-submit):focus,
+html body button.button-primary:not(.sf-raze-submit):focus,
+html body input[type="submit"].button-primary:not(.sf-raze-submit):focus,
+html body input[type="reset"].button-primary:not(.sf-raze-submit):focus,
+html body input[type="button"].button-primary:not(.sf-raze-submit):focus {
+    color: #fff !important;
+    background-color: #167aa3 !important;
+    border-color: #38bfe8 !important;
+    outline: 0 !important;
+    box-shadow: 0 0 0 2px rgba(56,191,232,.20);
+}
+
+html body .button.button-primary:not(.sf-raze-submit):active,
+html body button.button-primary:not(.sf-raze-submit):active,
+html body input[type="submit"].button-primary:not(.sf-raze-submit):active,
+html body input[type="reset"].button-primary:not(.sf-raze-submit):active,
+html body input[type="button"].button-primary:not(.sf-raze-submit):active {
+    background-color: #12698f !important;
+    border-color: #238fba !important;
+}
+
+html body .button.button-primary:not(.sf-raze-submit):disabled,
+html body button.button-primary:not(.sf-raze-submit):disabled,
+html body input[type="submit"].button-primary:not(.sf-raze-submit):disabled,
+html body input[type="reset"].button-primary:not(.sf-raze-submit):disabled,
+html body input[type="button"].button-primary:not(.sf-raze-submit):disabled {
+    color: rgba(255,255,255,.46) !important;
+    background-color: #3b515c !important;
+    border-color: #4c6069 !important;
+    text-shadow: none;
+    cursor: default;
+    opacity: .72;
+}
 .sfux-leecher-native-row { display: grid; grid-template-columns: 76px minmax(0,1fr); gap: 8px; align-items: center; margin-bottom: 8px; font-size: var(--sfux-font-sm); }
 .sfux-leecher-native-row input, .sfux-leecher-native-row select { width: 100% !important; min-width: 0; margin: 0 !important; text-align: center; }
 .sfux-selection-empty { opacity: .6; }
@@ -473,7 +552,7 @@ html body input.sfux-number:disabled { color: var(--sfux-text-disabled); }
     return SFUX;
 }
 
-/* StarFury UX Suite 2.2.6 | Global UX module. */
+/* StarFury UX Suite 2.2.9 | Global UX module. */
 function registerGlobalUX(SFUX) {
     SFUX.register({
         id: 'global', phase: 'early',
@@ -524,6 +603,7 @@ function registerGlobalUX(SFUX) {
              *        Upgrading -> blue remaining-tick number
              *        Disabled  -> neutral gray "D"
              *        Exploring -> green "E"
+             *        Raiding   -> brown "R"
              *    - Beacons anchor to the logical ship cell, not the ship artwork.
              *    - Full native status text remains available in tooltip/accessibility data.
              *    - The whole ship slot is clickable/tappable while preserving the native
@@ -607,6 +687,20 @@ function registerGlobalUX(SFUX) {
             const DOCK_CLICKABLE_CLASS = 'sfgu-dock-ship-clickable';
             const DOCK_COUNTDOWN_CLASS = 'sfgu-dock-status-countdown';
             const DOCK_STATUS_REPLACED_CLASS = 'sfgu-status-countdown-replaced';
+
+            /*
+             * Native compact-dock ship avatars use a shared ~77 x 84 frame.
+             *
+             * Do not blindly trust a live getBoundingClientRect() during a StarFury
+             * dock rebuild: after constructing a ship, refreshing, or switching
+             * empires the native DOM can briefly expose a much smaller intermediate
+             * box before the ship/status classes finish settling.
+             */
+            const DOCK_AVATAR_NATIVE_WIDTH = 77;
+            const DOCK_AVATAR_NATIVE_HEIGHT = 84;
+            const DOCK_AVATAR_MIN_SANE_WIDTH = 48;
+            const DOCK_AVATAR_MIN_SANE_HEIGHT = 48;
+
             const MOBILE_OPEN_CLASS = 'sfgu-open';
             const SUBMENU_OPEN_CLASS = 'sfgu-expanded';
             const BREAKPOINT = SFUX.responsive.navigation;
@@ -2709,6 +2803,15 @@ function registerGlobalUX(SFUX) {
                     };
                 }
 
+                if (/^raid/i.test(statusLine)) {
+                    return {
+                        label: statusLine,
+                        display: 'R',
+                        ticks: null,
+                        kind: 'state'
+                    };
+                }
+
                 return null;
             }
 
@@ -2783,6 +2886,83 @@ function registerGlobalUX(SFUX) {
                     `${chipPad}px`
                 );
             }
+
+            function getStableDockAvatarNativeSize(avatar) {
+                if (!avatar) {
+                    return {
+                        width: DOCK_AVATAR_NATIVE_WIDTH,
+                        height: DOCK_AVATAR_NATIVE_HEIGHT
+                    };
+                }
+
+                const link = avatar.querySelector('a[href*="viewship.php"]');
+                const signature = [
+                    avatar.className || '',
+                    link?.getAttribute('href') || ''
+                ].join('|');
+
+                let cachedWidth = Number(avatar.dataset.sfguNativeWidth || 0);
+                let cachedHeight = Number(avatar.dataset.sfguNativeHeight || 0);
+                const cachedSignature =
+                    avatar.dataset.sfguNativeSignature || '';
+
+                const sane = (width, height) =>
+                    Number.isFinite(width) &&
+                    Number.isFinite(height) &&
+                    width >= DOCK_AVATAR_MIN_SANE_WIDTH &&
+                    height >= DOCK_AVATAR_MIN_SANE_HEIGHT;
+
+                /*
+                 * Native code can reuse a shipAvatar node while changing the ship
+                 * class/link during empire switches. Invalidate stale geometry when
+                 * that identity changes.
+                 */
+                if (cachedSignature && cachedSignature !== signature) {
+                    cachedWidth = 0;
+                    cachedHeight = 0;
+                    delete avatar.dataset.sfguNativeWidth;
+                    delete avatar.dataset.sfguNativeHeight;
+                }
+
+                if (sane(cachedWidth, cachedHeight)) {
+                    avatar.dataset.sfguNativeSignature = signature;
+                    return {
+                        width: cachedWidth,
+                        height: cachedHeight
+                    };
+                }
+
+                /*
+                 * Remove only our previous sizing before measuring. If StarFury's own
+                 * CSS has fully settled, this exposes its real native frame. If it has
+                 * not settled yet, the sanity check below prevents us from caching the
+                 * transient tiny box.
+                 */
+                avatar.style.removeProperty('width');
+                avatar.style.removeProperty('height');
+
+                const rect = avatar.getBoundingClientRect();
+                const measuredWidth = Number(rect.width || 0);
+                const measuredHeight = Number(rect.height || 0);
+
+                const nativeWidth = sane(measuredWidth, measuredHeight)
+                    ? measuredWidth
+                    : DOCK_AVATAR_NATIVE_WIDTH;
+
+                const nativeHeight = sane(measuredWidth, measuredHeight)
+                    ? measuredHeight
+                    : DOCK_AVATAR_NATIVE_HEIGHT;
+
+                avatar.dataset.sfguNativeWidth = String(nativeWidth);
+                avatar.dataset.sfguNativeHeight = String(nativeHeight);
+                avatar.dataset.sfguNativeSignature = signature;
+
+                return {
+                    width: nativeWidth,
+                    height: nativeHeight
+                };
+            }
+
 
             function layoutMinimapShips(contextRow) {
                 const minimap = contextRow.querySelector('.minimap');
@@ -2923,44 +3103,53 @@ function registerGlobalUX(SFUX) {
                     }
 
                     /*
-                     * Capture StarFury's native avatar dimensions only once. Subsequent
-                     * responsive passes always calculate from the original geometry.
+                     * Use validated native geometry rather than permanently caching the
+                     * first box we happen to observe. StarFury can briefly render a new
+                     * or status-bearing ship at a tiny intermediate size while its dock
+                     * DOM is being rebuilt.
                      */
-                    let nativeWidth = Number(avatar.dataset.sfguNativeWidth || 0);
-                    let nativeHeight = Number(avatar.dataset.sfguNativeHeight || 0);
+                    const nativeSize = getStableDockAvatarNativeSize(avatar);
+                    const nativeWidth = nativeSize.width;
+                    const nativeHeight = nativeSize.height;
 
-                    if (!nativeWidth || !nativeHeight) {
-                        const rect = avatar.getBoundingClientRect();
-                        nativeWidth = Math.max(1, rect.width);
-                        nativeHeight = Math.max(1, rect.height);
+                    /*
+                     * Status banners remain real StarFury DOM elements. Capture their
+                     * native geometry when needed before resizing the avatar.
+                     *
+                     * Re-capture implausibly small cached badge dimensions too. This
+                     * handles the same native rebuild race without changing the actual
+                     * StarFury status source.
+                     */
+                    for (const badge of avatar.querySelectorAll(
+                        'img.statusIcon'
+                    )) {
+                        const cachedBadgeWidth = Number(
+                            badge.dataset.sfguNativeWidth || 0
+                        );
+                        const cachedBadgeHeight = Number(
+                            badge.dataset.sfguNativeHeight || 0
+                        );
 
-                        avatar.dataset.sfguNativeWidth = String(nativeWidth);
-                        avatar.dataset.sfguNativeHeight = String(nativeHeight);
-
-                        /*
-                         * Status banners remain real StarFury DOM elements. Capture
-                         * their native geometry before resizing the avatar.
-                         *
-                         * shipRoleIcon is intentionally excluded here because v0.3.5
-                         * replaces it visually with the role tint.
-                         */
-                        for (const badge of avatar.querySelectorAll(
-                            'img.statusIcon'
-                        )) {
-                            const badgeRect = badge.getBoundingClientRect();
-                            const avatarRect = avatar.getBoundingClientRect();
-                            const style = window.getComputedStyle(badge);
-
-                            badge.dataset.sfguNativeWidth =
-                                String(Math.max(1, badgeRect.width));
-                            badge.dataset.sfguNativeHeight =
-                                String(Math.max(1, badgeRect.height));
-                            badge.dataset.sfguNativeLeft =
-                                String(badgeRect.left - avatarRect.left);
-                            badge.dataset.sfguNativeTop =
-                                String(badgeRect.top - avatarRect.top);
-                            badge.dataset.sfguNativePosition = style.position || '';
+                        if (
+                            cachedBadgeWidth >= 12 &&
+                            cachedBadgeHeight >= 12
+                        ) {
+                            continue;
                         }
+
+                        const badgeRect = badge.getBoundingClientRect();
+                        const avatarRect = avatar.getBoundingClientRect();
+                        const style = window.getComputedStyle(badge);
+
+                        badge.dataset.sfguNativeWidth =
+                            String(Math.max(1, badgeRect.width));
+                        badge.dataset.sfguNativeHeight =
+                            String(Math.max(1, badgeRect.height));
+                        badge.dataset.sfguNativeLeft =
+                            String(badgeRect.left - avatarRect.left);
+                        badge.dataset.sfguNativeTop =
+                            String(badgeRect.top - avatarRect.top);
+                        badge.dataset.sfguNativePosition = style.position || '';
                     }
 
                     const horizontalPadding = 8;
@@ -3614,6 +3803,17 @@ function registerGlobalUX(SFUX) {
                             layoutMinimapShips(contextRow);
                             improveMinimapAccessibility(contextRow);
                             initializeDockShipInteractions(contextRow);
+
+                            /*
+                             * StarFury sometimes completes ship/status styling a moment
+                             * after inserting or updating the dock node. Re-run once
+                             * after that settling window so a transient tiny avatar can
+                             * never become the persistent compact-dock size.
+                             */
+                            ctx.timeout(() => {
+                                layoutMinimapShips(contextRow);
+                                improveMinimapAccessibility(contextRow);
+                            }, 90);
                         });
                     });
 
@@ -4035,7 +4235,7 @@ function registerGlobalUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.2.6 | Research Optimizer module. */
+/* StarFury UX Suite 2.2.9 | Research Optimizer module. */
 function registerResearchOptimizer(SFUX) {
     SFUX.register({
         id: 'research', phase: 'ready',
@@ -6746,7 +6946,7 @@ function registerResearchOptimizer(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.2.6 | Buildings UX module. */
+/* StarFury UX Suite 2.2.9 | Buildings UX module. */
 function registerBuildingsUX(SFUX) {
     SFUX.register({
         id: 'buildings', phase: 'ready',
@@ -9875,7 +10075,7 @@ function registerBuildingsUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.2.6 | Ship Power Routing module. */
+/* StarFury UX Suite 2.2.9 | Ship Power Routing module. */
 function registerShipPowerRouting(SFUX) {
     SFUX.register({
         id: 'ship', phase: 'ready',
@@ -11045,13 +11245,19 @@ function registerShipPowerRouting(SFUX) {
                         border: 1px solid var(--sfux-status-border, rgba(255,255,255,.12));
                         border-radius: var(--sfux-radius-xs);
                         background: var(--sfux-status-bg, rgba(18,18,18,.82));
-                        color: var(--sfux-status-color, rgba(255,255,255,.86));
+                        /*
+                         * View Ship status badges place text directly on the colored
+                         * status field. Keep the text white here; fleet-card status
+                         * text remains status-colored because it sits on neutral UI.
+                         */
+                        color: #fff !important;
                         font-size: var(--sfux-type-md);
-                        font-weight: 700;
+                        font-weight: 750;
                         line-height: 1.2;
                         letter-spacing: .035em;
                         text-transform: uppercase;
                         white-space: nowrap;
+                        text-shadow: 0 1px 1px rgba(0,0,0,.44);
                         box-shadow: none;
                     }
 
@@ -13373,6 +13579,11 @@ function registerShipPowerRouting(SFUX) {
                     }
 
                     table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--status-raiding::before {
+                        background: #d59a4a;
+                    }
+
+                    table.stardocktable.sfux-dock-table
                     tr.sfux-dock-card-row.sfux-dock-card-row--status-building::before {
                         background: #ff981f;
                     }
@@ -15531,6 +15742,7 @@ function registerShipPowerRouting(SFUX) {
                  *   Returning · 7T
                  *   Building · 17T
                  *   Exploring Asteroids
+                 *   Raiding
                  *   Defending
                  */
                 const tickMatch =
@@ -15546,6 +15758,7 @@ function registerShipPowerRouting(SFUX) {
                 if (normalized.includes('repair')) return `Repairing${tickSuffix}`;
                 if (normalized.includes('upgrad')) return `Upgrading${tickSuffix}`;
                 if (normalized.includes('disabled')) return 'Disabled';
+                if (normalized.includes('raid')) return 'Raiding';
                 if (normalized.includes('defend')) return 'Defending';
 
                 if (normalized.includes('explor')) {
@@ -16293,6 +16506,8 @@ function registerShipPowerRouting(SFUX) {
                     operationalState = 'returning';
                 } else if (normalizedOperationalStatus.includes('explor')) {
                     operationalState = 'exploring';
+                } else if (normalizedOperationalStatus.includes('raid')) {
+                    operationalState = 'raiding';
                 } else if (normalizedOperationalStatus.includes('upgrad')) {
                     operationalState = 'upgrading';
                 } else if (normalizedOperationalStatus.includes('build')) {
