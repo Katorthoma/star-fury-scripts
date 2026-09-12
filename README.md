@@ -8,7 +8,7 @@ The goal is straightforward: improve Star Fury's usability, information density,
 
 | Script | Current version | Purpose | Install |
 | --- | ---: | --- | --- |
-| **StarFury UX Suite** | 2.2.6 | Broad UI/UX improvements across research, buildings, Star Dock, ship management, navigation, and mobile layouts | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-UX-Suite.user.js) |
+| **StarFury UX Suite** | 2.2.9 | Broad UI/UX improvements across research, buildings, Star Dock, ship management, navigation, and mobile layouts | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-UX-Suite.user.js) |
 | **Alliance Intel Board** | 0.16.0 | Consolidates alliance scan posts into a tactical intelligence board with freshness, ship composition, sector data, war activity, and target helpers | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-Alliance-Intel-Board.user.js) |
 | **Custom Race Portraits** | 1.2.2 | Replaces native race portraits with an embedded portrait set or locally stored custom images | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-Custom-Race-Portraits.user.js) |
 
