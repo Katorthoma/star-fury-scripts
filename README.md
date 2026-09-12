@@ -8,7 +8,7 @@ The goal is straightforward: improve Star Fury's usability, information density,
 
 | Script | Current version | Purpose | Install |
 | --- | ---: | --- | --- |
-| **StarFury UX Suite** | 2.0.2 | Broad UI/UX improvements across research, buildings, Star Dock, ship management, navigation, and mobile layouts | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-UX-Suite.user.js) |
+| **StarFury UX Suite** | 2.2.6 | Broad UI/UX improvements across research, buildings, Star Dock, ship management, navigation, and mobile layouts | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-UX-Suite.user.js) |
 | **Alliance Intel Board** | 0.16.0 | Consolidates alliance scan posts into a tactical intelligence board with freshness, ship composition, sector data, war activity, and target helpers | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-Alliance-Intel-Board.user.js) |
 | **Custom Race Portraits** | 1.2.2 | Replaces native race portraits with an embedded portrait set or locally stored custom images | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-Custom-Race-Portraits.user.js) |
 
@@ -21,12 +21,13 @@ The UX Suite combines the earlier Star Fury interface projects into one modular 
 It currently covers:
 
 - responsive navigation and empire-status HUD
-- Advisor and compact Star Dock improvements
+- unified Advisor + compact Star Dock with persistent open/closed state and reduced page-load flashing
 - Research redesign with progress information, ETAs, queue presentation, and completed/max-state handling
 - Buildings and Raze redesigns with production projections and economic summaries
 - standardized numeric inputs and safer non-negative construction controls
-- Star Dock and ship-management interface improvements
-- ship power-routing helpers, presets, and Leecher-specific controls
+- CIC-style Star Dock overview with compact multi-column ship cards, live operational states, hull/shield telemetry, and contextual repair controls
+- per-dock bulk Repair/Disable actions that reuse Star Fury's native confirmed actions and refresh once after the batch
+- ship power-routing helpers, presets, Leecher-specific controls, role transfer/swap helpers, and Fixed/Flexible handling
 - mobile layouts designed separately where desktop tables do not translate cleanly
 
 The suite is designed to reduce repetitive interaction and improve presentation while preserving native links, form controls, validation, and submission behavior.
