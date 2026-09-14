@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury - Alliance Intel Board
 // @namespace    starfuryx.com
-// @version      0.16.0
+// @version      0.16.1
 // @author       Zathman
 // @license      MIT
 // @description  Builds a compact alliance intelligence board with scan freshness, current sector data, break order, target heuristics, and cached alliance-war news.
@@ -20,12 +20,13 @@
     'use strict';
 
     /*
-     * StarFury - Alliance Intel Board 0.16.0
+     * StarFury - Alliance Intel Board 0.16.1
      * -------------------------------------------------------------------------
      * PUBLIC RELEASE
-     * - v0.16.0 is the first publication-ready build. Runtime behavior is the
-     *   stabilized v0.15.x feature set; this release formalizes metadata and
-     *   licensing for distribution.
+     * - v0.16.1 fixes detail-card ordering when a separate Full Dock Scan is
+     *   available: War Activity remains in its normal position before the
+     *   full-width Latest Full Dock panel.
+     * - v0.16.0 was the first publication-ready build.
      *
      * PURPOSE
      * - Read scan posts already present in an Alliance Forum thread.
@@ -1903,11 +1904,11 @@
                         ${defenceMeta ? `<div class="sfib-defence-meta">${escapeHtml(defenceMeta)}</div>` : ''}
                         ${shipsDetailHtml(ship)}
                     </section>
-                    ${fullDock && fullDock !== ship ? `<section class="sfib-detail-card sfib-detail-card-wide sfib-detail-full-dock"><h4>Latest Full Dock <span>${escapeHtml(fullDock.taken.raw)} · ${escapeHtml(fullDock.author)}</span></h4>${shipsDetailHtml(fullDock)}</section>` : ''}
                     <section class="sfib-detail-card sfib-detail-war">
                         <h4>War Activity <span>${state.newsCache?.initialized ? 'cached Alliance News' : 'news cache not yet initialized'}</span></h4>
                         ${warDetailHtml(empire)}
                     </section>
+                    ${fullDock && fullDock !== ship ? `<section class="sfib-detail-card sfib-detail-card-wide sfib-detail-full-dock"><h4>Latest Full Dock <span>${escapeHtml(fullDock.taken.raw)} · ${escapeHtml(fullDock.author)}</span></h4>${shipsDetailHtml(fullDock)}</section>` : ''}
                     <section class="sfib-detail-card sfib-detail-history">
                         <h4>Recent Scan History <span>${empire.scans.length} scan${empire.scans.length === 1 ? '' : 's'} retained on page</span></h4>
                         ${historyHtml(empire)}
