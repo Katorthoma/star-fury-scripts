@@ -8,7 +8,7 @@ The goal is straightforward: improve Star Fury's usability, information density,
 
 | Script | Current version | Purpose | Install |
 | --- | ---: | --- | --- |
-| **StarFury UX Suite** | 2.2.9 | Broad UI/UX improvements across research, buildings, Star Dock, ship management, navigation, and mobile layouts | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-UX-Suite.user.js) |
+| **StarFury UX Suite** | 2.2.18 | Broad UI/UX improvements across research, buildings, Rewards, Star Dock, ship management, navigation, and mobile layouts | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-UX-Suite.user.js) |
 | **Alliance Intel Board** | 0.16.0 | Consolidates alliance scan posts into a tactical intelligence board with freshness, ship composition, sector data, war activity, and target helpers | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-Alliance-Intel-Board.user.js) |
 | **Custom Race Portraits** | 1.2.2 | Replaces native race portraits with an embedded portrait set or locally stored custom images | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-Custom-Race-Portraits.user.js) |
 
@@ -21,12 +21,14 @@ The UX Suite combines the earlier Star Fury interface projects into one modular 
 It currently covers:
 
 - responsive navigation and empire-status HUD
-- unified Advisor + compact Star Dock with persistent open/closed state and reduced page-load flashing
+- unified Advisor + compact Star Dock with persistent open/closed state, improved alignment, and reduced page-load flashing
 - Research redesign with progress information, ETAs, queue presentation, and completed/max-state handling
 - Buildings and Raze redesigns with production projections and economic summaries
-- standardized numeric inputs and safer non-negative construction controls
-- CIC-style Star Dock overview with compact multi-column ship cards, live operational states, hull/shield telemetry, and contextual repair controls
-- per-dock bulk Repair/Disable actions that reuse Star Fury's native confirmed actions and refresh once after the batch
+- Rewards redesign with point-balance summaries and per-reward maximum-value projections
+- standardized numeric inputs, higher-contrast primary buttons, and safer non-negative construction controls
+- CIC-style Star Dock overview with compact multi-column ship cards, operational status colors, hull/shield telemetry, contextual repair controls, and stable ship imagery
+- per-dock bulk Repair/Disable/Re-enable actions that reuse Star Fury's native confirmed actions and refresh once after the batch
+- state-aware ship power controls: powered, disabled, disabled cooldown, and temporarily unavailable states
 - ship power-routing helpers, presets, Leecher-specific controls, role transfer/swap helpers, and Fixed/Flexible handling
 - mobile layouts designed separately where desktop tables do not translate cleanly
 
