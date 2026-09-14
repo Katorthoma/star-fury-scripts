@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury UX Suite
 // @namespace    starfuryx.com
-// @version      2.2.9
+// @version      2.2.18
 // @author       Zathman
 // @license      MIT
 // @homepageURL  https://github.com/Katorthoma/star-fury-scripts
@@ -20,10 +20,10 @@
 
 (() => {
 'use strict';
-/* StarFury UX Suite 2.2.9 | Shared runtime. No globals are published by the bundle. */
+/* StarFury UX Suite 2.2.18 | Shared runtime. No globals are published by the bundle. */
 function createSFUX() {
     'use strict';
-    const SFUX = { version: '2.2.9', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
+    const SFUX = { version: '2.2.18', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
     // UI ASSUMPTION: dense building columns and nine navigation items need earlier stacking.
     SFUX.responsive = Object.freeze({ mobile: 640, navigation: 768, buildings: 800, phone: 430, narrowHeader: 460, tinyHud: 360 });
     SFUX.page = new URL(window.location.href);
@@ -552,7 +552,7 @@ html body input[type="button"].button-primary:not(.sf-raze-submit):disabled {
     return SFUX;
 }
 
-/* StarFury UX Suite 2.2.9 | Global UX module. */
+/* StarFury UX Suite 2.2.18 | Global UX module. */
 function registerGlobalUX(SFUX) {
     SFUX.register({
         id: 'global', phase: 'early',
@@ -4235,7 +4235,7 @@ function registerGlobalUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.2.9 | Research Optimizer module. */
+/* StarFury UX Suite 2.2.18 | Research Optimizer module. */
 function registerResearchOptimizer(SFUX) {
     SFUX.register({
         id: 'research', phase: 'ready',
@@ -6946,7 +6946,7 @@ function registerResearchOptimizer(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.2.9 | Buildings UX module. */
+/* StarFury UX Suite 2.2.18 | Buildings UX module. */
 function registerBuildingsUX(SFUX) {
     SFUX.register({
         id: 'buildings', phase: 'ready',
@@ -10075,7 +10075,673 @@ function registerBuildingsUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.2.9 | Ship Power Routing module. */
+/* StarFury UX Suite 2.2.18 | Ship Power Routing module. */
+
+/* StarFury UX Suite 2.2.18 | Rewards UX module. */
+function registerRewardsUX(SFUX) {
+    'use strict';
+
+    SFUX.register({
+        id: 'rewards',
+        phase: 'ready',
+        matches(path, url) {
+            return (
+                path === '/reward.php' &&
+                url.searchParams.has('redeem')
+            );
+        },
+        create(ctx) {
+            const PAGE_PATH = '/reward.php';
+
+        function parseInteger(value) {
+            const match = String(value ?? '').replace(/,/g, '').match(/-?\d+/);
+            return match ? Number(match[0]) : NaN;
+        }
+
+        function formatInteger(value) {
+            const number = Number(value);
+            return Number.isFinite(number)
+                ? Math.trunc(number).toLocaleString('en-US')
+                : '—';
+        }
+
+        function getRewardPoints() {
+            const advisor = document.querySelector(
+                '#advisor-dock .advisor-container .advice'
+            );
+            if (!advisor) return NaN;
+
+            const text = advisor.textContent || '';
+            const match = text.match(
+                /currently\s+have\s+([\d,]+)\s+points?/i
+            );
+
+            return match ? parseInteger(match[1]) : NaN;
+        }
+
+        function injectStyles() {
+            ctx.style('sfux-rewards-style', `
+                body.sfux-rewards-page #content {
+                    min-width: 0;
+                }
+
+                body.sfux-rewards-page #content .contentbox {
+                    overflow: visible;
+                }
+
+                /*
+                 * Match the Buildings credit ledger: compact, inset, neutral, and
+                 * information-first rather than a bright standalone callout.
+                 */
+                body.sfux-rewards-page .sfux-rewards-summary {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 18px;
+                    margin: 7px 10px 10px;
+                    padding: 7px 10px 8px;
+                    border: 1px solid rgba(255,255,255,.065);
+                    border-left: 2px solid rgba(109,148,176,.34);
+                    background: rgba(255,255,255,.018);
+                    box-shadow: none;
+                    font-variant-numeric: tabular-nums;
+                }
+
+                body.sfux-rewards-page .sfux-rewards-summary-title {
+                    color: rgba(255,255,255,.58);
+                    font-size: 10.5px;
+                    font-weight: 700;
+                    letter-spacing: .045em;
+                    text-transform: uppercase;
+                    white-space: nowrap;
+                }
+
+                body.sfux-rewards-page .sfux-rewards-summary-values {
+                    display: flex;
+                    align-items: center;
+                    justify-content: flex-end;
+                    flex-wrap: wrap;
+                    gap: 6px 16px;
+                    min-width: 0;
+                    font-variant-numeric: tabular-nums;
+                }
+
+                body.sfux-rewards-page .sfux-rewards-summary-metric {
+                    display: inline-flex;
+                    align-items: baseline;
+                    gap: 5px;
+                    white-space: nowrap;
+                }
+
+                body.sfux-rewards-page .sfux-rewards-summary-label {
+                    color: rgba(255,255,255,.54);
+                    font-size: 10.5px;
+                    font-weight: 600;
+                    letter-spacing: 0;
+                    text-transform: none;
+                }
+
+                body.sfux-rewards-page .sfux-rewards-summary-number {
+                    color: rgba(255,255,255,.82);
+                    font-size: 11px;
+                    font-weight: 700;
+                    line-height: 1;
+                }
+
+                body.sfux-rewards-page .sfux-rewards-summary-number--available {
+                    color: rgba(var(--sfux-success-rgb), .94);
+                    font-size: 11px;
+                }
+
+                body.sfux-rewards-page .sfux-rewards-summary-unit {
+                    color: rgba(255,255,255,.48);
+                    font-size: 10.5px;
+                    font-weight: 500;
+                }
+
+                .sectionTitle.sf-rewards-section-title {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    box-sizing: border-box;
+                    width: 100%;
+                    margin: 0 !important;
+                    padding: 8px 10px !important;
+                    border-top: 2px solid rgba(109,148,176,.28);
+                    border-bottom: 1px solid rgba(0,0,0,.48);
+                    background: linear-gradient(
+                        180deg,
+                        rgba(68,88,104,.32),
+                        rgba(43,56,67,.28)
+                    );
+                    box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+                }
+
+                .sf-rewards-section-name {
+                    color: var(--sfux-text-primary);
+                    font-size: 14px;
+                    font-weight: 700;
+                    white-space: nowrap;
+                }
+
+                .sf-rewards-section-meta {
+                    color: rgba(255,255,255,.60);
+                    font-size: 12px;
+                    font-weight: 500;
+                    white-space: nowrap;
+                }
+
+                body.sfux-rewards-page table.sfux-rewards-table {
+                    width: 100%;
+                    margin: 0;
+                    border-collapse: separate;
+                    border-spacing: 0;
+                    table-layout: fixed;
+                    background: rgba(14, 17, 19, .90);
+                }
+
+                body.sfux-rewards-page table.sfux-rewards-table th,
+                body.sfux-rewards-page table.sfux-rewards-table td {
+                    box-sizing: border-box;
+                    padding: 7px 10px;
+                    border-right: 1px solid rgba(255,255,255,.055);
+                    border-bottom: 1px solid rgba(255,255,255,.055);
+                    vertical-align: middle;
+                }
+
+                body.sfux-rewards-page table.sfux-rewards-table th:last-child,
+                body.sfux-rewards-page table.sfux-rewards-table td:last-child {
+                    border-right: 0;
+                }
+
+                body.sfux-rewards-page table.sfux-rewards-table tr:last-child td {
+                    border-bottom: 0;
+                }
+
+                body.sfux-rewards-page table.sfux-rewards-table thead > tr > * {
+                    position: sticky;
+                    top: 0;
+                    z-index: 15;
+                    color: rgba(255,255,255,.82);
+                    background: rgba(38,42,46,.98);
+                    border-top: 1px solid rgba(255,255,255,.06);
+                    border-bottom: 1px solid rgba(109,148,176,.28);
+                    box-shadow: 0 3px 6px rgba(0,0,0,.30);
+                    font-size: 11px;
+                    font-weight: 700;
+                    letter-spacing: 0;
+                    text-align: center;
+                    text-transform: none;
+                    white-space: nowrap;
+                }
+
+                body.sfux-rewards-page table.sfux-rewards-table td {
+                    color: rgba(255,255,255,.90);
+                    background: rgba(255,255,255,.018);
+                    font-size: 12px;
+                    text-align: center;
+                }
+
+                body.sfux-rewards-page table.sfux-rewards-table tbody tr:hover td {
+                    background: rgba(255,255,255,.028);
+                }
+
+                body.sfux-rewards-page table.sfux-rewards-table th:nth-child(1),
+                body.sfux-rewards-page table.sfux-rewards-table td:nth-child(1),
+                body.sfux-rewards-page table.sfux-rewards-table th:nth-child(2),
+                body.sfux-rewards-page table.sfux-rewards-table td:nth-child(2),
+                body.sfux-rewards-page table.sfux-rewards-table th:nth-child(3),
+                body.sfux-rewards-page table.sfux-rewards-table td:nth-child(3),
+                body.sfux-rewards-page table.sfux-rewards-table th:nth-child(4),
+                body.sfux-rewards-page table.sfux-rewards-table td:nth-child(4) {
+                    width: 25%;
+                }
+
+                body.sfux-rewards-page table.sfux-rewards-table th:nth-child(1),
+                body.sfux-rewards-page table.sfux-rewards-table td:nth-child(1) {
+                    text-align: center;
+                }
+
+                body.sfux-rewards-page .sfux-reward-name {
+                    color: #fff;
+                    font-size: 12px;
+                    font-weight: 600;
+                }
+
+                body.sfux-rewards-page .sfux-reward-amount {
+                    font-variant-numeric: tabular-nums;
+                    font-size: 14px;
+                    font-weight: 700;
+                    line-height: 1.2;
+                }
+
+                body.sfux-rewards-page .sfux-reward-max {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    min-width: 0;
+                    font-variant-numeric: tabular-nums;
+                }
+
+                body.sfux-rewards-page .sfux-reward-max-total {
+                    min-width: 0;
+                    color: rgba(var(--sfux-success-rgb), .90);
+                    font-size: 14px;
+                    font-weight: 700;
+                    line-height: 1.2;
+                    overflow-wrap: anywhere;
+                }
+
+                body.sfux-rewards-page .sfux-reward-max--none
+                    .sfux-reward-max-total {
+                    color: rgba(255,255,255,.36);
+                }
+
+                body.sfux-rewards-page .sfux-reward-action a {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    min-height: 28px;
+                    padding: 4px 10px;
+                    border: 1px solid rgba(255,255,255,.14);
+                    border-radius: 2px;
+                    background: rgba(255,255,255,.025);
+                    color: rgba(255,255,255,.80) !important;
+                    font-size: 11px;
+                    font-weight: 700;
+                    letter-spacing: 0;
+                    line-height: 1;
+                    text-decoration: none !important;
+                    text-transform: none;
+                    transition:
+                        color var(--sfux-transition-fast),
+                        background-color var(--sfux-transition-fast),
+                        border-color var(--sfux-transition-fast);
+                }
+
+                body.sfux-rewards-page .sfux-reward-action a:hover,
+                body.sfux-rewards-page .sfux-reward-action a:focus {
+                    border-color: rgba(56,191,232,.60);
+                    background: rgba(56,191,232,.075);
+                    color: #fff !important;
+                }
+
+                body.sfux-rewards-page .sfux-rewards-note {
+                    margin: 8px 10px 2px;
+                    color: rgba(255,255,255,.38);
+                    font-size: 10px;
+                    line-height: 1.35;
+                    text-align: right;
+                }
+
+                @media (max-width: 800px) {
+                    body.sfux-rewards-page .sfux-rewards-summary {
+                        align-items: flex-start;
+                        flex-direction: column;
+                        gap: 5px;
+                    }
+
+                    body.sfux-rewards-page .sfux-rewards-summary-values {
+                        justify-content: flex-start;
+                        width: 100%;
+                        gap: 8px 14px;
+                    }
+
+                    .sectionTitle.sf-rewards-section-title {
+                        display: flex;
+                        padding: 8px 8px !important;
+                        gap: 8px;
+                    }
+
+                    .sf-rewards-section-name {
+                        font-size: 13px;
+                    }
+
+                    .sf-rewards-section-meta {
+                        font-size: 11px;
+                    }
+
+                    body.sfux-rewards-page table.sfux-rewards-table,
+                    body.sfux-rewards-page table.sfux-rewards-table tbody,
+                    body.sfux-rewards-page table.sfux-rewards-table tr,
+                    body.sfux-rewards-page table.sfux-rewards-table td {
+                        display: block;
+                        width: 100% !important;
+                    }
+
+                    body.sfux-rewards-page table.sfux-rewards-table thead {
+                        display: none;
+                    }
+
+                    body.sfux-rewards-page table.sfux-rewards-table tr {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 0;
+                        margin-bottom: 10px;
+                        border: 1px solid rgba(79,137,162,.24);
+                        background: rgba(18,21,23,.94);
+                    }
+
+                    body.sfux-rewards-page table.sfux-rewards-table td {
+                        min-width: 0;
+                        border-right: 1px solid rgba(255,255,255,.055);
+                        border-bottom: 1px solid rgba(255,255,255,.055);
+                        text-align: left;
+                    }
+
+                    body.sfux-rewards-page table.sfux-rewards-table td::before {
+                        display: block;
+                        margin-bottom: 3px;
+                        color: rgba(255,255,255,.40);
+                        font-size: 9px;
+                        font-weight: 800;
+                        letter-spacing: .04em;
+                        text-transform: uppercase;
+                    }
+
+                    body.sfux-rewards-page table.sfux-rewards-table td:nth-child(1) {
+                        grid-column: 1 / -1;
+                    }
+                    body.sfux-rewards-page table.sfux-rewards-table td:nth-child(1)::before {
+                        content: "Reward";
+                    }
+                    body.sfux-rewards-page table.sfux-rewards-table td:nth-child(2)::before {
+                        content: "Per Redemption";
+                    }
+                    body.sfux-rewards-page table.sfux-rewards-table td:nth-child(3)::before {
+                        content: "Max Value";
+                    }
+                    body.sfux-rewards-page table.sfux-rewards-table td:nth-child(4) {
+                        grid-column: 1 / -1;
+                        text-align: center;
+                    }
+                    body.sfux-rewards-page table.sfux-rewards-table td:nth-child(4)::before {
+                        content: "";
+                    }
+
+                    body.sfux-rewards-page .sfux-reward-max {
+                        justify-content: flex-start;
+                    }
+
+                    body.sfux-rewards-page .sfux-rewards-note {
+                        text-align: left;
+                    }
+                }
+            `);
+        }
+
+        function enhanceRewardsPage() {
+            if (window.location.pathname.toLowerCase() !== PAGE_PATH) return;
+
+            const params = new URLSearchParams(window.location.search);
+            if (!params.has('redeem')) return;
+
+            const table = document.querySelector(
+                '#content .contentbox table.basictable'
+            );
+            if (!table || table.dataset.sfuxRewardsEnhanced === '1') return;
+
+            const rows = Array.from(table.querySelectorAll('tr'));
+            if (rows.length < 2) return;
+
+            const points = getRewardPoints();
+            if (!Number.isFinite(points)) {
+                console.warn('[SFUX:rewards] Could not read Reward Points from Advisor');
+                return;
+            }
+
+            const nativeHeader = rows[0];
+            const dataRows = rows.slice(1);
+
+            /*
+             * Read native reward economics before touching the table. This lets the
+             * summary adapt if StarFury ever introduces different redemption costs.
+             */
+            const nativeRewardData = dataRows
+                .map(row => {
+                    const cells = Array.from(row.children);
+                    if (cells.length < 4) return null;
+
+                    const amount = parseInteger(cells[1].textContent);
+                    const cost = parseInteger(cells[2].textContent);
+
+                    return {
+                        row,
+                        amount,
+                        cost
+                    };
+                })
+                .filter(Boolean);
+
+            const validCosts = nativeRewardData
+                .map(item => item.cost)
+                .filter(cost => Number.isFinite(cost) && cost > 0);
+
+            const uniqueCosts = [...new Set(validCosts)];
+            const commonCost =
+                uniqueCosts.length === 1
+                    ? uniqueCosts[0]
+                    : null;
+
+            injectStyles();
+            document.body.classList.add('sfux-rewards-page');
+            table.classList.add('sfux-rewards-table');
+            table.dataset.sfuxRewardsEnhanced = '1';
+
+            /*
+             * Normalize the native table into proper thead/tbody semantics before
+             * decorating it. Native Redeem anchors are never replaced.
+             */
+
+            let thead = table.tHead;
+            if (!thead) {
+                thead = document.createElement('thead');
+                table.insertBefore(thead, table.firstChild);
+            }
+            thead.appendChild(nativeHeader);
+
+            let tbody = table.tBodies[0];
+            if (!tbody) {
+                tbody = document.createElement('tbody');
+                table.appendChild(tbody);
+            }
+            for (const row of dataRows) {
+                tbody.appendChild(row);
+            }
+
+            const headerCells = Array.from(nativeHeader.children);
+            if (headerCells.length >= 4) {
+                headerCells[0].textContent = 'Reward';
+                headerCells[1].textContent = 'Per Redemption';
+
+                /*
+                 * Cost is already summarized once above the table. Remove the
+                 * repetitive per-row Cost column and spend that space on the
+                 * decision-useful projected value instead.
+                 */
+                headerCells[2].remove();
+
+                const maxHeader = document.createElement('td');
+                maxHeader.className = 'tableheader';
+                maxHeader.textContent = 'Max Value';
+                nativeHeader.insertBefore(maxHeader, headerCells[3]);
+
+                headerCells[3].textContent = 'Action';
+            }
+
+            for (const row of dataRows) {
+                const cells = Array.from(row.children);
+                if (cells.length < 4) continue;
+
+                const rewardName = SFUX.dom.text(cells[0].textContent);
+                const amount = parseInteger(cells[1].textContent);
+                const cost = parseInteger(cells[2].textContent);
+
+                const maxRedemptions =
+                    Number.isFinite(cost) && cost > 0
+                        ? Math.floor(points / cost)
+                        : 0;
+
+                const totalReward =
+                    Number.isFinite(amount)
+                        ? amount * maxRedemptions
+                        : NaN;
+
+                cells[0].classList.add('sfux-reward-name');
+                cells[1].classList.add('sfux-reward-amount');
+                cells[3].classList.add('sfux-reward-action');
+
+                cells[1].textContent = formatInteger(amount);
+
+                const maxCell = document.createElement('td');
+                maxCell.className = 'sfux-reward-max-cell';
+
+                const maxWrap = document.createElement('div');
+                maxWrap.className = 'sfux-reward-max';
+                if (maxRedemptions <= 0) {
+                    maxWrap.classList.add('sfux-reward-max--none');
+                }
+
+                const maxTotal = document.createElement('span');
+                maxTotal.className = 'sfux-reward-max-total';
+                maxTotal.textContent = formatInteger(totalReward);
+
+                maxWrap.appendChild(maxTotal);
+                maxCell.appendChild(maxWrap);
+
+                row.insertBefore(maxCell, cells[3]);
+                cells[2].remove();
+
+                /*
+                 * Preserve native Redeem exactly. We style it, but intentionally do not
+                 * create a "Redeem Max" automation because StarFury's request/refresh
+                 * behavior has not been confirmed for batching.
+                 */
+                const redeemLink = cells[3].querySelector(
+                    'a[href*="reward.php"][href*="action=redeem"]'
+                );
+                if (redeemLink) {
+                    redeemLink.title =
+                        `Redeem ${formatInteger(amount)} ${rewardName} for ${formatInteger(cost)} points`;
+                }
+            }
+
+            const content = table.closest('.content');
+            if (!content) return;
+
+            const summary = document.createElement('div');
+            summary.className = 'sfux-rewards-summary';
+
+            const summaryTitle = document.createElement('div');
+            summaryTitle.className = 'sfux-rewards-summary-title';
+            summaryTitle.textContent = 'Reward Points';
+
+            const summaryValues = document.createElement('div');
+            summaryValues.className = 'sfux-rewards-summary-values';
+
+            const addMetric = (
+                label,
+                value,
+                unit = '',
+                modifierClass = ''
+            ) => {
+                const metric = document.createElement('span');
+                metric.className = 'sfux-rewards-summary-metric';
+
+                const labelNode = document.createElement('span');
+                labelNode.className = 'sfux-rewards-summary-label';
+                labelNode.textContent = label;
+
+                const numberNode = document.createElement('span');
+                numberNode.className =
+                    `sfux-rewards-summary-number ${modifierClass}`.trim();
+                numberNode.textContent = value;
+
+                metric.append(labelNode, numberNode);
+
+                if (unit) {
+                    const unitNode = document.createElement('span');
+                    unitNode.className = 'sfux-rewards-summary-unit';
+                    unitNode.textContent = unit;
+                    metric.appendChild(unitNode);
+                }
+
+                summaryValues.appendChild(metric);
+            };
+
+            addMetric(
+                'Available',
+                formatInteger(points),
+                'points',
+                'sfux-rewards-summary-number--available'
+            );
+
+            if (Number.isFinite(commonCost) && commonCost > 0) {
+                const maxCommonRedemptions = Math.floor(points / commonCost);
+                const commonRemainder = points % commonCost;
+
+                addMetric(
+                    'Cost',
+                    formatInteger(commonCost),
+                    'pts / redeem'
+                );
+                addMetric(
+                    'Max',
+                    formatInteger(maxCommonRedemptions),
+                    'redemptions'
+                );
+                addMetric(
+                    'Remaining',
+                    formatInteger(commonRemainder),
+                    commonRemainder === 1 ? 'point' : 'points'
+                );
+            } else if (validCosts.length) {
+                addMetric('Cost', 'Varies', 'by reward');
+            }
+
+            summary.append(summaryTitle, summaryValues);
+
+            content.insertBefore(summary, table);
+
+            const sectionTitle = document.createElement('div');
+            sectionTitle.className =
+                'sectionTitle sf-rewards-section-title';
+
+            const sectionName = document.createElement('span');
+            sectionName.className = 'sf-rewards-section-name';
+            sectionName.textContent = 'Redeem Rewards';
+
+            const sectionMeta = document.createElement('span');
+            sectionMeta.className = 'sf-rewards-section-meta';
+            sectionMeta.textContent =
+                `${dataRows.length} ${dataRows.length === 1 ? 'reward' : 'rewards'} available`;
+
+            sectionTitle.append(sectionName, sectionMeta);
+            content.insertBefore(sectionTitle, table);
+
+            const note = document.createElement('p');
+            note.className = 'sfux-rewards-note';
+            note.textContent =
+                'Max Value projects the current point balance only. Redeem actions remain native StarFury controls.';
+            table.insertAdjacentElement('afterend', note);
+        }
+
+            return {
+                init() {
+                    /*
+                     * `phase: ready` guarantees the native Rewards table and Advisor
+                     * are available before enhancement. `matches()` already limits
+                     * this module to reward.php?redeem (including native redemption
+                     * result URLs such as ?redeem&action=redeem&for=9).
+                     */
+                    return SFUX.safeRun('rewards:page', enhanceRewardsPage);
+                },
+                destroy: ctx.destroy
+            };
+        }
+    });
+}
+
 function registerShipPowerRouting(SFUX) {
     SFUX.register({
         id: 'ship', phase: 'ready',
@@ -13814,8 +14480,14 @@ function registerShipPowerRouting(SFUX) {
                     }
 
                     /*
-                     * Disable is available action, not an alarm. Keep it neutral
-                     * until the operator intentionally targets it.
+                     * CIC power-state language:
+                     *
+                     *   green glyph = ship is powered / Disable is available
+                     *   red glyph   = ship is disabled / Re-enable is available
+                     *   gray glyph  = power control is temporarily unavailable
+                     *
+                     * The resting color describes CURRENT state. Hover/focus previews
+                     * the consequence of clicking by changing to the destination color.
                      */
                     .sfux-dock-card-image-action.sfux-dock-inline-disable {
                         flex: none;
@@ -13825,7 +14497,8 @@ function registerShipPowerRouting(SFUX) {
                         height: 24px;
                         border-color: rgba(255,255,255,.15) !important;
                         background: rgba(4,7,10,.78) !important;
-                        color: rgba(255,255,255,.62) !important;
+                        color: rgba(var(--sfux-success-rgb), .98) !important;
+                        box-shadow: none !important;
                     }
                     .sfux-dock-card-image-action.sfux-dock-inline-disable:hover,
                     .sfux-dock-card-image-action.sfux-dock-inline-disable:focus {
@@ -13833,6 +14506,57 @@ function registerShipPowerRouting(SFUX) {
                         background: rgba(var(--sfux-danger-rgb), .18) !important;
                         color: #fff !important;
                         box-shadow: 0 0 7px rgba(var(--sfux-danger-rgb), .22);
+                    }
+
+                    .sfux-dock-card-image-action.sfux-dock-inline-enable {
+                        flex: none;
+                        width: 24px;
+                        min-width: 24px;
+                        max-width: 24px;
+                        height: 24px;
+                        border-color: rgba(255,255,255,.15) !important;
+                        background: rgba(4,7,10,.78) !important;
+                        color: rgba(var(--sfux-danger-rgb), .98) !important;
+                        box-shadow: none !important;
+                    }
+                    .sfux-dock-card-image-action.sfux-dock-inline-enable:hover,
+                    .sfux-dock-card-image-action.sfux-dock-inline-enable:focus {
+                        border-color: rgba(var(--sfux-success-rgb), .82) !important;
+                        background: rgba(var(--sfux-success-rgb), .16) !important;
+                        color: #fff !important;
+                        box-shadow: 0 0 7px rgba(var(--sfux-success-rgb), .24) !important;
+                    }
+
+                    .sfux-dock-card-image-action.sfux-dock-power-unavailable {
+                        flex: none;
+                        width: 24px;
+                        min-width: 24px;
+                        max-width: 24px;
+                        height: 24px;
+                        border-color: rgba(255,255,255,.11) !important;
+                        background: rgba(4,7,10,.64) !important;
+                        color: rgba(255,255,255,.34) !important;
+                        box-shadow: none !important;
+                        cursor: default !important;
+                    }
+
+                    /*
+                     * Disabled cooldown is different from Building/Returning/Upgrading:
+                     * the ship is definitely powered OFF, but StarFury temporarily
+                     * withholds the Enable action. Keep the state red while making the
+                     * control visibly inert.
+                     */
+                    .sfux-dock-card-image-action.sfux-dock-power-disabled-cooldown {
+                        flex: none;
+                        width: 24px;
+                        min-width: 24px;
+                        max-width: 24px;
+                        height: 24px;
+                        border-color: rgba(255,255,255,.11) !important;
+                        background: rgba(4,7,10,.64) !important;
+                        color: rgba(var(--sfux-danger-rgb), .82) !important;
+                        box-shadow: none !important;
+                        cursor: default !important;
                     }
 
                     .sfux-dock-card-image-asset {
@@ -15757,7 +16481,21 @@ function registerShipPowerRouting(SFUX) {
                 if (normalized.includes('build')) return `Building${tickSuffix}`;
                 if (normalized.includes('repair')) return `Repairing${tickSuffix}`;
                 if (normalized.includes('upgrad')) return `Upgrading${tickSuffix}`;
-                if (normalized.includes('disabled')) return 'Disabled';
+
+                if (normalized.includes('disabled')) {
+                    /*
+                     * StarFury renders the mandatory re-enable cooldown as
+                     * `Disabled (-3)`. The minus sign is game syntax, not negative
+                     * time, so present it as 3 ticks remaining.
+                     */
+                    const disabledCooldown =
+                        raw.match(/disabled\s*\(\s*-(\d+)\s*\)/i);
+
+                    return disabledCooldown
+                        ? `Disabled · ${Number(disabledCooldown[1])}T`
+                        : 'Disabled';
+                }
+
                 if (normalized.includes('raid')) return 'Raiding';
                 if (normalized.includes('defend')) return 'Defending';
 
@@ -16492,6 +17230,28 @@ function registerShipPowerRouting(SFUX) {
                     normalizedOperationalStatus.includes('repair');
                 const isDisabled =
                     normalizedOperationalStatus.includes('disabled');
+
+                /*
+                 * Native StarFury expresses the mandatory post-disable lockout as
+                 * `Disabled (-3)`. During this state the Actions menu contains a
+                 * disabled Enable item rather than a live Enable modal/link.
+                 */
+                const disabledCooldownMatch = String(data.status || '').match(
+                    /disabled\s*\(\s*-(\d+)\s*\)/i
+                );
+                const disabledCooldownTicks = disabledCooldownMatch
+                    ? Number(disabledCooldownMatch[1])
+                    : null;
+
+                let powerUnavailableReason = '';
+                if (normalizedOperationalStatus.includes('build')) {
+                    powerUnavailableReason = 'Building';
+                } else if (normalizedOperationalStatus.includes('return')) {
+                    powerUnavailableReason = 'Returning';
+                } else if (normalizedOperationalStatus.includes('upgrad')) {
+                    powerUnavailableReason = 'Upgrading';
+                }
+
                 const hullSeverity = dockVitalSeverity('hull', data.hull);
                 const shieldSeverity = dockVitalSeverity('shield', data.shield);
 
@@ -16562,9 +17322,9 @@ function registerShipPowerRouting(SFUX) {
                 if (!data.shipName) identityLink.classList.add('sfux-dock-ship-name--fallback');
                 head.appendChild(identityLink);
 
-                // Promote the two native high-value actions out of StarFury's dropdown.
-                // The original anchors are MOVED, not reimplemented, so native modal
-                // targets and backend URLs remain authoritative.
+                // Promote native high-value actions out of StarFury's dropdown.
+                // Repair moves to damaged vitals. Disable/Re-enable share the top-right
+                // starfield power control. Native anchors remain authoritative.
                 const dropdown = data.actionCell.querySelector('.dropdown');
                 let repairAction = null;
                 let repairContext = null;
@@ -16620,13 +17380,32 @@ function registerShipPowerRouting(SFUX) {
                     if (disableAction) {
                         const item = disableAction.closest('li');
                         disableAction.classList.add('sfux-dock-inline-disable');
-                        disableAction.title = 'Disable ship';
-                        disableAction.setAttribute('aria-label', 'Disable ship');
+                        disableAction.title = 'Powered · Disable ship';
+                        disableAction.setAttribute(
+                            'aria-label',
+                            'Ship powered; disable ship'
+                        );
                         disableAction.replaceChildren();
                         const icon = ctx.element('span');
                         icon.className = 'fa fa-power-off';
                         icon.setAttribute('aria-hidden', 'true');
                         disableAction.appendChild(icon);
+                        if (item) item.remove();
+                    }
+
+                    if (enableAction) {
+                        const item = enableAction.closest('li');
+                        enableAction.classList.add('sfux-dock-inline-enable');
+                        enableAction.title = 'Disabled · Re-enable ship';
+                        enableAction.setAttribute(
+                            'aria-label',
+                            'Ship disabled; re-enable ship'
+                        );
+                        enableAction.replaceChildren();
+                        const icon = ctx.element('span');
+                        icon.className = 'fa fa-power-off';
+                        icon.setAttribute('aria-hidden', 'true');
+                        enableAction.appendChild(icon);
                         if (item) item.remove();
                     }
 
@@ -16775,9 +17554,65 @@ function registerShipPowerRouting(SFUX) {
                     imageViewport.appendChild(modePlate);
                 }
 
-                if (disableAction) {
-                    disableAction.classList.add('sfux-dock-card-image-action');
-                    imageViewport.appendChild(disableAction);
+                const powerAction = enableAction || disableAction;
+                if (powerAction) {
+                    powerAction.classList.add('sfux-dock-card-image-action');
+                    imageViewport.appendChild(powerAction);
+                } else if (
+                    isDisabled &&
+                    Number.isFinite(disabledCooldownTicks) &&
+                    disabledCooldownTicks > 0
+                ) {
+                    /*
+                     * The ship is OFF, but StarFury's minimum-disable timer has not
+                     * expired, so no native Enable action exists yet. Keep the power
+                     * state visible in red and explain when re-enable becomes available.
+                     */
+                    const cooldownPower = ctx.element('span');
+                    cooldownPower.className =
+                        'sfux-dock-card-image-action sfux-dock-power-disabled-cooldown';
+
+                    const tickWord =
+                        disabledCooldownTicks === 1 ? 'tick' : 'ticks';
+                    const cooldownDescription =
+                        `Ship disabled · Re-enable available in ${disabledCooldownTicks} ${tickWord}`;
+
+                    cooldownPower.title = cooldownDescription;
+                    cooldownPower.setAttribute(
+                        'aria-label',
+                        cooldownDescription
+                    );
+                    cooldownPower.setAttribute('aria-disabled', 'true');
+
+                    const icon = ctx.element('span');
+                    icon.className = 'fa fa-power-off';
+                    icon.setAttribute('aria-hidden', 'true');
+
+                    cooldownPower.appendChild(icon);
+                    imageViewport.appendChild(cooldownPower);
+                } else if (powerUnavailableReason) {
+                    /*
+                     * Building / Returning / Upgrading ships expose no native power
+                     * action. Keep the control position stable with a gray, inert power
+                     * indicator instead of making the button disappear.
+                     */
+                    const unavailablePower = ctx.element('span');
+                    unavailablePower.className =
+                        'sfux-dock-card-image-action sfux-dock-power-unavailable';
+                    unavailablePower.title =
+                        `Power control unavailable while ${powerUnavailableReason}`;
+                    unavailablePower.setAttribute(
+                        'aria-label',
+                        `Power control unavailable while ${powerUnavailableReason}`
+                    );
+                    unavailablePower.setAttribute('aria-disabled', 'true');
+
+                    const icon = ctx.element('span');
+                    icon.className = 'fa fa-power-off';
+                    icon.setAttribute('aria-hidden', 'true');
+
+                    unavailablePower.appendChild(icon);
+                    imageViewport.appendChild(unavailablePower);
                 }
 
                 const statusWrap = ctx.element('div');
@@ -18071,6 +18906,7 @@ const SFUX = createSFUX();
 registerGlobalUX(SFUX);
 registerResearchOptimizer(SFUX);
 registerBuildingsUX(SFUX);
+registerRewardsUX(SFUX);
 registerShipPowerRouting(SFUX);
 SFUX.boot();
 })();
