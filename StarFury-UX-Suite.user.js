@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury UX Suite
 // @namespace    starfuryx.com
-// @version      2.2.18
+// @version      2.2.19
 // @author       Zathman
 // @license      MIT
 // @homepageURL  https://github.com/Katorthoma/star-fury-scripts
@@ -10,6 +10,7 @@
 // @description  Modular global, research, buildings, and military UX; native controls remain authoritative.
 // @icon         https://game.starfuryx.com/images/favicon/favicon-32x32.png
 // @match        https://game.starfuryx.com/*
+// @match        https://dev.starfuryx.com/*
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_deleteValue
