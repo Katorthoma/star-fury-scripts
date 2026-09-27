@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury UX Suite
 // @namespace    starfuryx.com
-// @version      2.2.19
+// @version      2.2.20
 // @author       Zathman
 // @license      MIT
 // @homepageURL  https://github.com/Katorthoma/star-fury-scripts
@@ -21,10 +21,10 @@
 
 (() => {
 'use strict';
-/* StarFury UX Suite 2.2.18 | Shared runtime. No globals are published by the bundle. */
+/* StarFury UX Suite 2.2.20 | Shared runtime. No globals are published by the bundle. */
 function createSFUX() {
     'use strict';
-    const SFUX = { version: '2.2.18', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
+    const SFUX = { version: '2.2.20', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
     // UI ASSUMPTION: dense building columns and nine navigation items need earlier stacking.
     SFUX.responsive = Object.freeze({ mobile: 640, navigation: 768, buildings: 800, phone: 430, narrowHeader: 460, tinyHud: 360 });
     SFUX.page = new URL(window.location.href);
@@ -553,7 +553,7 @@ html body input[type="button"].button-primary:not(.sf-raze-submit):disabled {
     return SFUX;
 }
 
-/* StarFury UX Suite 2.2.18 | Global UX module. */
+/* StarFury UX Suite 2.2.20 | Global UX module. */
 function registerGlobalUX(SFUX) {
     SFUX.register({
         id: 'global', phase: 'early',
@@ -4236,7 +4236,7 @@ function registerGlobalUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.2.18 | Research Optimizer module. */
+/* StarFury UX Suite 2.2.20 | Research Optimizer module. */
 function registerResearchOptimizer(SFUX) {
     SFUX.register({
         id: 'research', phase: 'ready',
@@ -4275,6 +4275,13 @@ function registerResearchOptimizer(SFUX) {
                 'Ship Salvage': 'Recover resources from destroyed Defending ships',
 
                 'Fourth Leecher': 'Increases Leecher Dock ship limit',
+                'EMP': 'Coordinated EMP disrupts communications between enemy Star Docks',
+                'Counter Warp': 'Counters Warp Shields; reduces Leecher warp chance by 75%',
+                'Cloaking': 'Hides empire & alliance for one attack; 48-tick cooldown',
+                'Shields': '+15% empire defence while active; consumes Power/tick',
+                'Warp Shields': '+50% enemy Leecher return time; consumes Power & Deuterium',
+                'Counter EMP': 'Protects one dock from EMP for 6 ticks; usable once per 24h',
+                'Defence Platforms': '15 Defence/platform; 500 dmg to destroy with ships, 100 without',
 
                 'Fabrication Plants': 'Unlocks probe production',
                 'General Scan': 'Resources, probes & ships; no statuses',
@@ -4677,6 +4684,10 @@ function registerResearchOptimizer(SFUX) {
                     }
 
                     /* Effect column */
+                    .sfro-tech-row > td:nth-child(3) {
+                        text-align: left !important;
+                    }
+
                     .sfro-summary-cell {
                         overflow: hidden !important;
                         text-overflow: ellipsis !important;
@@ -6947,7 +6958,7 @@ function registerResearchOptimizer(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.2.18 | Buildings UX module. */
+/* StarFury UX Suite 2.2.20 | Buildings UX module. */
 function registerBuildingsUX(SFUX) {
     SFUX.register({
         id: 'buildings', phase: 'ready',
@@ -10076,9 +10087,9 @@ function registerBuildingsUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.2.18 | Ship Power Routing module. */
+/* StarFury UX Suite 2.2.20 | Ship Power Routing module. */
 
-/* StarFury UX Suite 2.2.18 | Rewards UX module. */
+/* StarFury UX Suite 2.2.20 | Rewards UX module. */
 function registerRewardsUX(SFUX) {
     'use strict';
 
