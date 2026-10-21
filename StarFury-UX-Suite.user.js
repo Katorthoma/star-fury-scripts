@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury UX Suite
 // @namespace    starfuryx.com
-// @version      2.2.20
+// @version      2.3.0
 // @author       Zathman
 // @license      MIT
 // @homepageURL  https://github.com/Katorthoma/star-fury-scripts
@@ -21,10 +21,10 @@
 
 (() => {
 'use strict';
-/* StarFury UX Suite 2.2.20 | Shared runtime. No globals are published by the bundle. */
+/* StarFury UX Suite 2.3.0 | Shared runtime. No globals are published by the bundle. */
 function createSFUX() {
     'use strict';
-    const SFUX = { version: '2.2.20', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
+    const SFUX = { version: '2.3.0', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
     // UI ASSUMPTION: dense building columns and nine navigation items need earlier stacking.
     SFUX.responsive = Object.freeze({ mobile: 640, navigation: 768, buildings: 800, phone: 430, narrowHeader: 460, tinyHud: 360 });
     SFUX.page = new URL(window.location.href);
@@ -553,7 +553,7 @@ html body input[type="button"].button-primary:not(.sf-raze-submit):disabled {
     return SFUX;
 }
 
-/* StarFury UX Suite 2.2.20 | Global UX module. */
+/* StarFury UX Suite 2.3.0 | Global UX module. */
 function registerGlobalUX(SFUX) {
     SFUX.register({
         id: 'global', phase: 'early',
@@ -4236,7 +4236,7 @@ function registerGlobalUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.2.20 | Research Optimizer module. */
+/* StarFury UX Suite 2.3.0 | Research Optimizer module. */
 function registerResearchOptimizer(SFUX) {
     SFUX.register({
         id: 'research', phase: 'ready',
@@ -6958,7 +6958,7 @@ function registerResearchOptimizer(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.2.20 | Buildings UX module. */
+/* StarFury UX Suite 2.3.0 | Buildings UX module. */
 function registerBuildingsUX(SFUX) {
     SFUX.register({
         id: 'buildings', phase: 'ready',
@@ -10087,9 +10087,9 @@ function registerBuildingsUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.2.20 | Ship Power Routing module. */
+/* StarFury UX Suite 2.3.0 | Ship Power Routing module. */
 
-/* StarFury UX Suite 2.2.20 | Rewards UX module. */
+/* StarFury UX Suite 2.3.0 | Rewards UX module. */
 function registerRewardsUX(SFUX) {
     'use strict';
 
@@ -14717,6 +14717,185 @@ function registerShipPowerRouting(SFUX) {
                         grid-template-columns: 1fr;
                         gap: 4px;
                     }
+
+                    /*
+                     * Sheathed integrity bar (replaces the Hull/Shields pair on dock cards)
+                     */
+                    .sfux-dock-integrity-frame {
+                        position: relative;
+                        height: 21px;
+                    }
+
+                    .sfux-dock-integrity-track {
+                        position: relative;
+                        height: 100%;
+                        box-sizing: border-box;
+                        overflow: hidden;
+                        border: 1px solid rgba(255,255,255,.055);
+                        background: rgba(0,0,0,.28);
+                    }
+
+                    /* Fills are a shade darker than the old bar colours so white text keeps contrast. */
+                    .sfux-dock-integrity-fill {
+                        position: absolute;
+                        top: 0;
+                        bottom: 0;
+                        left: 0;
+                        background: linear-gradient(90deg, rgb(12,110,152), rgb(20,124,128));
+                    }
+
+                    .sfux-dock-integrity.sfux-dock-vital-state--warning .sfux-dock-integrity-fill {
+                        background: rgb(176,138,44);
+                    }
+
+                    .sfux-dock-integrity.sfux-dock-vital-state--danger .sfux-dock-integrity-fill,
+                    .sfux-dock-integrity.sfux-dock-vital-state--critical .sfux-dock-integrity-fill,
+                    .sfux-dock-integrity.sfux-dock-vital-state--terminal .sfux-dock-integrity-fill {
+                        background: rgb(178,62,62);
+                    }
+
+                    .sfux-dock-integrity.sfux-dock-vital-state--warning .sfux-dock-integrity-track {
+                        border-color: rgba(var(--sfux-warning-rgb), .26);
+                    }
+
+                    .sfux-dock-integrity.sfux-dock-vital-state--danger .sfux-dock-integrity-track,
+                    .sfux-dock-integrity.sfux-dock-vital-state--critical .sfux-dock-integrity-track,
+                    .sfux-dock-integrity.sfux-dock-vital-state--terminal .sfux-dock-integrity-track {
+                        border-color: rgba(var(--sfux-danger-rgb), .34);
+                    }
+
+                    /* Shield sheath: 4px strip along the top edge of the bar */
+                    .sfux-dock-integrity-sheath {
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        height: 4px;
+                        z-index: 1;
+                        background: rgba(0,0,0,.55);
+                    }
+
+                    .sfux-dock-integrity-sheath > span {
+                        position: absolute;
+                        top: 0;
+                        bottom: 0;
+                        left: 0;
+                        background: rgb(140,214,30);
+                        box-shadow: 0 0 4px rgba(140,214,30,.55);
+                    }
+
+                    /*
+                     * Overlay text. A hard outline drawn behind the glyphs (paint-order)
+                     * keeps it crisp; browsers without paint-order on HTML text fall back
+                     * to a single sharp 1px shadow. padding-top clears the sheath strip.
+                     */
+                    .sfux-dock-integrity-text,
+                    .sfux-dock-integrity-action {
+                        position: absolute;
+                        inset: 0;
+                        z-index: 2;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding-top: 3px;
+                        color: #f2f5f7;
+                        font-size: 11px;
+                        font-weight: 700;
+                        line-height: 1;
+                        letter-spacing: .02em;
+                        font-variant-numeric: tabular-nums;
+                        white-space: nowrap;
+                        text-shadow: 0 1px 0 rgba(0,0,0,.85);
+                        -webkit-font-smoothing: antialiased;
+                        -moz-osx-font-smoothing: grayscale;
+                        pointer-events: none;
+                    }
+
+                    @supports (paint-order: stroke fill) {
+                        .sfux-dock-integrity-text,
+                        .sfux-dock-integrity-action {
+                            -webkit-text-stroke: 3px rgba(6,10,14,.88);
+                            paint-order: stroke fill;
+                            text-shadow: none;
+                        }
+                    }
+
+                    .sfux-dock-integrity-action {
+                        display: none;
+                        letter-spacing: .035em;
+                    }
+
+                    /* Caption: same size and weight as the W/E/S and ENG footer */
+                    .sfux-dock-integrity-caption {
+                        display: flex;
+                        justify-content: space-between;
+                        margin-top: 2px;
+                        font-size: var(--sfux-type-sm);
+                        font-weight: 700;
+                        line-height: 1;
+                        font-variant-numeric: tabular-nums;
+                    }
+
+                    .sfux-dock-integrity-caption-hull { color: #7fcdf2; }
+                    .sfux-dock-integrity-caption-shield { color: #a9dc4e; }
+
+                    /* Repair affordance: hover/focus swaps the text for REPAIR · XT */
+                    .sfux-dock-integrity--repairable .sfux-dock-integrity-frame {
+                        cursor: pointer;
+                    }
+
+                    .sfux-dock-integrity--repairable .sfux-dock-integrity-frame:hover .sfux-dock-integrity-text,
+                    .sfux-dock-integrity--repairable .sfux-dock-integrity-frame:focus .sfux-dock-integrity-text {
+                        display: none;
+                    }
+
+                    .sfux-dock-integrity--repairable .sfux-dock-integrity-frame:hover .sfux-dock-integrity-action,
+                    .sfux-dock-integrity--repairable .sfux-dock-integrity-frame:focus .sfux-dock-integrity-action {
+                        display: flex;
+                    }
+
+                    .sfux-dock-integrity--repairable .sfux-dock-integrity-frame:hover .sfux-dock-integrity-track,
+                    .sfux-dock-integrity--repairable .sfux-dock-integrity-frame:focus .sfux-dock-integrity-track {
+                        filter: brightness(1.08);
+                        border-color: rgba(var(--sfux-warning-rgb), .78);
+                        box-shadow: 0 0 7px rgba(var(--sfux-warning-rgb), .18);
+                    }
+
+                    .sfux-dock-integrity--repairable.sfux-dock-repair-severity--danger .sfux-dock-integrity-frame:hover .sfux-dock-integrity-track,
+                    .sfux-dock-integrity--repairable.sfux-dock-repair-severity--danger .sfux-dock-integrity-frame:focus .sfux-dock-integrity-track,
+                    .sfux-dock-integrity--repairable.sfux-dock-repair-severity--critical .sfux-dock-integrity-frame:hover .sfux-dock-integrity-track,
+                    .sfux-dock-integrity--repairable.sfux-dock-repair-severity--critical .sfux-dock-integrity-frame:focus .sfux-dock-integrity-track,
+                    .sfux-dock-integrity--repairable.sfux-dock-repair-severity--terminal .sfux-dock-integrity-frame:hover .sfux-dock-integrity-track,
+                    .sfux-dock-integrity--repairable.sfux-dock-repair-severity--terminal .sfux-dock-integrity-frame:focus .sfux-dock-integrity-track {
+                        border-color: rgba(var(--sfux-danger-rgb), .90);
+                        box-shadow: 0 0 9px rgba(var(--sfux-danger-rgb), .26);
+                    }
+
+                    .sfux-dock-integrity-frame:focus { outline: none; }
+                    .sfux-dock-integrity-frame:focus-visible {
+                        outline: 2px solid var(--sfux-info);
+                        outline-offset: 1px;
+                    }
+
+                    /*
+                     * Critical hull: the fill pulses in step with the card border.
+                     * The bar's own border never animates.
+                     */
+                    @keyframes sfux-dock-integrity-fill-pulse {
+                        0%, 100% { filter: brightness(1); }
+                        50% { filter: brightness(1.65) saturate(1.15); }
+                    }
+
+                    .sfux-dock-card-row--critical-attention .sfux-dock-integrity-fill {
+                        animation: sfux-dock-integrity-fill-pulse 1.4s ease-in-out infinite;
+                    }
+
+                    @media (prefers-reduced-motion: reduce) {
+                        .sfux-dock-card-row--critical-attention .sfux-dock-integrity-fill {
+                            animation: none;
+                            filter: brightness(1.35);
+                        }
+                    }
                     .sfux-dock-card .sfux-dock-vital-track {
                         position: relative;
                         display: flex;
@@ -14807,14 +14986,16 @@ function registerShipPowerRouting(SFUX) {
 
                     @keyframes sfux-cic-critical-card-pulse {
                         0%, 100% {
-                            border-color: rgba(var(--sfux-danger-rgb), .42);
-                            box-shadow: inset 0 0 0 1px rgba(var(--sfux-danger-rgb), .04);
+                            border-color: rgba(var(--sfux-danger-rgb), .45);
+                            box-shadow:
+                                0 0 0 rgba(var(--sfux-danger-rgb), 0),
+                                inset 0 0 0 999px rgba(var(--sfux-danger-rgb), .02);
                         }
                         50% {
-                            border-color: rgba(var(--sfux-danger-rgb), .84);
+                            border-color: rgba(var(--sfux-danger-rgb), 1);
                             box-shadow:
-                                inset 0 0 0 1px rgba(var(--sfux-danger-rgb), .16),
-                                0 0 8px rgba(var(--sfux-danger-rgb), .12);
+                                0 0 14px rgba(var(--sfux-danger-rgb), .55),
+                                inset 0 0 0 999px rgba(var(--sfux-danger-rgb), .10);
                         }
                     }
 
@@ -14826,7 +15007,7 @@ function registerShipPowerRouting(SFUX) {
                      */
                     table.stardocktable.sfux-dock-table
                     tr.sfux-dock-card-row.sfux-dock-card-row--critical-attention {
-                        animation: sfux-cic-critical-card-pulse 1.8s ease-in-out infinite;
+                        animation: sfux-cic-critical-card-pulse 1.4s ease-in-out infinite;
                     }
 
                     table.stardocktable.sfux-dock-table
@@ -14862,8 +15043,10 @@ function registerShipPowerRouting(SFUX) {
 
                         table.stardocktable.sfux-dock-table
                         tr.sfux-dock-card-row.sfux-dock-card-row--critical-attention {
-                            border-color: rgba(var(--sfux-danger-rgb), .78);
-                            box-shadow: inset 0 0 0 1px rgba(var(--sfux-danger-rgb), .12);
+                            border-color: rgba(var(--sfux-danger-rgb), 1);
+                            box-shadow:
+                                0 0 10px rgba(var(--sfux-danger-rgb), .40),
+                                inset 0 0 0 999px rgba(var(--sfux-danger-rgb), .07);
                         }
                     }
                     .sfux-dock-card-footer {
@@ -16461,8 +16644,8 @@ function registerShipPowerRouting(SFUX) {
                 }
 
                 // Dense roster cards only show power that is actually allocated.
-                // Example: W100, W25 E75, S100. Zero-value channels are omitted.
-                item.textContent = `${label}${value}`;
+                // Example: W 100%, W 25% E 75%, S 100%. Zero-value channels are omitted.
+                item.textContent = `${label} ${value}%`;
                 return item;
             }
 
@@ -16656,6 +16839,145 @@ function registerShipPowerRouting(SFUX) {
                 }
 
                 wrap.appendChild(track);
+                return wrap;
+            }
+
+            /*
+             * Sheathed integrity bar
+             * ---------------------------------------------------------
+             * One bar per ship replaces the separate Hull and Shields bars.
+             *
+             *   Bar fill      = total HP (hull + shields), coloured by combined severity
+             *   Top strip     = shields only (the "sheath"), drains independently
+             *   Overlay text  = "current / maximum" total HP
+             *   Caption       = "H nn%" (left) and "S nn%" (right)
+             *
+             * Severity: each pool keeps dockVitalSeverity() thresholds. The bar
+             * takes the worse of the two, but shields alone can raise it to
+             * 'warning' at most, so red always means hull damage. Pulsing stays
+             * hull-only and is driven by the existing row classes.
+             */
+            const INTEGRITY_SEVERITY_ORDER = ['unknown', 'nominal', 'warning', 'danger', 'critical', 'terminal'];
+
+            function integrityStats(hull, shield) {
+                const pool = stats => (stats && Number.isFinite(stats.maximum) && stats.maximum > 0)
+                    ? { current: Math.max(0, Math.min(stats.current, stats.maximum)), maximum: stats.maximum }
+                    : { current: 0, maximum: 0 };
+
+                const h = pool(hull);
+                const s = pool(shield);
+                const maximum = h.maximum + s.maximum;
+                if (maximum <= 0) return null;
+                const current = h.current + s.current;
+
+                const hullSeverity = dockVitalSeverity('hull', hull);
+                const shieldSeverity = dockVitalSeverity('shield', shield);
+                const rank = value => INTEGRITY_SEVERITY_ORDER.indexOf(value);
+                const shieldRank = Math.min(rank(shieldSeverity), rank('warning'));
+                const severity = INTEGRITY_SEVERITY_ORDER[Math.max(rank(hullSeverity), shieldRank)];
+                const percentOf = part => (part.maximum ? (part.current / part.maximum) * 100 : 0);
+
+                return {
+                    current,
+                    maximum,
+                    percent: (current / maximum) * 100,
+                    hull: { ...h, percent: percentOf(h), severity: hullSeverity },
+                    shield: { ...s, percent: percentOf(s), severity: shieldSeverity },
+                    severity
+                };
+            }
+
+            function createDockIntegrity(stats, repairContext = null) {
+                const wrap = ctx.element('div');
+                const severity = stats ? stats.severity : 'unknown';
+                wrap.className = `sfux-dock-integrity sfux-dock-vital-state--${severity}`;
+                wrap.dataset.severity = severity;
+                if (stats) wrap.dataset.hull = stats.hull.severity;
+
+                const frame = ctx.element('div');
+                frame.className = 'sfux-dock-integrity-frame';
+
+                const track = ctx.element('div');
+                track.className = 'sfux-dock-integrity-track';
+
+                const text = ctx.element('span');
+                text.className = 'sfux-dock-integrity-text';
+
+                const exact = pool => `${pool.current.toLocaleString()} / ${pool.maximum.toLocaleString()}`;
+
+                if (stats) {
+                    const fill = ctx.element('div');
+                    fill.className = 'sfux-dock-integrity-fill';
+                    fill.style.width = `${stats.percent}%`;
+                    track.appendChild(fill);
+
+                    if (stats.shield.maximum > 0) {
+                        const sheath = ctx.element('div');
+                        sheath.className = 'sfux-dock-integrity-sheath';
+                        const sheathFill = ctx.element('span');
+                        sheathFill.style.width = `${stats.shield.percent}%`;
+                        sheath.appendChild(sheathFill);
+                        track.appendChild(sheath);
+                    }
+
+                    text.textContent = exact(stats);
+                    wrap.title =
+                        `Hull: ${exact(stats.hull)} (${Math.floor(stats.hull.percent)}%)\n` +
+                        `Shields: ${exact(stats.shield)} (${Math.floor(stats.shield.percent)}%)\n` +
+                        `Total: ${exact(stats)} (${Math.floor(stats.percent)}%)`;
+                } else {
+                    text.textContent = '—';
+                    wrap.title = 'Hull/Shields: unavailable';
+                }
+
+                frame.append(track, text);
+                wrap.appendChild(frame);
+
+                if (stats) {
+                    // Floor so a scratched pool never reads 100%.
+                    const caption = ctx.element('div');
+                    caption.className = 'sfux-dock-integrity-caption';
+                    const hullCaption = ctx.element('span');
+                    hullCaption.className = 'sfux-dock-integrity-caption-hull';
+                    hullCaption.textContent = `H ${Math.floor(stats.hull.percent)}%`;
+                    const shieldCaption = ctx.element('span');
+                    shieldCaption.className = 'sfux-dock-integrity-caption-shield';
+                    shieldCaption.textContent = `S ${Math.floor(stats.shield.percent)}%`;
+                    caption.append(hullCaption, shieldCaption);
+                    wrap.appendChild(caption);
+                }
+
+                const damaged = Boolean(stats && stats.current < stats.maximum);
+                if (damaged && repairContext?.action) {
+                    wrap.classList.add(
+                        'sfux-dock-integrity--repairable',
+                        `sfux-dock-repair-severity--${repairContext.severity || 'warning'}`
+                    );
+
+                    const action = ctx.element('span');
+                    action.className = 'sfux-dock-integrity-action';
+                    action.textContent = repairContext.label || 'REPAIR';
+                    frame.appendChild(action);
+
+                    const description =
+                        `Hull ${exact(stats.hull)}, Shields ${exact(stats.shield)}. ${repairContext.label || 'Repair ship'}.`;
+                    frame.tabIndex = 0;
+                    frame.setAttribute('role', 'button');
+                    frame.setAttribute('aria-label', description);
+                    frame.title = `${description} Click to use StarFury's native repair action.`;
+
+                    const triggerNativeRepair = event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        repairContext.action.click();
+                    };
+                    frame.addEventListener('click', triggerNativeRepair);
+                    frame.addEventListener('keydown', event => {
+                        if (event.key !== 'Enter' && event.key !== ' ') return;
+                        triggerNativeRepair(event);
+                    });
+                }
+
                 return wrap;
             }
 
@@ -17650,8 +17972,7 @@ function registerShipPowerRouting(SFUX) {
                 const vitals = ctx.element('div');
                 vitals.className = 'sfux-dock-vitals';
                 vitals.append(
-                    createDockVital('hull', 'H', data.hull, activeRepairContext),
-                    createDockVital('shield', 'S', data.shield, activeRepairContext)
+                    createDockIntegrity(integrityStats(data.hull, data.shield), activeRepairContext)
                 );
 
                 const footer = ctx.element('div');
