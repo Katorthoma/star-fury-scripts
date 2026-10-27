@@ -10,9 +10,10 @@ The goal is straightforward: improve Star Fury's usability, information density,
 | --- | ---: | --- | --- |
 | **StarFury UX Suite** | 2.2.20 | Broad UI/UX improvements across research, buildings, Rewards, Star Dock, ship management, navigation, and mobile layouts | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-UX-Suite.user.js) |
 | **Alliance Intel Board** | 0.16.1 | Consolidates alliance scan posts into a tactical intelligence board with freshness, ship composition, sector data, war activity, and target helpers | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-Alliance-Intel-Board.user.js) |
+| **War Scoreboard** | 0.1.4 | Replaces the native alliance-war comparison table with a compact versus-style scoreboard for active and completed wars | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-War-Scoreboard.user.js) |
 | **Custom Race Portraits** | 1.2.2 | Replaces native race portraits with an embedded portrait set or locally stored custom images | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-Custom-Race-Portraits.user.js) |
 
-All three scripts are standalone. They can be installed independently or used together.
+All four scripts are standalone. They can be installed independently or used together.
 
 ## StarFury UX Suite
 
@@ -87,7 +88,7 @@ The board supports:
 
 - configurable Alliance scan-thread URL, so a new round/season does not require editing the userscript
 - per-column visibility controls, with Empire always retained
-- hidden-empires management
+- hidden-emires management
 - content-fit mode for a compact centered board
 - optional flexible-width mode for very wide displays
 - a frozen Empire column during horizontal scrolling
@@ -95,6 +96,48 @@ The board supports:
 - built-in Status and Legend panels
 
 To change the scan thread, use your userscript manager's menu while on Star Fury and choose the Alliance Intel Board scan-thread configuration command.
+
+## War Scoreboard
+
+The War Scoreboard restyles Star Fury's native alliance-war comparison into a compact versus-style display intended to make the current state of a war understandable at a glance.
+
+It uses only information already present on the War Overview page. It does not maintain its own war history or make additional requests to Star Fury.
+
+### Active wars
+
+During an active alliance war, the scoreboard shows:
+
+- both alliance names using their native alliance colors
+- current War Score for each alliance
+- current score leader and score margin
+- a centered versus display with opposing score bars
+- starting and current Networth
+- absolute and percentage Networth change since war declaration
+- current Networth advantage
+- how the Networth gap has widened, narrowed, or changed sides since declaration
+- war start time and elapsed duration
+
+The scoreboard does not interpret Networth movement as combat casualties. It presents the values as Networth changes because construction, transfers, losses, and other game activity may all affect Networth.
+
+### Completed wars
+
+When Star Fury replaces the active-war table with **Previous War** during peace, the same interface automatically switches to a completed-war result card showing:
+
+- final War Scores
+- final score leader and margin
+- starting and finishing Networth
+- total Networth changes
+- final Networth advantage
+- start and end timestamps
+- total war duration
+
+This allows the War Overview page to retain the same visual language during both war and peace.
+
+### Scan Requests
+
+Star Fury's native **Scan Requests** section remains untouched when requests exist.
+
+When there are no outstanding scan requests, the empty section is hidden entirely to reduce unused space on the War Overview page.
 
 ## Custom Race Portraits
 
@@ -119,7 +162,7 @@ You will need a userscript manager such as **Tampermonkey** or **Violentmonkey**
 3. Accept the installation.
 4. Reload Star Fury.
 
-The scripts include GitHub `@updateURL` and `@downloadURL` metadata, so compatible userscript managers can detect later versions from this repository.
+Scripts that include GitHub `@updateURL` and `@downloadURL` metadata can be updated automatically by compatible userscript managers. Otherwise, install the newer `.user.js` version from this repository when an update is released.
 
 ## Design and safety principles
 
@@ -147,6 +190,7 @@ The current public scripts are:
 
 - `StarFury-UX-Suite.user.js`
 - `StarFury-Alliance-Intel-Board.user.js`
+- `StarFury-War-Scoreboard.user.js`
 - `StarFury-Custom-Race-Portraits.user.js`
 
 ## Maintenance and contributions
