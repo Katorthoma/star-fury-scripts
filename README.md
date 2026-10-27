@@ -8,7 +8,7 @@ The goal is straightforward: improve Star Fury's usability, information density,
 
 | Script | Current version | Purpose | Install |
 | --- | ---: | --- | --- |
-| **StarFury UX Suite** | 2.2.20 | Broad UI/UX improvements across research, buildings, Rewards, Star Dock, ship management, navigation, and mobile layouts | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-UX-Suite.user.js) |
+| **StarFury UX Suite** | 2.4.18 | Broad UI/UX improvements across research, buildings, Rewards, Star Dock, Attack Room, ship management, navigation, and mobile layouts | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-UX-Suite.user.js) |
 | **Alliance Intel Board** | 0.16.1 | Consolidates alliance scan posts into a tactical intelligence board with freshness, ship composition, sector data, war activity, and target helpers | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-Alliance-Intel-Board.user.js) |
 | **War Scoreboard** | 0.1.4 | Replaces the native alliance-war comparison table with a compact versus-style scoreboard for active and completed wars | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-War-Scoreboard.user.js) |
 | **Custom Race Portraits** | 1.2.2 | Replaces native race portraits with an embedded portrait set or locally stored custom images | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-Custom-Race-Portraits.user.js) |
@@ -23,17 +23,23 @@ It currently covers:
 
 - responsive navigation and empire-status HUD
 - unified Advisor + compact Star Dock with persistent open/closed state, improved alignment, and reduced page-load flashing
-- Research redesign with progress information, ETAs, queue presentation, and completed/max-state handling
+- Research redesign with progress information, ETAs, queue presentation, completed/max-state handling, and compact research explanations
 - Buildings and Raze redesigns with production projections and economic summaries
 - Rewards redesign with point-balance summaries and per-reward maximum-value projections
 - standardized numeric inputs, higher-contrast primary buttons, and safer non-negative construction controls
-- CIC-style Star Dock overview with compact multi-column ship cards, operational status colors, hull/shield telemetry, contextual repair controls, and stable ship imagery
+- CIC-style Star Dock overview with compact three-column desktop cards and a dedicated single-column mobile layout
+- Sheathed Integrity ship health display combining Hull + Shields into a single HP bar while retaining separate Hull and Shield percentages
+- standardized Star Dock telemetry for HP, Hull, Shields, Weapons/Engines/Sensors allocation, engine time, and operational status
+- responsive Star Dock role navigation with full desktop tabs and a compact mobile dock-category menu
+- state-aware Star Dock presentation with matched activity text/state rails, neutral Disabled treatment, and distinct Returning, Exploring, Raiding, Building, Upgrading, and Repairing states
+- responsive ship power controls that remain in-image on desktop and move to a touch-friendly card-level control on mobile
+- contextual repair controls and larger mobile touch targets while continuing to invoke Star Fury's native Repair, Enable, and Disable actions
 - per-dock bulk Repair/Disable/Re-enable actions that reuse Star Fury's native confirmed actions and refresh once after the batch
-- state-aware ship power controls: powered, disabled, disabled cooldown, and temporarily unavailable states
 - ship power-routing helpers, presets, Leecher-specific controls, role transfer/swap helpers, and Fixed/Flexible handling
+- Attack Room redesign with two-column targeting/recent-hit presentation, combined HP, role-grouped fleets, subtotals, fleet totals, live selected-force summaries, and per-dock select/deselect controls
 - mobile layouts designed separately where desktop tables do not translate cleanly
 
-The suite is designed to reduce repetitive interaction and improve presentation while preserving native links, form controls, validation, and submission behavior.
+The suite is designed to reduce repetitive interaction and improve presentation while preserving native links, form controls, validation, calculations, and submission behavior.
 
 ## Alliance Intel Board
 
