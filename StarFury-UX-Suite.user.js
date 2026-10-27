@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury UX Suite
 // @namespace    starfuryx.com
-// @version      2.3.0
+// @version      2.4.18
 // @author       Zathman
 // @license      MIT
 // @homepageURL  https://github.com/Katorthoma/star-fury-scripts
@@ -21,10 +21,10 @@
 
 (() => {
 'use strict';
-/* StarFury UX Suite 2.3.0 | Shared runtime. No globals are published by the bundle. */
+/* StarFury UX Suite 2.4.18 | Shared runtime. No globals are published by the bundle. */
 function createSFUX() {
     'use strict';
-    const SFUX = { version: '2.3.0', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
+    const SFUX = { version: '2.4.18', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
     // UI ASSUMPTION: dense building columns and nine navigation items need earlier stacking.
     SFUX.responsive = Object.freeze({ mobile: 640, navigation: 768, buildings: 800, phone: 430, narrowHeader: 460, tinyHud: 360 });
     SFUX.page = new URL(window.location.href);
@@ -110,7 +110,7 @@ function createSFUX() {
         if (key.includes('disable')) {
             return {
                 key: 'disabled',
-                color: '#eef1f5',
+                color: '#9fa7b0',
                 background: 'rgba(72,78,86,0.96)',
                 border: 'rgba(174,182,192,0.96)',
                 glow: 'rgba(185,193,203,0.30)'
@@ -120,7 +120,7 @@ function createSFUX() {
         if (key.includes('explor')) {
             return {
                 key: 'exploring',
-                color: '#dfffe5',
+                color: '#49d368',
                 background: 'rgba(27,118,54,0.95)',
                 border: 'rgba(113,226,137,0.96)',
                 glow: 'rgba(73,211,104,0.42)'
@@ -553,7 +553,7 @@ html body input[type="button"].button-primary:not(.sf-raze-submit):disabled {
     return SFUX;
 }
 
-/* StarFury UX Suite 2.3.0 | Global UX module. */
+/* StarFury UX Suite 2.4.18 | Global UX module. */
 function registerGlobalUX(SFUX) {
     SFUX.register({
         id: 'global', phase: 'early',
@@ -4236,7 +4236,7 @@ function registerGlobalUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.3.0 | Research Optimizer module. */
+/* StarFury UX Suite 2.4.18 | Research Optimizer module. */
 function registerResearchOptimizer(SFUX) {
     SFUX.register({
         id: 'research', phase: 'ready',
@@ -6958,7 +6958,7 @@ function registerResearchOptimizer(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.3.0 | Buildings UX module. */
+/* StarFury UX Suite 2.4.18 | Buildings UX module. */
 function registerBuildingsUX(SFUX) {
     SFUX.register({
         id: 'buildings', phase: 'ready',
@@ -10087,9 +10087,9 @@ function registerBuildingsUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.3.0 | Ship Power Routing module. */
+/* StarFury UX Suite 2.4.18 | Ship Power Routing module. */
 
-/* StarFury UX Suite 2.3.0 | Rewards UX module. */
+/* StarFury UX Suite 2.4.18 | Rewards UX module. */
 function registerRewardsUX(SFUX) {
     'use strict';
 
@@ -10747,6 +10747,1013 @@ function registerRewardsUX(SFUX) {
                      * result URLs such as ?redeem&action=redeem&for=9).
                      */
                     return SFUX.safeRun('rewards:page', enhanceRewardsPage);
+                },
+                destroy: ctx.destroy
+            };
+        }
+    });
+}
+
+
+/* StarFury UX Suite 2.4.18 | Attack Room command layout and fleet accounting. */
+function registerAttackUX(SFUX) {
+    'use strict';
+
+    SFUX.register({
+        id: 'attack',
+        phase: 'ready',
+        matches(path) {
+            return path === '/attack.php';
+        },
+        create(ctx) {
+            const STYLE_ID = 'sfux-attack-style';
+
+            const ROLE_CONFIG = {
+                Attackbg: {
+                    key: 'attack',
+                    label: 'Attack Dock',
+                    accent: '#ef4343'
+                },
+                Defencebg: {
+                    key: 'defence',
+                    label: 'Defence Dock',
+                    accent: '#3a8fe8'
+                },
+                Leecherbg: {
+                    key: 'leecher',
+                    label: 'Leecher Dock',
+                    accent: '#43b85c'
+                }
+            };
+
+            function parsePair(value) {
+                const matches = String(value || '').match(/[\d,]+/g) || [];
+                if (matches.length < 2) return null;
+
+                const current = Number(matches[0].replace(/,/g, ''));
+                const maximum = Number(matches[1].replace(/,/g, ''));
+
+                if (!Number.isFinite(current) || !Number.isFinite(maximum)) {
+                    return null;
+                }
+
+                return { current, maximum };
+            }
+
+            function formatInteger(value) {
+                const number = Number(value);
+                return Number.isFinite(number)
+                    ? Math.trunc(number).toLocaleString('en-US')
+                    : '—';
+            }
+
+            function formatPair(stats) {
+                if (!stats) return '—';
+                return `${formatInteger(stats.current)} / ${formatInteger(stats.maximum)}`;
+            }
+
+            function getRoleKey(row) {
+                return Object.keys(ROLE_CONFIG).find(className =>
+                    row.classList.contains(className)
+                ) || null;
+            }
+
+            function findShipTable() {
+                return Array.from(document.querySelectorAll('table.basictable'))
+                    .find(table => table.querySelector('input[name="shipid[]"]')) || null;
+            }
+
+            function findRecentHits(attackForm) {
+                return Array.from(attackForm?.children || []).find(element =>
+                    element.tagName === 'DIV' &&
+                    /recent\s+hits/i.test(element.textContent || '')
+                ) || null;
+            }
+
+            function injectStyles() {
+                ctx.style(STYLE_ID, `
+                    body.sfux-attack-page .sfux-attack-command-grid {
+                        display: grid;
+                        grid-template-columns: minmax(0, 1.08fr) minmax(290px, .92fr);
+                        gap: 12px;
+                        margin: 0 0 18px;
+                        text-align: left;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-command-panel {
+                        min-width: 0;
+                        padding: 12px 14px 13px;
+                        border: 1px solid rgba(255,255,255,.075);
+                        border-top: 2px solid rgba(var(--sfux-info-rgb), .36);
+                        background:
+                            linear-gradient(
+                                180deg,
+                                rgba(var(--sfux-info-rgb), .035),
+                                rgba(255,255,255,.012) 34%
+                            ),
+                            rgba(0,0,0,.14);
+                        box-shadow: inset 0 1px 0 rgba(255,255,255,.018);
+                    }
+
+                    body.sfux-attack-page .sfux-attack-command-panel--targeting {
+                        border-left: 3px solid var(--sfux-attack-type-accent, #38bfe8);
+                        background:
+                            linear-gradient(
+                                135deg,
+                                color-mix(
+                                    in srgb,
+                                    var(--sfux-attack-type-accent, #38bfe8) 9%,
+                                    transparent
+                                ),
+                                rgba(255,255,255,.012) 42%
+                            ),
+                            rgba(0,0,0,.14);
+                    }
+
+                    body.sfux-attack-page .sfux-attack-command-panel--history {
+                        border-top-color: rgba(255,255,255,.16);
+                        background: rgba(255,255,255,.014);
+                    }
+
+                    body.sfux-attack-page .sfux-attack-command-title {
+                        margin: 0 0 9px;
+                        color: rgba(255,255,255,.54);
+                        font-size: var(--sfux-type-sm);
+                        font-weight: 800;
+                        line-height: 1;
+                        letter-spacing: .09em;
+                        text-transform: uppercase;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-alliance-target {
+                        margin: 0 0 5px !important;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-alliance-target a {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        min-height: 32px;
+                        padding: 0 12px;
+                        border: 1px solid rgba(var(--sfux-info-rgb), .42);
+                        background: rgba(var(--sfux-info-rgb), .08);
+                        color: #58c9f0 !important;
+                        font-size: 12px !important;
+                        font-weight: 800 !important;
+                        line-height: 1 !important;
+                        text-decoration: none !important;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-alliance-target a:hover,
+                    body.sfux-attack-page .sfux-attack-alliance-target a:focus-visible {
+                        border-color: rgba(var(--sfux-info-rgb), .72);
+                        background: rgba(var(--sfux-info-rgb), .14);
+                    }
+
+                    body.sfux-attack-page .sfux-attack-target-hint {
+                        margin: 0 0 11px;
+                        color: rgba(255,255,255,.43);
+                        font-size: 10.5px;
+                        line-height: 1.35;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-type {
+                        margin: 0 0 10px !important;
+                        color: rgba(255,255,255,.54);
+                        font-size: 10.5px;
+                        font-weight: 700;
+                        letter-spacing: .035em;
+                        text-transform: uppercase;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-type br {
+                        display: none !important;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-type span {
+                        margin-left: 5px;
+                        font-size: 13px !important;
+                        letter-spacing: 0;
+                        text-transform: none;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-field {
+                        display: grid;
+                        gap: 5px;
+                        margin-top: 9px;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-field-label {
+                        color: rgba(255,255,255,.46);
+                        font-size: 9.5px;
+                        font-weight: 800;
+                        line-height: 1;
+                        letter-spacing: .075em;
+                        text-transform: uppercase;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-sector-form {
+                        display: flex;
+                        align-items: center;
+                        justify-content: flex-start;
+                        gap: 7px;
+                        margin: 0 !important;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-sector-form > br {
+                        display: none !important;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-sector-form select {
+                        width: 72px !important;
+                        min-width: 72px !important;
+                        margin: 0 !important;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-sector-form input[type="submit"] {
+                        min-width: 88px;
+                        margin: 0 0 0 3px !important;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-target-select {
+                        box-sizing: border-box;
+                        width: 100% !important;
+                        max-width: none !important;
+                        margin: 0 !important;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-half-warning {
+                        margin: 0 0 12px !important;
+                        padding: 9px 10px;
+                        border: 1px solid rgba(var(--sfux-danger-rgb), .26);
+                        border-left: 3px solid rgba(var(--sfux-danger-rgb), .70);
+                        background: rgba(var(--sfux-danger-rgb), .055);
+                        font-size: 11px;
+                        line-height: 1.35;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-recent-hits {
+                        margin: 0 !important;
+                        color: rgba(255,255,255,.72);
+                        font-size: 11.5px !important;
+                        line-height: 1.38;
+                        text-align: left !important;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-recent-hits > p {
+                        margin: 0 0 7px !important;
+                        color: rgba(255,255,255,.48);
+                        font-size: 10.5px;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-recent-hits > div {
+                        margin: 0 !important;
+                        padding: 6px 0 !important;
+                        border-top: 1px solid rgba(255,255,255,.055);
+                    }
+
+                    body.sfux-attack-page .sfux-attack-native-top-spacer {
+                        display: none !important;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-table-wrap {
+                        margin-top: 2px;
+                        overflow-x: auto;
+                    }
+
+                    body.sfux-attack-page table.sfux-attack-table {
+                        width: 100%;
+                        font-variant-numeric: tabular-nums;
+                    }
+
+                    body.sfux-attack-page table.sfux-attack-table td {
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-attack-page table.sfux-attack-table
+                    tr:not(.sfux-attack-group-header):not(.sfux-attack-subtotal):not(.sfux-attack-grand-total)
+                    td:first-child {
+                        padding-left: 10px !important;
+                        text-align: left;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-hp {
+                        font-weight: 800;
+                    }
+
+                    body.sfux-attack-page table.sfux-attack-table
+                    tr:not(.sfux-attack-group-header):not(.sfux-attack-subtotal):not(.sfux-attack-grand-total)
+                    td:last-child {
+                        vertical-align: middle !important;
+                    }
+
+                    body.sfux-attack-page table.sfux-attack-table
+                    tr:not(.sfux-attack-group-header):not(.sfux-attack-subtotal):not(.sfux-attack-grand-total)
+                    td:last-child input[type="checkbox"] {
+                        display: block;
+                        margin: 0 auto !important;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-damage,
+                    body.sfux-attack-page .sfux-attack-damage-header {
+                        font-weight: 800 !important;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-group-header td {
+                        padding: 7px 10px !important;
+                        border-top: 7px solid rgba(6,8,10,.96) !important;
+                        border-bottom: 1px solid rgba(255,255,255,.065) !important;
+                        background: rgba(16,19,22,.98) !important;
+                        color: rgba(255,255,255,.86) !important;
+                        text-align: left !important;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-group-header--first td {
+                        border-top-width: 1px !important;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-role-heading {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        gap: 12px;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-role-name {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 7px;
+                        font-size: 10.5px;
+                        font-weight: 800;
+                        letter-spacing: .07em;
+                        text-transform: uppercase;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-role-name::before {
+                        content: "";
+                        width: 7px;
+                        height: 7px;
+                        background: var(--sfux-attack-role-accent);
+                        box-shadow: 0 0 6px color-mix(
+                            in srgb,
+                            var(--sfux-attack-role-accent) 45%,
+                            transparent
+                        );
+                    }
+
+                    body.sfux-attack-page .sfux-attack-role-count {
+                        appearance: none;
+                        -webkit-appearance: none;
+                        margin: -4px -5px -4px 0;
+                        padding: 4px 5px;
+                        border: 0;
+                        background: transparent;
+                        color: rgba(255,255,255,.42);
+                        font-family: inherit;
+                        font-size: 9.5px;
+                        font-weight: 700;
+                        line-height: 1;
+                        letter-spacing: .04em;
+                        cursor: pointer;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-role-count:hover,
+                    body.sfux-attack-page .sfux-attack-role-count:focus-visible {
+                        color: rgba(255,255,255,.90);
+                        text-decoration: underline;
+                        text-decoration-color: var(--sfux-attack-role-accent);
+                        text-underline-offset: 2px;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-role-count:focus-visible {
+                        outline: 1px solid var(--sfux-attack-role-accent);
+                        outline-offset: 1px;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-subtotal td,
+                    body.sfux-attack-page .sfux-attack-grand-total td {
+                        padding-top: 6px !important;
+                        padding-bottom: 6px !important;
+                        border-top: 1px solid rgba(255,255,255,.075) !important;
+                        background: rgba(5,7,9,.86) !important;
+                        color: rgba(255,255,255,.76) !important;
+                        font-size: 10.5px;
+                        font-weight: 700;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-subtotal td:first-child,
+                    body.sfux-attack-page .sfux-attack-grand-total td:first-child {
+                        padding-left: 10px !important;
+                        text-align: left !important;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-subtotal {
+                        box-shadow:
+                            inset 3px 0 0 var(--sfux-attack-role-accent),
+                            inset 0 -1px 0 rgba(255,255,255,.025);
+                    }
+
+                    body.sfux-attack-page .sfux-attack-grand-total td {
+                        padding-top: 8px !important;
+                        padding-bottom: 8px !important;
+                        border-top: 2px solid rgba(var(--sfux-info-rgb), .34) !important;
+                        background:
+                            linear-gradient(
+                                90deg,
+                                rgba(var(--sfux-info-rgb), .07),
+                                rgba(255,255,255,.015) 45%
+                            ) !important;
+                        color: rgba(255,255,255,.92) !important;
+                        font-weight: 800;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-subtotal-label,
+                    body.sfux-attack-page .sfux-attack-grand-label {
+                        color: rgba(255,255,255,.90);
+                    }
+
+                    body.sfux-attack-page .sfux-attack-subtotal-meta,
+                    body.sfux-attack-page .sfux-attack-grand-meta {
+                        margin-left: 6px;
+                        color: rgba(255,255,255,.42);
+                        font-size: 9.5px;
+                        font-weight: 700;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-select-count {
+                        color: rgba(255,255,255,.92) !important;
+                        font-weight: 800 !important;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-selection-summary {
+                        display: grid;
+                        grid-template-columns: repeat(3, minmax(0, 1fr));
+                        gap: 1px;
+                        margin: 14px auto 10px;
+                        max-width: 620px;
+                        border: 1px solid rgba(255,255,255,.075);
+                        background: rgba(0,0,0,.20);
+                        text-align: center;
+                        font-variant-numeric: tabular-nums;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-selection-stat {
+                        min-width: 0;
+                        padding: 8px 10px 9px;
+                        background: rgba(255,255,255,.018);
+                    }
+
+                    body.sfux-attack-page .sfux-attack-selection-stat + .sfux-attack-selection-stat {
+                        border-left: 1px solid rgba(255,255,255,.06);
+                    }
+
+                    body.sfux-attack-page .sfux-attack-selection-label {
+                        display: block;
+                        margin-bottom: 2px;
+                        color: rgba(255,255,255,.40);
+                        font-size: 9px;
+                        font-weight: 800;
+                        letter-spacing: .07em;
+                        text-transform: uppercase;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-selection-value {
+                        color: rgba(255,255,255,.94);
+                        font-size: 13px;
+                        font-weight: 800;
+                    }
+
+                    body.sfux-attack-page .sfux-attack-launch-button {
+                        min-width: 112px;
+                        margin-top: 2px !important;
+                    }
+
+                    @media (max-width: 820px) {
+                        body.sfux-attack-page .sfux-attack-command-grid {
+                            grid-template-columns: 1fr;
+                        }
+
+                        body.sfux-attack-page .sfux-attack-selection-summary {
+                            grid-template-columns: 1fr;
+                        }
+
+                        body.sfux-attack-page
+                        .sfux-attack-selection-stat + .sfux-attack-selection-stat {
+                            border-top: 1px solid rgba(255,255,255,.06);
+                            border-left: 0;
+                        }
+                    }
+                `);
+            }
+
+            function enhanceCommandArea(shipTable) {
+                const targetSelect = document.getElementById('target');
+                const attackForm = targetSelect?.form;
+                if (!targetSelect || !attackForm) return;
+
+                const outerNotice = attackForm.parentElement;
+                if (!outerNotice) return;
+
+                const allianceAnchor = outerNotice.querySelector(
+                    'a[href*="?target"], a[href$="attack.php?target"]'
+                );
+                const allianceParagraph = allianceAnchor?.closest('p') || null;
+                const sectorForm = outerNotice.querySelector('form[name="att"]');
+                const recentHits = findRecentHits(attackForm);
+                const halfWarning = document.getElementById('onesixth');
+
+                const attackTypeParagraph = Array.from(outerNotice.children).find(element =>
+                    element.tagName === 'P' &&
+                    element !== allianceParagraph &&
+                    /attack\s*:/i.test(element.textContent || '')
+                ) || null;
+
+                const grid = ctx.element('div');
+                grid.className = 'sfux-attack-command-grid';
+
+                const targetingPanel = ctx.element('section');
+                targetingPanel.className =
+                    'sfux-attack-command-panel sfux-attack-command-panel--targeting';
+
+                const attackTypeAccentSource =
+                    attackTypeParagraph?.querySelector('span') ||
+                    document.querySelector(
+                        '#subMenu a.primaryColour, #subMenu a.secondaryColour, #subMenu a[style*="9898ff"]'
+                    );
+
+                if (attackTypeAccentSource) {
+                    const attackTypeColor =
+                        window.getComputedStyle(attackTypeAccentSource).color;
+                    if (attackTypeColor) {
+                        targetingPanel.style.setProperty(
+                            '--sfux-attack-type-accent',
+                            attackTypeColor
+                        );
+                    }
+                }
+
+                const targetingTitle = ctx.element('div');
+                targetingTitle.className = 'sfux-attack-command-title';
+                targetingTitle.textContent = 'Targeting';
+                targetingPanel.appendChild(targetingTitle);
+
+                if (allianceParagraph) {
+                    allianceParagraph.classList.add('sfux-attack-alliance-target');
+                    targetingPanel.appendChild(allianceParagraph);
+
+                    const hint = ctx.element('div');
+                    hint.className = 'sfux-attack-target-hint';
+                    hint.textContent =
+                        'Load the alliance-selected target and attack type, then verify before launch.';
+                    targetingPanel.appendChild(hint);
+                }
+
+                if (attackTypeParagraph && !attackTypeParagraph.contains(attackForm)) {
+                    attackTypeParagraph.classList.add('sfux-attack-type');
+                    targetingPanel.appendChild(attackTypeParagraph);
+                }
+
+                if (sectorForm) {
+                    sectorForm.classList.add('sfux-attack-sector-form');
+
+                    const sectorField = ctx.element('div');
+                    sectorField.className = 'sfux-attack-field';
+
+                    const sectorLabel = ctx.element('div');
+                    sectorLabel.className = 'sfux-attack-field-label';
+                    sectorLabel.textContent = 'Sector';
+                    sectorField.append(sectorLabel, sectorForm);
+                    targetingPanel.appendChild(sectorField);
+                }
+
+                if (!attackForm.id) attackForm.id = 'sfux-attack-native-form';
+                targetSelect.setAttribute('form', attackForm.id);
+                targetSelect.classList.add('sfux-attack-target-select');
+
+                const targetField = ctx.element('div');
+                targetField.className = 'sfux-attack-field';
+
+                const targetLabel = ctx.element('label');
+                targetLabel.className = 'sfux-attack-field-label';
+                targetLabel.htmlFor = targetSelect.id;
+                targetLabel.textContent = 'Target Empire';
+
+                targetField.append(targetLabel, targetSelect);
+                targetingPanel.appendChild(targetField);
+
+                const historyPanel = ctx.element('section');
+                historyPanel.className =
+                    'sfux-attack-command-panel sfux-attack-command-panel--history';
+
+                if (halfWarning) {
+                    halfWarning.classList.add('sfux-attack-half-warning');
+
+                    // Native warning markup ends with two <br> elements, which
+                    // create dead space once the warning is presented as a panel.
+                    const warningTail = halfWarning.lastElementChild;
+                    if (warningTail) {
+                        while (
+                            warningTail.lastElementChild &&
+                            warningTail.lastElementChild.tagName === 'BR'
+                        ) {
+                            warningTail.lastElementChild.remove();
+                        }
+                    }
+
+                    historyPanel.appendChild(halfWarning);
+                }
+
+                const historyTitle = ctx.element('div');
+                historyTitle.className = 'sfux-attack-command-title';
+                historyTitle.textContent = 'Recent Hits';
+                historyPanel.appendChild(historyTitle);
+
+                if (recentHits) {
+                    recentHits.classList.add('sfux-attack-recent-hits');
+                    historyPanel.appendChild(recentHits);
+                } else {
+                    const empty = ctx.element('div');
+                    empty.className = 'sfux-attack-target-hint';
+                    empty.textContent = 'No recent-hit log is currently shown.';
+                    historyPanel.appendChild(empty);
+                }
+
+                grid.append(targetingPanel, historyPanel);
+                outerNotice.insertBefore(grid, attackForm);
+
+                Array.from(attackForm.children).forEach(child => {
+                    if (child.tagName === 'BR') {
+                        child.classList.add('sfux-attack-native-top-spacer');
+                    }
+                });
+
+                const wrap = shipTable.closest('.responsive-table-container');
+                wrap?.classList.add('sfux-attack-table-wrap');
+            }
+
+            function enhanceFleetTable(shipTable) {
+                shipTable.classList.add('sfux-attack-table');
+
+                const roleRows = Array.from(shipTable.rows).filter(row => getRoleKey(row));
+                if (!roleRows.length) return;
+
+                const headerRow = Array.from(shipTable.rows).find(row =>
+                    row.querySelector('.tableheader')
+                );
+
+                if (!headerRow || headerRow.cells.length < 8) return;
+
+                const hpHeader = ctx.element('td');
+                hpHeader.className = 'tableheader';
+                hpHeader.textContent = 'HP';
+                headerRow.insertBefore(hpHeader, headerRow.cells[4]);
+
+                // After HP insertion: Damage is column index 7.
+                if (headerRow.cells[7]) {
+                    headerRow.cells[7].classList.add('sfux-attack-damage-header');
+                }
+
+                const groups = [];
+                const groupMap = new Map();
+
+                for (const row of roleRows) {
+                    const roleClass = getRoleKey(row);
+                    const config = ROLE_CONFIG[roleClass];
+                    if (!config || row.cells.length < 8) continue;
+
+                    const hull = parsePair(row.cells[2].textContent);
+                    const shield = parsePair(row.cells[3].textContent);
+
+                    const hp = hull && shield
+                        ? {
+                            current: hull.current + shield.current,
+                            maximum: hull.maximum + shield.maximum
+                        }
+                        : null;
+
+                    const hpCell = ctx.element('td');
+                    hpCell.className = 'sfux-attack-hp';
+                    hpCell.textContent = formatPair(hp);
+
+                    // After HP insertion: Damage is column index 7.
+                    if (row.cells[7]) {
+                        row.cells[7].classList.add('sfux-attack-damage');
+                    }
+
+                    if (hull && shield) {
+                        hpCell.title =
+                            `Hull: ${formatPair(hull)}\nShields: ${formatPair(shield)}`;
+                    }
+
+                    row.insertBefore(hpCell, row.cells[4]);
+
+                    const checkbox = row.querySelector('input[name="shipid[]"][type="checkbox"]');
+                    const attack = SFUX.format.number(
+                        checkbox?.getAttribute('att_points')
+                    ) ?? 0;
+                    const damage = SFUX.format.number(
+                        checkbox?.getAttribute('dmg_points')
+                    ) ?? 0;
+
+                    const data = {
+                        row,
+                        checkbox,
+                        roleClass,
+                        config,
+                        hp,
+                        attack,
+                        damage
+                    };
+
+                    if (!groupMap.has(roleClass)) {
+                        const group = {
+                            roleClass,
+                            config,
+                            rows: [],
+                            count: 0,
+                            hpCurrent: 0,
+                            hpMaximum: 0,
+                            attack: 0,
+                            damage: 0,
+                            selectCell: null
+                        };
+                        groupMap.set(roleClass, group);
+                        groups.push(group);
+                    }
+
+                    const group = groupMap.get(roleClass);
+                    group.rows.push(data);
+                    group.count += 1;
+                    group.hpCurrent += hp?.current || 0;
+                    group.hpMaximum += hp?.maximum || 0;
+                    group.attack += attack;
+                    group.damage += damage;
+                }
+
+                const tbody = roleRows[0].parentElement;
+                const totalColumns = headerRow.cells.length;
+
+                const makeGroupHeader = (group, index) => {
+                    const row = ctx.element('tr');
+                    row.className =
+                        `sfux-attack-group-header${index === 0 ? ' sfux-attack-group-header--first' : ''}`;
+                    row.style.setProperty('--sfux-attack-role-accent', group.config.accent);
+
+                    const cell = ctx.element('td');
+                    cell.colSpan = totalColumns;
+
+                    const heading = ctx.element('div');
+                    heading.className = 'sfux-attack-role-heading';
+
+                    const name = ctx.element('span');
+                    name.className = 'sfux-attack-role-name';
+                    name.textContent = group.config.label;
+
+                    const count = ctx.element('button');
+                    count.type = 'button';
+                    count.className = 'sfux-attack-role-count';
+                    count.textContent = `${group.count} ${group.count === 1 ? 'ship' : 'ships'}`;
+                    count.title = `Select all ${group.config.label} ships`;
+                    count.setAttribute(
+                        'aria-label',
+                        `Select all ${group.config.label} ships`
+                    );
+                    count.setAttribute('aria-pressed', 'false');
+
+                    ctx.on(count, 'click', event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+
+                        const available = group.rows
+                            .map(item => item.checkbox)
+                            .filter(Boolean);
+
+                        const allSelected =
+                            available.length > 0 &&
+                            available.every(checkbox => checkbox.checked);
+
+                        const desiredState = !allSelected;
+
+                        for (const checkbox of available) {
+                            if (checkbox.checked === desiredState) continue;
+
+                            // Native click preserves StarFury's own onchange handler,
+                            // Attack/Damage totals, and any future checkbox behavior.
+                            checkbox.click();
+                        }
+                    });
+
+                    group.selectToggle = count;
+
+                    heading.append(name, count);
+                    cell.appendChild(heading);
+                    row.appendChild(cell);
+                    return row;
+                };
+
+                const makeSummaryRow = (group, grand = false) => {
+                    const row = ctx.element('tr');
+                    row.className = grand
+                        ? 'sfux-attack-grand-total'
+                        : 'sfux-attack-subtotal';
+
+                    if (!grand) {
+                        row.style.setProperty(
+                            '--sfux-attack-role-accent',
+                            group.config.accent
+                        );
+                    }
+
+                    const labelCell = ctx.element('td');
+                    labelCell.colSpan = 4;
+
+                    const label = ctx.element('span');
+                    label.className = grand
+                        ? 'sfux-attack-grand-label'
+                        : 'sfux-attack-subtotal-label';
+                    label.textContent = grand
+                        ? 'Fleet total'
+                        : `${group.config.label} subtotal`;
+
+                    const meta = ctx.element('span');
+                    meta.className = grand
+                        ? 'sfux-attack-grand-meta'
+                        : 'sfux-attack-subtotal-meta';
+                    meta.textContent =
+                        `· ${group.count} ${group.count === 1 ? 'ship' : 'ships'}`;
+
+                    labelCell.append(label, meta);
+
+                    const hpCell = ctx.element('td');
+                    hpCell.textContent = formatPair({
+                        current: group.hpCurrent,
+                        maximum: group.hpMaximum
+                    });
+
+                    const enginesCell = ctx.element('td');
+                    enginesCell.textContent = '—';
+
+                    const attackCell = ctx.element('td');
+                    attackCell.textContent = formatInteger(group.attack);
+
+                    const damageCell = ctx.element('td');
+                    damageCell.textContent = formatInteger(group.damage);
+
+                    const selectCell = ctx.element('td');
+                    selectCell.className = 'sfux-attack-select-count';
+                    selectCell.textContent = `0 / ${group.count}`;
+                    selectCell.title = 'Selected / available';
+
+                    group.selectCell = selectCell;
+
+                    row.append(
+                        labelCell,
+                        hpCell,
+                        enginesCell,
+                        attackCell,
+                        damageCell,
+                        selectCell
+                    );
+
+                    return row;
+                };
+
+                let lastSummaryRow = null;
+
+                groups.forEach((group, index) => {
+                    const firstRow = group.rows[0].row;
+                    const lastRow = group.rows[group.rows.length - 1].row;
+
+                    tbody.insertBefore(makeGroupHeader(group, index), firstRow);
+
+                    const subtotal = makeSummaryRow(group);
+                    tbody.insertBefore(subtotal, lastRow.nextSibling);
+                    lastSummaryRow = subtotal;
+                });
+
+                const grand = {
+                    count: groups.reduce((sum, group) => sum + group.count, 0),
+                    hpCurrent: groups.reduce((sum, group) => sum + group.hpCurrent, 0),
+                    hpMaximum: groups.reduce((sum, group) => sum + group.hpMaximum, 0),
+                    attack: groups.reduce((sum, group) => sum + group.attack, 0),
+                    damage: groups.reduce((sum, group) => sum + group.damage, 0),
+                    selectCell: null
+                };
+
+                const grandRow = makeSummaryRow(grand, true);
+                tbody.insertBefore(grandRow, lastSummaryRow?.nextSibling || null);
+
+                const totalAttack = document.getElementById('total_att');
+                const totalDamage = document.getElementById('total_dmg');
+                const nativePoints = totalAttack?.closest('p');
+
+                const summary = ctx.element('div');
+                summary.className = 'sfux-attack-selection-summary';
+
+                const createSelectionStat = (labelText, valueNode) => {
+                    const stat = ctx.element('div');
+                    stat.className = 'sfux-attack-selection-stat';
+
+                    const label = ctx.element('span');
+                    label.className = 'sfux-attack-selection-label';
+                    label.textContent = labelText;
+
+                    valueNode.classList.add('sfux-attack-selection-value');
+                    stat.append(label, valueNode);
+                    return stat;
+                };
+
+                const selectedCount = ctx.element('span');
+                selectedCount.id = 'sfux-attack-selected-count';
+                selectedCount.textContent = `0 / ${grand.count}`;
+
+                if (totalAttack && totalDamage) {
+                    summary.append(
+                        createSelectionStat('Selected', selectedCount),
+                        createSelectionStat('Attack', totalAttack),
+                        createSelectionStat('Damage', totalDamage)
+                    );
+
+                    if (nativePoints) {
+                        nativePoints.insertAdjacentElement('beforebegin', summary);
+                        nativePoints.remove();
+                    } else {
+                        shipTable.closest('.responsive-table-container')
+                            ?.insertAdjacentElement('afterend', summary);
+                    }
+                }
+
+                const launchButton = document.querySelector(
+                    'form[action*="attackc.php"] input[type="submit"][value="Attack" i]'
+                );
+                launchButton?.classList.add('sfux-attack-launch-button');
+
+                const syncSelection = () => {
+                    let totalSelected = 0;
+
+                    for (const group of groups) {
+                        const selected = group.rows.reduce(
+                            (sum, item) => sum + (item.checkbox?.checked ? 1 : 0),
+                            0
+                        );
+
+                        totalSelected += selected;
+
+                        if (group.selectCell) {
+                            group.selectCell.textContent =
+                                `${selected} / ${group.count}`;
+                        }
+
+                        if (group.selectToggle) {
+                            const allSelected =
+                                group.count > 0 && selected === group.count;
+
+                            group.selectToggle.setAttribute(
+                                'aria-pressed',
+                                allSelected ? 'true' : 'false'
+                            );
+                            group.selectToggle.title = allSelected
+                                ? `Deselect all ${group.config.label} ships`
+                                : `Select all ${group.config.label} ships`;
+                            group.selectToggle.setAttribute(
+                                'aria-label',
+                                group.selectToggle.title
+                            );
+                        }
+                    }
+
+                    if (grand.selectCell) {
+                        grand.selectCell.textContent =
+                            `${totalSelected} / ${grand.count}`;
+                    }
+
+                    selectedCount.textContent =
+                        `${totalSelected} / ${grand.count}`;
+                };
+
+                for (const group of groups) {
+                    for (const item of group.rows) {
+                        if (!item.checkbox) continue;
+                        ctx.on(item.checkbox, 'change', syncSelection);
+                    }
+                }
+
+                syncSelection();
+            }
+
+            function main() {
+                const shipTable = findShipTable();
+                if (!shipTable) return;
+
+                document.body.classList.add('sfux-attack-page');
+                injectStyles();
+                enhanceCommandArea(shipTable);
+                enhanceFleetTable(shipTable);
+            }
+
+            return {
+                init() {
+                    return SFUX.safeRun('attack:page', main);
                 },
                 destroy: ctx.destroy
             };
@@ -13012,6 +14019,10 @@ function registerShipPowerRouting(SFUX) {
                         margin-bottom: 4px;
                     }
 
+                    #subMenu.sfux-dock-tabs .sfux-dock-tab-menu-toggle {
+                        display: none;
+                    }
+
                     #subMenu.sfux-dock-tabs .subMenu {
                         overflow: hidden;
                     }
@@ -13932,20 +14943,125 @@ function registerShipPowerRouting(SFUX) {
                         }
 
                         #subMenu.sfux-dock-tabs {
-                            margin-bottom: 2px;
+                            position: relative;
+                            display: block;
+                            width: 100%;
+                            box-sizing: border-box;
+                            margin-bottom: 5px;
+                        }
+
+                        #subMenu.sfux-dock-tabs .subMenu {
+                            position: relative;
+                            display: block;
+                            width: 100%;
+                            box-sizing: border-box;
+                            overflow: visible;
+                        }
+
+                        #subMenu.sfux-dock-tabs .sfux-dock-tab-menu-toggle {
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            width: 100%;
+                            min-height: 44px;
+                            box-sizing: border-box;
+                            margin: 0;
+                            padding: 0 12px;
+                            border: 0;
+                            border-radius: 0;
+                            background:
+                                linear-gradient(
+                                    90deg,
+                                    color-mix(
+                                        in srgb,
+                                        var(--sfux-dock-menu-accent, rgba(255,255,255,.28)) 14%,
+                                        rgba(25,28,30,.985)
+                                    ),
+                                    color-mix(
+                                        in srgb,
+                                        var(--sfux-dock-menu-accent, rgba(255,255,255,.28)) 6%,
+                                        rgba(25,28,30,.985)
+                                    )
+                                );
+                            box-shadow:
+                                inset 0 1px 0 rgba(255,255,255,.035),
+                                inset 0 -1px 0 rgba(0,0,0,.42);
+                            color: rgba(255,255,255,.92);
+                            font-family: inherit;
+                            font-size: var(--sfux-type-md);
+                            font-weight: 800;
+                            line-height: 1;
+                            text-align: left;
+                            cursor: pointer;
+                        }
+
+                        #subMenu.sfux-dock-tabs .sfux-dock-tab-menu-label {
+                            display: inline-flex;
+                            align-items: baseline;
+                            gap: 6px;
+                            min-width: 0;
+                        }
+
+                        #subMenu.sfux-dock-tabs .sfux-dock-tab-menu-name {
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            white-space: nowrap;
+                        }
+
+                        #subMenu.sfux-dock-tabs .sfux-dock-tab-menu-count {
+                            color: rgba(255,255,255,.52);
+                            font-size: var(--sfux-type-sm);
+                            font-weight: 700;
+                            white-space: nowrap;
+                        }
+
+                        #subMenu.sfux-dock-tabs .sfux-dock-tab-menu-icon {
+                            margin-left: 10px;
+                            color: rgba(255,255,255,.72);
+                            font-size: 14px;
+                            transition: transform .12s ease;
+                        }
+
+                        #subMenu.sfux-dock-tabs.sfux-dock-tabs--open
+                        .sfux-dock-tab-menu-icon {
+                            transform: rotate(90deg);
                         }
 
                         #subMenu.sfux-dock-tabs .subMenu ul {
-                            gap: 3px;
-                            padding: 0 0 3px !important;
-                            scroll-snap-type: x proximity;
+                            display: none !important;
+                            position: absolute;
+                            top: calc(100% + 3px);
+                            left: 0;
+                            right: 0;
+                            z-index: 40;
+                            flex-direction: column;
+                            gap: 2px;
+                            margin: 0 !important;
+                            padding: 4px !important;
+                            overflow: visible;
+                            border: 1px solid rgba(255,255,255,.12);
+                            background: rgba(12,15,17,.985);
+                            box-shadow: 0 8px 18px rgba(0,0,0,.48);
+                            scrollbar-width: auto;
+                        }
+
+                        #subMenu.sfux-dock-tabs.sfux-dock-tabs--open .subMenu ul {
+                            display: flex !important;
+                        }
+
+                        #subMenu.sfux-dock-tabs .subMenu li {
+                            width: 100%;
                         }
 
                         #subMenu.sfux-dock-tabs .subMenu a {
-                            min-height: 38px;
-                            padding-inline: 11px !important;
+                            display: flex !important;
+                            justify-content: space-between;
+                            width: 100%;
+                            min-height: 44px;
+                            box-sizing: border-box;
+                            padding-inline: 10px !important;
                             font-size: var(--sfux-type-md);
-                            scroll-snap-align: start;
+                            scroll-snap-align: none;
                         }
 
                         table.stardocktable.sfux-dock-table {
@@ -14228,6 +15344,64 @@ function registerShipPowerRouting(SFUX) {
                         filter: brightness(1.055);
                     }
 
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--status-disabled {
+                        border-color: rgba(159,167,176,.24);
+                        border-top-color: rgba(159,167,176,.30);
+                        background:
+                            linear-gradient(
+                                180deg,
+                                #1b1d1f 0%,
+                                #191b1d 48%,
+                                #17191b 100%
+                            ) !important;
+                        box-shadow:
+                            inset 0 1px 0 rgba(255,255,255,.018),
+                            0 1px 2px rgba(0,0,0,.18);
+                        filter: none;
+                    }
+
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--status-disabled:hover,
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--status-disabled:focus-within {
+                        border-color: rgba(159,167,176,.38);
+                        box-shadow:
+                            inset 0 1px 0 rgba(255,255,255,.025),
+                            inset 0 0 0 999px rgba(159,167,176,.012),
+                            0 2px 5px rgba(0,0,0,.22);
+                        filter: none;
+                    }
+
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--status-disabled
+                    .sfux-dock-card-head,
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--status-disabled
+                    .sfux-dock-card-status-wrap,
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--status-disabled
+                    .sfux-dock-vitals,
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--status-disabled
+                    .sfux-dock-card-image-link,
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--status-disabled
+                    .sfux-dock-card-image-mode,
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--status-disabled
+                    .sfux-dock-card-image-engine {
+                        opacity: .64;
+                        filter: grayscale(.42) saturate(.58);
+                    }
+
+                    table.stardocktable.sfux-dock-table
+                    tr.sfux-dock-card-row.sfux-dock-card-row--status-disabled
+                    .sfux-dock-card-image-action {
+                        opacity: 1 !important;
+                        filter: none !important;
+                    }
+
                     /*
                      * Operational state rail.
                      * The card surface itself stays neutral. Only meaningful,
@@ -14242,48 +15416,8 @@ function registerShipPowerRouting(SFUX) {
                         bottom: -1px;
                         left: -1px;
                         width: 3px;
-                        background: transparent;
+                        background: var(--sfux-operational-color, transparent);
                         pointer-events: none;
-                    }
-
-                    table.stardocktable.sfux-dock-table
-                    tr.sfux-dock-card-row.sfux-dock-card-row--status-returning::before {
-                        background: #ff3b52;
-                    }
-
-                    table.stardocktable.sfux-dock-table
-                    tr.sfux-dock-card-row.sfux-dock-card-row--status-exploring::before {
-                        background: #49d368;
-                    }
-
-                    table.stardocktable.sfux-dock-table
-                    tr.sfux-dock-card-row.sfux-dock-card-row--status-raiding::before {
-                        background: #d59a4a;
-                    }
-
-                    table.stardocktable.sfux-dock-table
-                    tr.sfux-dock-card-row.sfux-dock-card-row--status-building::before {
-                        background: #ff981f;
-                    }
-
-                    table.stardocktable.sfux-dock-table
-                    tr.sfux-dock-card-row.sfux-dock-card-row--status-upgrading::before {
-                        background: #2d9cff;
-                    }
-
-                    table.stardocktable.sfux-dock-table
-                    tr.sfux-dock-card-row.sfux-dock-card-row--repairing::before {
-                        background: #f2cf62;
-                    }
-
-                    table.stardocktable.sfux-dock-table
-                    tr.sfux-dock-card-row.sfux-dock-card-row--status-disabled::before {
-                        background: #9fa7b0;
-                    }
-
-                    table.stardocktable.sfux-dock-table
-                    tr.sfux-dock-card-row.sfux-dock-card-row--terminal::before {
-                        background: rgba(var(--sfux-danger-rgb), .92);
                     }
                     table.stardocktable.sfux-dock-table tr.sfux-dock-card-row > td {
                         border: 0 !important;
@@ -14299,10 +15433,12 @@ function registerShipPowerRouting(SFUX) {
                         padding: 0 !important;
                     }
                     .sfux-dock-card {
+                        --sfux-dock-telemetry-size: 11px;
+                        position: relative;
                         display: grid;
-                        grid-template-rows: auto 76px auto auto auto;
-                        gap: 6px;
-                        min-height: 188px;
+                        grid-template-rows: auto 76px auto auto;
+                        gap: 4px;
+                        min-height: 0;
                         padding: 8px;
                         box-sizing: border-box;
                     }
@@ -14311,7 +15447,7 @@ function registerShipPowerRouting(SFUX) {
                         align-items: center;
                         gap: 6px;
                         min-width: 0;
-                        min-height: 28px;
+                        min-height: 24px;
                     }
                     .sfux-dock-card-head .sfux-dock-ship-name {
                         flex: 1 1 auto;
@@ -14471,7 +15607,7 @@ function registerShipPowerRouting(SFUX) {
                         height: 24px;
                         box-sizing: border-box;
                         border: 1px solid rgba(255,255,255,.12);
-                        background: rgba(4,7,10,.76);
+                        background: transparent;
                         box-shadow: 0 1px 4px rgba(0,0,0,.34);
                         backdrop-filter: blur(2px);
                     }
@@ -14483,6 +15619,29 @@ function registerShipPowerRouting(SFUX) {
 
                     .sfux-dock-card-image-action {
                         right: 5px;
+                    }
+
+                    .sfux-dock-card-image-engine {
+                        position: absolute;
+                        left: 5px;
+                        bottom: 4px;
+                        z-index: 4;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        min-width: 18px;
+                        height: 16px;
+                        box-sizing: border-box;
+                        padding: 0 4px;
+                        border: 1px solid rgba(255,255,255,.11);
+                        background: rgba(4,7,10,.72);
+                        color: rgba(255,255,255,.74);
+                        font-size: var(--sfux-dock-telemetry-size);
+                        font-weight: 800;
+                        line-height: 1;
+                        letter-spacing: 0;
+                        font-variant-numeric: tabular-nums;
+                        pointer-events: none;
                     }
 
                     .sfux-dock-card-image-mode .sfux-dock-mode-icon {
@@ -14508,7 +15667,7 @@ function registerShipPowerRouting(SFUX) {
                         max-width: 24px;
                         height: 24px;
                         border-color: rgba(255,255,255,.15) !important;
-                        background: rgba(4,7,10,.78) !important;
+                        background: transparent !important;
                         color: rgba(var(--sfux-success-rgb), .98) !important;
                         box-shadow: none !important;
                     }
@@ -14527,7 +15686,7 @@ function registerShipPowerRouting(SFUX) {
                         max-width: 24px;
                         height: 24px;
                         border-color: rgba(255,255,255,.15) !important;
-                        background: rgba(4,7,10,.78) !important;
+                        background: transparent !important;
                         color: rgba(var(--sfux-danger-rgb), .98) !important;
                         box-shadow: none !important;
                     }
@@ -14537,19 +15696,6 @@ function registerShipPowerRouting(SFUX) {
                         background: rgba(var(--sfux-success-rgb), .16) !important;
                         color: #fff !important;
                         box-shadow: 0 0 7px rgba(var(--sfux-success-rgb), .24) !important;
-                    }
-
-                    .sfux-dock-card-image-action.sfux-dock-power-unavailable {
-                        flex: none;
-                        width: 24px;
-                        min-width: 24px;
-                        max-width: 24px;
-                        height: 24px;
-                        border-color: rgba(255,255,255,.11) !important;
-                        background: rgba(4,7,10,.64) !important;
-                        color: rgba(255,255,255,.34) !important;
-                        box-shadow: none !important;
-                        cursor: default !important;
                     }
 
                     /*
@@ -14565,7 +15711,7 @@ function registerShipPowerRouting(SFUX) {
                         max-width: 24px;
                         height: 24px;
                         border-color: rgba(255,255,255,.11) !important;
-                        background: rgba(4,7,10,.64) !important;
+                        background: transparent !important;
                         color: rgba(var(--sfux-danger-rgb), .82) !important;
                         box-shadow: none !important;
                         cursor: default !important;
@@ -14825,19 +15971,86 @@ function registerShipPowerRouting(SFUX) {
                         letter-spacing: .035em;
                     }
 
-                    /* Caption: same size and weight as the W/E/S and ENG footer */
+                    .sfux-dock-integrity-repair-cue {
+                        position: absolute;
+                        right: 5px;
+                        top: 50%;
+                        z-index: 3;
+                        transform: translateY(-50%);
+                        color: rgba(255,255,255,.78);
+                        font-size: 9px;
+                        line-height: 1;
+                        pointer-events: none;
+                    }
+
+                    .sfux-dock-integrity--repairable .sfux-dock-integrity-frame:hover
+                    .sfux-dock-integrity-repair-cue,
+                    .sfux-dock-integrity--repairable .sfux-dock-integrity-frame:focus
+                    .sfux-dock-integrity-repair-cue {
+                        display: none;
+                    }
+
+                    /* Caption: H / power allocation / S */
                     .sfux-dock-integrity-caption {
-                        display: flex;
-                        justify-content: space-between;
+                        display: grid;
+                        grid-template-columns: 1fr auto 1fr;
+                        align-items: center;
+                        gap: 6px;
+                        min-height: 13px;
                         margin-top: 2px;
-                        font-size: var(--sfux-type-sm);
-                        font-weight: 700;
+                        font-size: var(--sfux-dock-telemetry-size);
+                        font-weight: 800;
                         line-height: 1;
                         font-variant-numeric: tabular-nums;
                     }
 
-                    .sfux-dock-integrity-caption-hull { color: #7fcdf2; }
-                    .sfux-dock-integrity-caption-shield { color: #a9dc4e; }
+                    .sfux-dock-integrity-caption-hull,
+                    .sfux-dock-integrity-caption-shield,
+                    .sfux-dock-integrity-power {
+                        display: inline-flex;
+                        align-items: center;
+                        min-height: 13px;
+                        line-height: 1;
+                    }
+
+                    .sfux-dock-integrity-caption-hull {
+                        justify-self: start;
+                        color: #7fcdf2;
+                    }
+
+                    .sfux-dock-integrity-caption-shield {
+                        justify-self: end;
+                        color: #a9dc4e;
+                    }
+
+                    .sfux-dock-integrity-power {
+                        justify-self: center;
+                        justify-content: center;
+                        gap: 6px;
+                        min-width: 0;
+                        white-space: nowrap;
+                    }
+
+                    .sfux-dock-integrity-power span {
+                        display: inline-flex;
+                        align-items: center;
+                        min-height: 13px;
+                        font-size: inherit;
+                        font-weight: inherit;
+                        line-height: 1;
+                    }
+
+                    .sfux-dock-integrity-power .sfux-power-w {
+                        color: rgba(var(--sfux-weapon-rgb), .96);
+                    }
+
+                    .sfux-dock-integrity-power .sfux-power-e {
+                        color: rgba(var(--sfux-engine-rgb), .96);
+                    }
+
+                    .sfux-dock-integrity-power .sfux-power-s {
+                        color: rgba(var(--sfux-sensor-rgb), .96);
+                    }
 
                     /* Repair affordance: hover/focus swaps the text for REPAIR · XT */
                     .sfux-dock-integrity--repairable .sfux-dock-integrity-frame {
@@ -15160,31 +16373,68 @@ function registerShipPowerRouting(SFUX) {
                         z-index: 25;
                         min-width: 118px;
                     }
-                    @media (max-width: 1050px) and (min-width: 641px) {
-                        table.stardocktable.sfux-dock-table > tbody {
-                            grid-template-columns: repeat(2, minmax(0, 1fr));
-                        }
-                    }
                     @media (max-width: ${SFUX.responsive.mobile}px) {
                         table.stardocktable.sfux-dock-table > tbody {
                             grid-template-columns: 1fr;
                             gap: 6px;
                         }
+                        table.stardocktable.sfux-dock-table
+                        tr.sfux-dock-card-row {
+                            padding-left: 3px !important;
+                            box-sizing: border-box;
+                        }
+
                         .sfux-dock-card {
-                            grid-template-columns: 70px minmax(0,1fr);
-                            grid-template-rows: auto auto auto auto;
+                            grid-template-columns: 82px minmax(0,1fr);
+                            grid-template-rows: auto auto 1fr;
                             grid-template-areas:
                                 "image head"
                                 "image status"
-                                "vitals vitals"
-                                "footer footer";
-                            min-height: 0;
-                            padding: 7px;
+                                "image vitals";
+                            column-gap: 0;
+                            row-gap: 0;
+                            min-height: 82px;
+                            margin-left: 0;
+                            padding: 0;
+                            overflow: hidden;
                         }
-                        .sfux-dock-card-head { grid-area: head; }
-                        .sfux-dock-card-image { grid-area: image; width: 70px; height: 70px; }
-                        .sfux-dock-card-image-link { inset: 0; }
-                        .sfux-dock-card-image-asset { width: 68px !important; height: 68px !important; }
+                        .sfux-dock-card-head {
+                            grid-area: head;
+                            align-items: center;
+                            min-height: 0;
+                            justify-content: flex-start;
+                            padding: 7px 46px 0 8px;
+                            box-sizing: border-box;
+                        }
+                        .sfux-dock-card-head .sfux-dock-ship-name {
+                            text-align: left !important;
+                            font-size: 13px;
+                            line-height: 1.08;
+                        }
+                        .sfux-dock-card-image {
+                            grid-area: image;
+                            align-self: start;
+                            width: 82px;
+                            height: 82px;
+                            min-height: 82px;
+                            aspect-ratio: 1 / 1;
+                            border: 0;
+                            border-right: 1px solid rgba(255,255,255,.055);
+                            background: rgba(0,0,0,.34);
+                        }
+                        .sfux-dock-card-image-link {
+                            inset: 0;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                        }
+                        .sfux-dock-card-image-asset {
+                            width: 88% !important;
+                            height: 88% !important;
+                            max-width: none;
+                            max-height: none;
+                            object-fit: contain;
+                        }
                         .sfux-dock-card-image-mode,
                         .sfux-dock-card-image-action {
                             top: 3px;
@@ -15192,10 +16442,148 @@ function registerShipPowerRouting(SFUX) {
                             height: 20px;
                         }
                         .sfux-dock-card-image-mode { left: 3px; }
-                        .sfux-dock-card-image-action { right: 3px; }
-                        .sfux-dock-card-status-wrap { grid-area: status; justify-content: flex-start; }
-                        .sfux-dock-card .sfux-dock-vitals { grid-area: vitals; }
-                        .sfux-dock-card-footer { grid-area: footer; }
+
+                        /*
+                         * Mobile touch target: keep the visible power control compact,
+                         * but give Enable/Disable a 44px hit area and move it to the
+                         * card's top-right corner for clearer separation from the image.
+                         */
+                        .sfux-dock-card-image-action {
+                            top: 0;
+                            right: 0;
+                            width: 44px !important;
+                            min-width: 44px !important;
+                            max-width: 44px !important;
+                            height: 44px !important;
+                            border: 0 !important;
+                            background: transparent !important;
+                            box-shadow: none !important;
+                        }
+
+                        .sfux-dock-card > .sfux-dock-card-image-action {
+                            position: absolute;
+                            top: 0;
+                            right: 0;
+                            z-index: 7;
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                        }
+
+                        .sfux-dock-card > .sfux-dock-card-image-action > .fa {
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            width: 24px;
+                            height: 24px;
+                            box-sizing: border-box;
+                            border: 1px solid rgba(255,255,255,.12);
+                            background: transparent;
+                            box-shadow: 0 1px 4px rgba(0,0,0,.34);
+                        }
+
+                        .sfux-dock-card-image .sfux-dock-card-image-action > .fa {
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            width: 24px;
+                            height: 24px;
+                            box-sizing: border-box;
+                            border: 1px solid rgba(255,255,255,.12);
+                            background: transparent;
+                            box-shadow: 0 1px 4px rgba(0,0,0,.34);
+                        }
+
+                        .sfux-dock-card-image-action.sfux-dock-inline-disable > .fa {
+                            border-color: rgba(var(--sfux-success-rgb), .34);
+                        }
+
+                        .sfux-dock-card-image-action.sfux-dock-inline-enable > .fa,
+                        .sfux-dock-card-image-action.sfux-dock-power-disabled-cooldown > .fa {
+                            border-color: rgba(var(--sfux-danger-rgb), .34);
+                        }
+
+                        .sfux-dock-card-image-engine {
+                            left: 4px;
+                            right: auto;
+                            bottom: 4px;
+                            min-width: 18px;
+                            height: 16px;
+                            padding: 0 4px;
+                            font-size: var(--sfux-dock-telemetry-size);
+                        }
+                        .sfux-dock-card-status-wrap {
+                            grid-area: status;
+                            justify-content: flex-start;
+                            min-height: 0;
+                            padding: 1px 8px 0 8px;
+                            box-sizing: border-box;
+                            text-align: left;
+                        }
+                        .sfux-dock-card .sfux-dock-status {
+                            font-size: 11.5px;
+                            line-height: 1.08;
+                        }
+                        .sfux-dock-card .sfux-dock-vitals {
+                            grid-area: vitals;
+                            align-self: end;
+                            gap: 0;
+                            width: 100%;
+                            box-sizing: border-box;
+                            padding: 3px 8px 7px 8px;
+                        }
+                        .sfux-dock-integrity-frame {
+                            height: 19px;
+                        }
+
+                        /*
+                         * Repair is a primary touch action. Expand only repairable
+                         * frames to a 44px target while keeping the visible HP bar thin.
+                         */
+                        .sfux-dock-integrity--repairable .sfux-dock-integrity-frame {
+                            position: relative;
+                            height: 44px;
+                        }
+
+                        .sfux-dock-integrity--repairable .sfux-dock-integrity-track {
+                            position: absolute;
+                            left: 0;
+                            right: 0;
+                            top: 50%;
+                            height: 19px;
+                            transform: translateY(-50%);
+                        }
+
+                        .sfux-dock-integrity--repairable .sfux-dock-integrity-text,
+                        .sfux-dock-integrity--repairable .sfux-dock-integrity-action {
+                            top: 50%;
+                            bottom: auto;
+                            height: 19px;
+                            transform: translateY(-50%);
+                            padding-top: 3px;
+                            box-sizing: border-box;
+                        }
+
+                        .sfux-dock-integrity--repairable .sfux-dock-integrity-repair-cue {
+                            right: 7px;
+                            font-size: 11px;
+                        }
+
+                        .sfux-dock-integrity-text,
+                        .sfux-dock-integrity-action {
+                            font-size: 12px;
+                        }
+                        .sfux-dock-integrity-caption {
+                            gap: 5px;
+                            margin-top: 3px;
+                            font-size: var(--sfux-dock-telemetry-size);
+                        }
+                        .sfux-dock-integrity-power {
+                            gap: 6px;
+                        }
+                        .sfux-dock-integrity-power span {
+                            font-size: inherit;
+                        }
                     }
 
                 `); }
@@ -16887,7 +18275,7 @@ function registerShipPowerRouting(SFUX) {
                 };
             }
 
-            function createDockIntegrity(stats, repairContext = null) {
+            function createDockIntegrity(stats, repairContext = null, powerSummary = null) {
                 const wrap = ctx.element('div');
                 const severity = stats ? stats.severity : 'unknown';
                 wrap.className = `sfux-dock-integrity sfux-dock-vital-state--${severity}`;
@@ -16943,7 +18331,11 @@ function registerShipPowerRouting(SFUX) {
                     const shieldCaption = ctx.element('span');
                     shieldCaption.className = 'sfux-dock-integrity-caption-shield';
                     shieldCaption.textContent = `S ${Math.floor(stats.shield.percent)}%`;
-                    caption.append(hullCaption, shieldCaption);
+
+                    const powerCaption = powerSummary || ctx.element('span');
+                    if (!powerSummary) powerCaption.textContent = '—';
+
+                    caption.append(hullCaption, powerCaption, shieldCaption);
                     wrap.appendChild(caption);
                 }
 
@@ -16957,7 +18349,13 @@ function registerShipPowerRouting(SFUX) {
                     const action = ctx.element('span');
                     action.className = 'sfux-dock-integrity-action';
                     action.textContent = repairContext.label || 'REPAIR';
-                    frame.appendChild(action);
+
+                    const repairCue = ctx.element('span');
+                    repairCue.className =
+                        'sfux-dock-integrity-repair-cue fa fa-wrench';
+                    repairCue.setAttribute('aria-hidden', 'true');
+
+                    frame.append(action, repairCue);
 
                     const description =
                         `Hull ${exact(stats.hull)}, Shields ${exact(stats.shield)}. ${repairContext.label || 'Repair ship'}.`;
@@ -17577,15 +18975,6 @@ function registerShipPowerRouting(SFUX) {
                     ? Number(disabledCooldownMatch[1])
                     : null;
 
-                let powerUnavailableReason = '';
-                if (normalizedOperationalStatus.includes('build')) {
-                    powerUnavailableReason = 'Building';
-                } else if (normalizedOperationalStatus.includes('return')) {
-                    powerUnavailableReason = 'Returning';
-                } else if (normalizedOperationalStatus.includes('upgrad')) {
-                    powerUnavailableReason = 'Upgrading';
-                }
-
                 const hullSeverity = dockVitalSeverity('hull', data.hull);
                 const shieldSeverity = dockVitalSeverity('shield', data.shield);
 
@@ -17609,7 +18998,15 @@ function registerShipPowerRouting(SFUX) {
                 }
 
                 if (operationalState) {
+                    const operationalVisuals =
+                        SFUX.ui.dockStatusVisuals(data.status);
+
                     row.dataset.sfuxOperationalState = operationalState;
+                    row.style.setProperty(
+                        '--sfux-operational-color',
+                        operationalVisuals.color
+                    );
+
                     if (operationalState !== 'repairing') {
                         row.classList.add(
                             `sfux-dock-card-row--status-${operationalState}`
@@ -17627,7 +19024,7 @@ function registerShipPowerRouting(SFUX) {
                     row.classList.add('sfux-dock-card-row--repairing');
                 }
 
-                if (isDisabled || hullSeverity === 'terminal') {
+                if (hullSeverity === 'terminal') {
                     row.classList.add('sfux-dock-card-row--terminal');
                 } else if (hullSeverity === 'critical' && !isRepairing) {
                     row.classList.add('sfux-dock-card-row--critical-attention');
@@ -17888,10 +19285,33 @@ function registerShipPowerRouting(SFUX) {
                     imageViewport.appendChild(modePlate);
                 }
 
+                const mobileDockMedia =
+                    typeof window !== 'undefined' &&
+                    typeof window.matchMedia === 'function'
+                        ? window.matchMedia(
+                            `(max-width: ${SFUX.responsive.mobile}px)`
+                        )
+                        : null;
+
+                let powerControl = null;
+
+                const syncPowerControlMount = () => {
+                    if (!powerControl) return;
+
+                    const target = mobileDockMedia?.matches
+                        ? card
+                        : imageViewport;
+
+                    if (powerControl.parentElement !== target) {
+                        target.appendChild(powerControl);
+                    }
+                };
+
                 const powerAction = enableAction || disableAction;
                 if (powerAction) {
                     powerAction.classList.add('sfux-dock-card-image-action');
-                    imageViewport.appendChild(powerAction);
+                    powerControl = powerAction;
+                    syncPowerControlMount();
                 } else if (
                     isDisabled &&
                     Number.isFinite(disabledCooldownTicks) &&
@@ -17923,30 +19343,16 @@ function registerShipPowerRouting(SFUX) {
                     icon.setAttribute('aria-hidden', 'true');
 
                     cooldownPower.appendChild(icon);
-                    imageViewport.appendChild(cooldownPower);
-                } else if (powerUnavailableReason) {
-                    /*
-                     * Building / Returning / Upgrading ships expose no native power
-                     * action. Keep the control position stable with a gray, inert power
-                     * indicator instead of making the button disappear.
-                     */
-                    const unavailablePower = ctx.element('span');
-                    unavailablePower.className =
-                        'sfux-dock-card-image-action sfux-dock-power-unavailable';
-                    unavailablePower.title =
-                        `Power control unavailable while ${powerUnavailableReason}`;
-                    unavailablePower.setAttribute(
-                        'aria-label',
-                        `Power control unavailable while ${powerUnavailableReason}`
+                    powerControl = cooldownPower;
+                    syncPowerControlMount();
+                }
+
+                if (powerControl && mobileDockMedia) {
+                    ctx.on(
+                        mobileDockMedia,
+                        'change',
+                        syncPowerControlMount
                     );
-                    unavailablePower.setAttribute('aria-disabled', 'true');
-
-                    const icon = ctx.element('span');
-                    icon.className = 'fa fa-power-off';
-                    icon.setAttribute('aria-hidden', 'true');
-
-                    unavailablePower.appendChild(icon);
-                    imageViewport.appendChild(unavailablePower);
                 }
 
                 const statusWrap = ctx.element('div');
@@ -17969,44 +19375,45 @@ function registerShipPowerRouting(SFUX) {
                  */
                 const activeRepairContext = isRepairing ? null : repairContext;
 
-                const vitals = ctx.element('div');
-                vitals.className = 'sfux-dock-vitals';
-                vitals.append(
-                    createDockIntegrity(integrityStats(data.hull, data.shield), activeRepairContext)
-                );
+                const powerSummary = ctx.element('span');
+                powerSummary.className = 'sfux-dock-integrity-power';
 
-                const footer = ctx.element('div');
-                footer.className = 'sfux-dock-card-footer';
-
-                const power = ctx.element('div');
-                power.className = 'sfux-dock-power';
                 const powerMetrics = [
                     createDockPowerMetric('W', data.power.weapons, 'sfux-power-w'),
                     createDockPowerMetric('E', data.power.engines, 'sfux-power-e'),
                     createDockPowerMetric('S', data.power.sensors, 'sfux-power-s')
                 ].filter(Boolean);
-                for (const metric of powerMetrics) power.appendChild(metric);
+
+                for (const metric of powerMetrics) {
+                    powerSummary.appendChild(metric);
+                }
 
                 if (!powerMetrics.length) {
                     const noPower = ctx.element('span');
                     noPower.className = 'sfux-dock-power-empty';
                     noPower.textContent = '—';
-                    power.appendChild(noPower);
+                    powerSummary.appendChild(noPower);
                 }
-
-                const config = ctx.element('div');
-                config.className = 'sfux-dock-card-config';
 
                 if (Number.isFinite(data.engineTicks)) {
                     const engine = ctx.element('span');
-                    engine.className = 'sfux-dock-engine';
-                    engine.textContent = `ENG${data.engineTicks}`;
+                    engine.className = 'sfux-dock-card-image-engine';
+                    engine.textContent = `${data.engineTicks}`;
                     engine.title = `Engine time: ${data.engineTicks} ticks`;
-                    config.appendChild(engine);
+                    imageViewport.appendChild(engine);
                 }
 
-                footer.append(power, config);
-                card.append(head, imageViewport, statusWrap, vitals, footer);
+                const vitals = ctx.element('div');
+                vitals.className = 'sfux-dock-vitals';
+                vitals.append(
+                    createDockIntegrity(
+                        integrityStats(data.hull, data.shield),
+                        activeRepairContext,
+                        powerSummary
+                    )
+                );
+
+                card.append(head, imageViewport, statusWrap, vitals);
 
                 if (repairAction) {
                     const nativeActionProxy = ctx.element('span');
@@ -18376,10 +19783,78 @@ function registerShipPowerRouting(SFUX) {
                     const links = Array.from(subMenu.querySelectorAll('a'));
                     const storageKey = `sfuxStarDockTab:${new URLSearchParams(window.location.search).get('dock') || 'default'}`;
 
+                    const tabMenuToggle = ctx.element('button');
+                    tabMenuToggle.type = 'button';
+                    tabMenuToggle.className = 'sfux-dock-tab-menu-toggle';
+                    tabMenuToggle.setAttribute('aria-expanded', 'false');
+                    tabMenuToggle.setAttribute('aria-label', 'Choose Star Dock category');
+
+                    const tabMenuLabel = ctx.element('span');
+                    tabMenuLabel.className = 'sfux-dock-tab-menu-label';
+
+                    const tabMenuName = ctx.element('span');
+                    tabMenuName.className = 'sfux-dock-tab-menu-name';
+                    tabMenuName.textContent = 'Overview';
+
+                    const tabMenuCount = ctx.element('span');
+                    tabMenuCount.className = 'sfux-dock-tab-menu-count';
+
+                    const tabMenuIcon = ctx.element('span');
+                    tabMenuIcon.className = 'sfux-dock-tab-menu-icon fa fa-bars';
+                    tabMenuIcon.setAttribute('aria-hidden', 'true');
+
+                    tabMenuLabel.append(tabMenuName, tabMenuCount);
+                    tabMenuToggle.append(tabMenuLabel, tabMenuIcon);
+
+                    const tabMenuHost = subMenu.querySelector('.subMenu');
+                    const tabList = tabMenuHost?.querySelector('ul');
+                    if (tabMenuHost && tabList) {
+                        tabMenuHost.insertBefore(tabMenuToggle, tabList);
+                    }
+
                     function tabCategory(link) {
                         const href = String(link.getAttribute('href') || '');
                         const match = href.match(/changeCategory\((?:["']([^"']+)["'])?\)/i);
                         return match ? (match[1] || 'Overview') : String(link.textContent || '').trim();
+                    }
+
+                    function tabRoleAccent(name) {
+                        const normalizedName = normalizeText(name);
+                        if (normalizedName === 'overview') return 'rgba(255,255,255,.34)';
+
+                        const role = dockRoleKind(name);
+                        const accents = {
+                            attack: 'rgb(var(--sfux-role-attack))',
+                            defence: 'rgb(var(--sfux-role-defence))',
+                            raider: 'rgb(var(--sfux-role-raider))',
+                            leecher: 'rgb(var(--sfux-role-leecher))',
+                            build: 'rgb(var(--sfux-role-build))'
+                        };
+
+                        return accents[role] || 'rgba(255,255,255,.34)';
+                    }
+
+                    function updateTabMenu(name) {
+                        const activeLink = links.find(link =>
+                            normalizeText(tabCategory(link)) === normalizeText(name)
+                        );
+
+                        tabMenuName.textContent = activeLink
+                            ? tabCategory(activeLink)
+                            : String(name || 'Overview');
+
+                        const count = activeLink?.querySelector('.sfux-dock-tab-count');
+                        tabMenuCount.textContent = count?.textContent || '';
+
+                        tabMenuToggle.style.setProperty(
+                            '--sfux-dock-menu-accent',
+                            tabRoleAccent(name)
+                        );
+                    }
+
+                    function closeTabMenu() {
+                        subMenu.classList.remove('sfux-dock-tabs--open');
+                        tabMenuToggle.setAttribute('aria-expanded', 'false');
                     }
 
                     function applyFilter(name) {
@@ -18404,7 +19879,33 @@ function registerShipPowerRouting(SFUX) {
                                 normalizeText(tabCategory(link)) === wanted
                             );
                         }
+
+                        updateTabMenu(name);
+                        closeTabMenu();
                     }
+
+                    ctx.on(tabMenuToggle, 'click', event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+
+                        const willOpen =
+                            !subMenu.classList.contains('sfux-dock-tabs--open');
+
+                        subMenu.classList.toggle(
+                            'sfux-dock-tabs--open',
+                            willOpen
+                        );
+                        tabMenuToggle.setAttribute(
+                            'aria-expanded',
+                            willOpen ? 'true' : 'false'
+                        );
+                    });
+
+                    ctx.on(document, 'click', event => {
+                        if (!subMenu.contains(event.target)) {
+                            closeTabMenu();
+                        }
+                    });
 
                     for (const link of links) {
                         const name = tabCategory(link);
@@ -19240,6 +20741,7 @@ registerGlobalUX(SFUX);
 registerResearchOptimizer(SFUX);
 registerBuildingsUX(SFUX);
 registerRewardsUX(SFUX);
+registerAttackUX(SFUX);
 registerShipPowerRouting(SFUX);
 SFUX.boot();
 })();
