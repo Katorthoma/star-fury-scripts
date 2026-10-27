@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury UX Suite
 // @namespace    starfuryx.com
-// @version      2.4.18
+// @version      2.4.19
 // @author       Zathman
 // @license      MIT
 // @homepageURL  https://github.com/Katorthoma/star-fury-scripts
@@ -21,10 +21,10 @@
 
 (() => {
 'use strict';
-/* StarFury UX Suite 2.4.18 | Shared runtime. No globals are published by the bundle. */
+/* StarFury UX Suite 2.4.19 | Shared runtime. No globals are published by the bundle. */
 function createSFUX() {
     'use strict';
-    const SFUX = { version: '2.4.18', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
+    const SFUX = { version: '2.4.19', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
     // UI ASSUMPTION: dense building columns and nine navigation items need earlier stacking.
     SFUX.responsive = Object.freeze({ mobile: 640, navigation: 768, buildings: 800, phone: 430, narrowHeader: 460, tinyHud: 360 });
     SFUX.page = new URL(window.location.href);
@@ -553,7 +553,7 @@ html body input[type="button"].button-primary:not(.sf-raze-submit):disabled {
     return SFUX;
 }
 
-/* StarFury UX Suite 2.4.18 | Global UX module. */
+/* StarFury UX Suite 2.4.19 | Global UX module. */
 function registerGlobalUX(SFUX) {
     SFUX.register({
         id: 'global', phase: 'early',
@@ -4236,7 +4236,7 @@ function registerGlobalUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.4.18 | Research Optimizer module. */
+/* StarFury UX Suite 2.4.19 | Research Optimizer module. */
 function registerResearchOptimizer(SFUX) {
     SFUX.register({
         id: 'research', phase: 'ready',
@@ -6958,7 +6958,7 @@ function registerResearchOptimizer(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.4.18 | Buildings UX module. */
+/* StarFury UX Suite 2.4.19 | Buildings UX module. */
 function registerBuildingsUX(SFUX) {
     SFUX.register({
         id: 'buildings', phase: 'ready',
@@ -10087,9 +10087,9 @@ function registerBuildingsUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.4.18 | Ship Power Routing module. */
+/* StarFury UX Suite 2.4.19 | Ship Power Routing module. */
 
-/* StarFury UX Suite 2.4.18 | Rewards UX module. */
+/* StarFury UX Suite 2.4.19 | Rewards UX module. */
 function registerRewardsUX(SFUX) {
     'use strict';
 
@@ -10755,7 +10755,7 @@ function registerRewardsUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.4.18 | Attack Room command layout and fleet accounting. */
+/* StarFury UX Suite 2.4.19 | Attack Room command layout and fleet accounting. */
 function registerAttackUX(SFUX) {
     'use strict';
 
@@ -16385,12 +16385,15 @@ function registerShipPowerRouting(SFUX) {
                         }
 
                         .sfux-dock-card {
+                            -webkit-text-size-adjust: 100%;
+                            text-size-adjust: 100%;
                             grid-template-columns: 82px minmax(0,1fr);
-                            grid-template-rows: auto auto 1fr;
+                            grid-template-rows: auto auto auto;
                             grid-template-areas:
                                 "image head"
                                 "image status"
                                 "image vitals";
+                            align-content: start;
                             column-gap: 0;
                             row-gap: 0;
                             min-height: 82px;
@@ -16526,11 +16529,11 @@ function registerShipPowerRouting(SFUX) {
                         }
                         .sfux-dock-card .sfux-dock-vitals {
                             grid-area: vitals;
-                            align-self: end;
+                            align-self: start;
                             gap: 0;
                             width: 100%;
                             box-sizing: border-box;
-                            padding: 3px 8px 7px 8px;
+                            padding: 1px 8px 7px 8px;
                         }
                         .sfux-dock-integrity-frame {
                             height: 19px;
