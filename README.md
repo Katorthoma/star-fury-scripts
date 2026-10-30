@@ -8,7 +8,7 @@ The goal is straightforward: improve Star Fury's usability, information density,
 
 | Script | Current version | Purpose | Install |
 | --- | ---: | --- | --- |
-| **StarFury UX Suite** | 2.4.20 | Broad UI/UX improvements across research, buildings, Rewards, Star Dock, Attack Room, ship management, navigation, and mobile layouts | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-UX-Suite.user.js) |
+| **StarFury UX Suite** | 2.4.26 | Broad UI/UX improvements across research, buildings, Rewards, Star Dock, Attack Room, ship management, navigation, and mobile layouts | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-UX-Suite.user.js) |
 | **Alliance Intel Board** | 0.16.1 | Consolidates alliance scan posts into a tactical intelligence board with freshness, ship composition, sector data, war activity, and target helpers | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-Alliance-Intel-Board.user.js) |
 | **War Scoreboard** | 0.1.4 | Replaces the native alliance-war comparison table with a compact versus-style scoreboard for active and completed wars | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-War-Scoreboard.user.js) |
 | **Custom Race Portraits** | 1.2.2 | Replaces native race portraits with an embedded portrait set or locally stored custom images | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-Custom-Race-Portraits.user.js) |
@@ -33,10 +33,9 @@ It currently covers:
 - responsive Star Dock role navigation with full desktop tabs and a compact mobile dock-category menu
 - state-aware Star Dock presentation with matched activity text/state rails, neutral Disabled treatment, and distinct Returning, Exploring, Raiding, Building, Upgrading, and Repairing states
 - responsive ship power controls that remain in-image on desktop and move to a touch-friendly card-level control on mobile
-- contextual repair controls and larger mobile touch targets while continuing to invoke Star Fury's native Repair, Enable, and Disable actions
-- per-dock bulk Repair/Disable/Re-enable actions that reuse Star Fury's native confirmed actions and refresh once after the batch
+- contextual repair controls and per-dock bulk Repair/Disable/Re-enable workflows that reuse Star Fury's native confirmed actions, including per-ship Status / Repair / Total timing and mobile-friendly touch layouts
 - ship power-routing helpers, presets, Leecher-specific controls, role transfer/swap helpers, and Fixed/Flexible handling
-- Attack Room redesign with two-column targeting/recent-hit presentation, combined HP, role-grouped fleets, subtotals, fleet totals, live selected-force summaries, and per-dock select/deselect controls
+- Attack Room and Boss Battle fleet-table redesigns with combined HP, role-grouped fleets, subtotals, fleet totals, live selected-force summaries, per-dock select/deselect controls, and mobile-optimized columns
 - mobile layouts designed separately where desktop tables do not translate cleanly
 
 The suite is designed to reduce repetitive interaction and improve presentation while preserving native links, form controls, validation, calculations, and submission behavior.
