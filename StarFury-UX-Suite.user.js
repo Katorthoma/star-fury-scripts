@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury UX Suite
 // @namespace    starfuryx.com
-// @version      2.4.20
+// @version      2.4.26
 // @author       Zathman
 // @license      MIT
 // @homepageURL  https://github.com/Katorthoma/star-fury-scripts
@@ -21,10 +21,10 @@
 
 (() => {
 'use strict';
-/* StarFury UX Suite 2.4.20 | Shared runtime. No globals are published by the bundle. */
+/* StarFury UX Suite 2.4.26 | Shared runtime. No globals are published by the bundle. */
 function createSFUX() {
     'use strict';
-    const SFUX = { version: '2.4.20', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
+    const SFUX = { version: '2.4.26', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
     // UI ASSUMPTION: dense building columns and nine navigation items need earlier stacking.
     SFUX.responsive = Object.freeze({ mobile: 640, navigation: 768, buildings: 800, phone: 430, narrowHeader: 460, tinyHud: 360 });
     SFUX.page = new URL(window.location.href);
@@ -553,7 +553,7 @@ html body input[type="button"].button-primary:not(.sf-raze-submit):disabled {
     return SFUX;
 }
 
-/* StarFury UX Suite 2.4.20 | Global UX module. */
+/* StarFury UX Suite 2.4.26 | Global UX module. */
 function registerGlobalUX(SFUX) {
     SFUX.register({
         id: 'global', phase: 'early',
@@ -4236,7 +4236,7 @@ function registerGlobalUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.4.20 | Research Optimizer module. */
+/* StarFury UX Suite 2.4.26 | Research Optimizer module. */
 function registerResearchOptimizer(SFUX) {
     SFUX.register({
         id: 'research', phase: 'ready',
@@ -6958,7 +6958,7 @@ function registerResearchOptimizer(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.4.20 | Buildings UX module. */
+/* StarFury UX Suite 2.4.26 | Buildings UX module. */
 function registerBuildingsUX(SFUX) {
     SFUX.register({
         id: 'buildings', phase: 'ready',
@@ -10087,9 +10087,9 @@ function registerBuildingsUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.4.20 | Ship Power Routing module. */
+/* StarFury UX Suite 2.4.26 | Ship Power Routing module. */
 
-/* StarFury UX Suite 2.4.20 | Rewards UX module. */
+/* StarFury UX Suite 2.4.26 | Rewards UX module. */
 function registerRewardsUX(SFUX) {
     'use strict';
 
@@ -10755,7 +10755,7 @@ function registerRewardsUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.4.20 | Attack Room command layout and fleet accounting. */
+/* StarFury UX Suite 2.4.26 | Attack Room command layout and fleet accounting. */
 function registerAttackUX(SFUX) {
     'use strict';
 
@@ -10763,7 +10763,7 @@ function registerAttackUX(SFUX) {
         id: 'attack',
         phase: 'ready',
         matches(path) {
-            return path === '/attack.php';
+            return path === '/attack.php' || path === '/bossbattle.php';
         },
         create(ctx) {
             const STYLE_ID = 'sfux-attack-style';
@@ -10812,10 +10812,35 @@ function registerAttackUX(SFUX) {
                 return `${formatInteger(stats.current)} / ${formatInteger(stats.maximum)}`;
             }
 
-            function getRoleKey(row) {
-                return Object.keys(ROLE_CONFIG).find(className =>
-                    row.classList.contains(className)
-                ) || null;
+            function getRoleKey(row, fallbackRoleClass = null) {
+                const explicitRole = Object.keys(ROLE_CONFIG).find(className =>
+                    row.classList.contains(className) ||
+                    Boolean(row.querySelector(`.${className}`))
+                );
+
+                if (explicitRole) return explicitRole;
+
+                const isSelectableShipRow = Boolean(
+                    row.querySelector(
+                        'input[name="shipid[]"][type="checkbox"]'
+                    )
+                );
+
+                return isSelectableShipRow ? fallbackRoleClass : null;
+            }
+
+            function getBossBattleRoleClass(shipTable) {
+                if (SFUX.path !== '/bossbattle.php') return null;
+
+                const battleBox = shipTable.closest('.contentbox');
+                const heading = String(
+                    battleBox?.querySelector('.boxheadertext')?.textContent || ''
+                ).toLowerCase();
+
+                if (heading.includes('leech')) return 'Leecherbg';
+                if (heading.includes('damage')) return 'Attackbg';
+
+                return null;
             }
 
             function findShipTable() {
@@ -11228,6 +11253,17 @@ function registerAttackUX(SFUX) {
                         margin-top: 2px !important;
                     }
 
+                    @media (max-width: ${SFUX.responsive.mobile}px) {
+                        body.sfux-attack-page
+                        table.sfux-attack-table
+                        .sfux-attack-hull-column,
+                        body.sfux-attack-page
+                        table.sfux-attack-table
+                        .sfux-attack-shield-column {
+                            display: none !important;
+                        }
+                    }
+
                     @media (max-width: 820px) {
                         body.sfux-attack-page .sfux-attack-command-grid {
                             grid-template-columns: 1fr;
@@ -11394,7 +11430,10 @@ function registerAttackUX(SFUX) {
             function enhanceFleetTable(shipTable) {
                 shipTable.classList.add('sfux-attack-table');
 
-                const roleRows = Array.from(shipTable.rows).filter(row => getRoleKey(row));
+                const fallbackRoleClass = getBossBattleRoleClass(shipTable);
+                const roleRows = Array.from(shipTable.rows).filter(row =>
+                    getRoleKey(row, fallbackRoleClass)
+                );
                 if (!roleRows.length) return;
 
                 const headerRow = Array.from(shipTable.rows).find(row =>
@@ -11402,6 +11441,13 @@ function registerAttackUX(SFUX) {
                 );
 
                 if (!headerRow || headerRow.cells.length < 8) return;
+
+                headerRow.cells[2]?.classList.add(
+                    'sfux-attack-hull-column'
+                );
+                headerRow.cells[3]?.classList.add(
+                    'sfux-attack-shield-column'
+                );
 
                 const hpHeader = ctx.element('td');
                 hpHeader.className = 'tableheader';
@@ -11417,9 +11463,24 @@ function registerAttackUX(SFUX) {
                 const groupMap = new Map();
 
                 for (const row of roleRows) {
-                    const roleClass = getRoleKey(row);
+                    const roleClass = getRoleKey(row, fallbackRoleClass);
                     const config = ROLE_CONFIG[roleClass];
                     if (!config || row.cells.length < 8) continue;
+
+                    /*
+                     * attack.php already puts Attackbg / Defencebg / Leecherbg on
+                     * the ship row. Boss Battle may put it only on one cell.
+                     * Normalize the role onto the row so both pages share the same
+                     * native fleet background treatment.
+                     */
+                    row.classList.add(roleClass);
+
+                    row.cells[2]?.classList.add(
+                        'sfux-attack-hull-column'
+                    );
+                    row.cells[3]?.classList.add(
+                        'sfux-attack-shield-column'
+                    );
 
                     const hull = parsePair(row.cells[2].textContent);
                     const shield = parsePair(row.cells[3].textContent);
@@ -11643,6 +11704,45 @@ function registerAttackUX(SFUX) {
                 const grandRow = makeSummaryRow(grand, true);
                 tbody.insertBefore(grandRow, lastSummaryRow?.nextSibling || null);
 
+                const mobileFleetMedia =
+                    typeof window !== 'undefined' &&
+                    typeof window.matchMedia === 'function'
+                        ? window.matchMedia(
+                            `(max-width: ${SFUX.responsive.mobile}px)`
+                        )
+                        : null;
+
+                const syncFleetColumnSpans = () => {
+                    const isMobile = Boolean(mobileFleetMedia?.matches);
+
+                    shipTable
+                        .querySelectorAll('.sfux-attack-group-header > td')
+                        .forEach(cell => {
+                            cell.colSpan = isMobile
+                                ? totalColumns - 2
+                                : totalColumns;
+                        });
+
+                    shipTable
+                        .querySelectorAll(
+                            '.sfux-attack-subtotal > td:first-child, ' +
+                            '.sfux-attack-grand-total > td:first-child'
+                        )
+                        .forEach(cell => {
+                            cell.colSpan = isMobile ? 2 : 4;
+                        });
+                };
+
+                syncFleetColumnSpans();
+
+                if (mobileFleetMedia) {
+                    ctx.on(
+                        mobileFleetMedia,
+                        'change',
+                        syncFleetColumnSpans
+                    );
+                }
+
                 const totalAttack = document.getElementById('total_att');
                 const totalDamage = document.getElementById('total_dmg');
                 const nativePoints = totalAttack?.closest('p');
@@ -11683,9 +11783,15 @@ function registerAttackUX(SFUX) {
                     }
                 }
 
-                const launchButton = document.querySelector(
-                    'form[action*="attackc.php"] input[type="submit"][value="Attack" i]'
-                );
+                const fleetForm = shipTable.closest('form');
+                const launchButton =
+                    fleetForm?.querySelector(
+                        'input[type="submit"].button-primary, button[type="submit"].button-primary'
+                    ) ||
+                    document.querySelector(
+                        'form[action*="attackc.php"] input[type="submit"][value="Attack" i]'
+                    );
+
                 launchButton?.classList.add('sfux-attack-launch-button');
 
                 const syncSelection = () => {
@@ -11747,7 +11853,11 @@ function registerAttackUX(SFUX) {
 
                 document.body.classList.add('sfux-attack-page');
                 injectStyles();
-                enhanceCommandArea(shipTable);
+
+                if (SFUX.path === '/attack.php') {
+                    enhanceCommandArea(shipTable);
+                }
+
                 enhanceFleetTable(shipTable);
             }
 
@@ -14496,6 +14606,50 @@ function registerShipPowerRouting(SFUX) {
                         white-space: nowrap;
                     }
 
+                    .sfux-dock-bulk-row-meta--repair {
+                        display: grid;
+                        grid-template-columns:
+                            minmax(112px, 1.35fr)
+                            minmax(64px, .72fr)
+                            minmax(64px, .72fr);
+                        gap: 8px;
+                        min-width: 270px;
+                        white-space: normal;
+                    }
+
+                    .sfux-dock-bulk-time {
+                        display: grid;
+                        gap: 2px;
+                        min-width: 0;
+                    }
+
+                    .sfux-dock-bulk-time-label {
+                        color: rgba(255,255,255,.42);
+                        font-size: 9px;
+                        font-weight: 800;
+                        line-height: 1;
+                        letter-spacing: .05em;
+                        text-transform: uppercase;
+                    }
+
+                    .sfux-dock-bulk-time-value {
+                        overflow: hidden;
+                        color: rgba(255,255,255,.78);
+                        font-size: 12px;
+                        font-weight: 800;
+                        line-height: 1.2;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
+
+                    .sfux-dock-bulk-time--repair .sfux-dock-bulk-time-value {
+                        color: rgba(255,215,126,.92);
+                    }
+
+                    .sfux-dock-bulk-time--total .sfux-dock-bulk-time-value {
+                        color: rgba(255,255,255,.94);
+                    }
+
                     .sfux-dock-bulk-row-state {
                         display: none;
                         color: rgba(255,255,255,.52);
@@ -14595,30 +14749,114 @@ function registerShipPowerRouting(SFUX) {
                     }
 
                     @media (max-width: 720px) {
-                        .sfux-dock-bulk-dialog {
-                            max-height: calc(100vh - 16px);
+                        .sfux-dock-bulk-overlay {
+                            align-items: flex-end;
+                            padding: 0;
+                            -webkit-backdrop-filter: none;
+                            backdrop-filter: none;
                         }
 
-                        .sfux-dock-bulk-overlay {
+                        .sfux-dock-bulk-dialog {
+                            width: 100%;
+                            max-height: min(92vh, calc(100vh - 8px));
+                            border-right: 0;
+                            border-bottom: 0;
+                            border-left: 0;
+                        }
+
+                        .sfux-dock-bulk-dialog-head {
+                            padding: 10px 12px;
+                        }
+
+                        .sfux-dock-bulk-dialog-title {
+                            font-size: 15px;
+                        }
+
+                        .sfux-dock-bulk-dialog-close {
+                            width: 36px;
+                            height: 36px;
+                        }
+
+                        .sfux-dock-bulk-dialog-body {
                             padding: 8px;
                         }
 
+                        .sfux-dock-bulk-note {
+                            margin-bottom: 8px;
+                            padding: 7px 8px;
+                            font-size: 10px;
+                        }
+
+                        .sfux-dock-bulk-list {
+                            gap: 4px;
+                        }
+
                         .sfux-dock-bulk-row {
-                            grid-template-columns: 20px minmax(0, 1fr);
+                            grid-template-columns: 24px minmax(0, 1fr);
+                            grid-template-rows: auto auto;
+                            column-gap: 8px;
+                            row-gap: 5px;
+                            min-height: 62px;
+                            padding: 9px 10px;
+                            text-align: left;
+                        }
+
+                        .sfux-dock-bulk-row input[type="checkbox"] {
+                            grid-row: 1 / span 2;
+                            align-self: center;
+                            width: 18px;
+                            height: 18px;
+                        }
+
+                        .sfux-dock-bulk-row-name {
+                            grid-column: 2;
+                            justify-self: stretch;
+                            font-size: 12px;
+                            text-align: left;
                         }
 
                         .sfux-dock-bulk-row-meta,
                         .sfux-dock-bulk-row-state {
                             grid-column: 2;
-                            justify-self: start;
+                            justify-self: stretch;
+                            text-align: left;
+                        }
+
+                        .sfux-dock-bulk-row-meta--repair {
+                            grid-template-columns:
+                                minmax(0, 1.35fr)
+                                minmax(52px, .72fr)
+                                minmax(52px, .72fr);
+                            gap: 4px;
+                            min-width: 0;
+                            width: 100%;
+                        }
+
+                        .sfux-dock-bulk-time-label {
+                            font-size: 9px;
+                        }
+
+                        .sfux-dock-bulk-time-value {
+                            font-size: 12px;
+                            line-height: 1.2;
                         }
 
                         .sfux-dock-bulk-dialog-foot {
-                            flex-wrap: wrap;
+                            display: grid;
+                            grid-template-columns: minmax(0, .85fr) minmax(0, 1.5fr);
+                            gap: 8px;
+                            padding: 8px;
                         }
 
                         .sfux-dock-bulk-summary {
-                            flex-basis: 100%;
+                            grid-column: 1 / -1;
+                            min-height: 16px;
+                            text-align: center;
+                        }
+
+                        .sfux-dock-bulk-dialog-foot button {
+                            min-height: 44px;
+                            margin: 0 !important;
                         }
                     }
 
@@ -18072,6 +18310,27 @@ function registerShipPowerRouting(SFUX) {
                 return item;
             }
 
+            function dockStatusRemainingTicks(statusText) {
+                const raw = String(statusText || '').replace(/\s+/g, ' ').trim();
+                if (!raw) return null;
+
+                const normalized = normalizeText(raw);
+                const isTimedState =
+                    normalized.includes('return') ||
+                    normalized.includes('build') ||
+                    normalized.includes('repair') ||
+                    normalized.includes('upgrad') ||
+                    normalized.includes('disabled');
+
+                if (!isTimedState) return null;
+
+                const match =
+                    raw.match(/\(\s*-?(\d+)\s*(?:ticks?|t)?\s*\)/i) ||
+                    raw.match(/[-–—]?\s*(\d+)\s*(?:ticks?|t)\b/i);
+
+                return match ? Number(match[1]) : null;
+            }
+
             function compactDockStatusLabel(statusText) {
                 const raw = String(statusText || '').replace(/\s+/g, ' ').trim();
                 if (!raw) return '';
@@ -18627,7 +18886,8 @@ function registerShipPowerRouting(SFUX) {
 
                 for (const action of actions) {
                     const row = ctx.element('label');
-                    row.className = 'sfux-dock-bulk-row';
+                    row.className =
+                        `sfux-dock-bulk-row sfux-dock-bulk-row--${kind}`;
 
                     const checkbox = ctx.element('input');
                     checkbox.type = 'checkbox';
@@ -18642,9 +18902,64 @@ function registerShipPowerRouting(SFUX) {
                     metaText.className = 'sfux-dock-bulk-row-meta';
 
                     if (kind === 'repair' && Number.isFinite(action.ticks)) {
-                        metaText.textContent = `${action.ticks}T`;
+                        metaText.classList.add(
+                            'sfux-dock-bulk-row-meta--repair'
+                        );
+
+                        const currentTicks =
+                            dockStatusRemainingTicks(action.status);
+                        const repairTicks = Number(action.ticks);
+                        const totalTicks =
+                            (Number.isFinite(currentTicks)
+                                ? currentTicks
+                                : 0) + repairTicks;
+
+                        const timingItems = [
+                            {
+                                label: 'Status',
+                                value:
+                                    compactDockStatusLabel(action.status) ||
+                                    'Available',
+                                className: 'sfux-dock-bulk-time--status'
+                            },
+                            {
+                                label: 'Repair',
+                                value: `${
+                                    Number.isFinite(currentTicks) &&
+                                    currentTicks > 0
+                                        ? '+'
+                                        : ''
+                                }${repairTicks}T`,
+                                className: 'sfux-dock-bulk-time--repair'
+                            },
+                            {
+                                label: 'Total',
+                                value: `${totalTicks}T`,
+                                className: 'sfux-dock-bulk-time--total'
+                            }
+                        ];
+
+                        for (const item of timingItems) {
+                            const metric = ctx.element('span');
+                            metric.className =
+                                `sfux-dock-bulk-time ${item.className}`;
+
+                            const metricLabel = ctx.element('span');
+                            metricLabel.className =
+                                'sfux-dock-bulk-time-label';
+                            metricLabel.textContent = item.label;
+
+                            const metricValue = ctx.element('span');
+                            metricValue.className =
+                                'sfux-dock-bulk-time-value';
+                            metricValue.textContent = item.value;
+
+                            metric.append(metricLabel, metricValue);
+                            metaText.appendChild(metric);
+                        }
                     } else if (action.status) {
-                        metaText.textContent = compactDockStatusLabel(action.status);
+                        metaText.textContent =
+                            compactDockStatusLabel(action.status);
                     } else {
                         metaText.textContent = '';
                     }
