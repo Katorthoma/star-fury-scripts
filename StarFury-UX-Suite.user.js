@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury UX Suite
 // @namespace    starfuryx.com
-// @version      2.4.33
+// @version      2.4.34
 // @author       Zathman
 // @license      MIT
 // @homepageURL  https://github.com/Katorthoma/star-fury-scripts
@@ -21,10 +21,10 @@
 
 (() => {
 'use strict';
-/* StarFury UX Suite 2.4.33 | Shared runtime. No globals are published by the bundle. */
+/* StarFury UX Suite 2.4.34 | Shared runtime. No globals are published by the bundle. */
 function createSFUX() {
     'use strict';
-    const SFUX = { version: '2.4.33', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
+    const SFUX = { version: '2.4.34', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
     // UI ASSUMPTION: dense building columns and nine navigation items need earlier stacking.
     SFUX.responsive = Object.freeze({ mobile: 640, navigation: 768, buildings: 800, phone: 430, narrowHeader: 460, tinyHud: 360 });
     SFUX.page = new URL(window.location.href);
@@ -553,7 +553,7 @@ html body input[type="button"].button-primary:not(.sf-raze-submit):disabled {
     return SFUX;
 }
 
-/* StarFury UX Suite 2.4.33 | Global UX module. */
+/* StarFury UX Suite 2.4.34 | Global UX module. */
 function registerGlobalUX(SFUX) {
     SFUX.register({
         id: 'global', phase: 'early',
@@ -4236,7 +4236,7 @@ function registerGlobalUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.4.33 | Research Optimizer module. */
+/* StarFury UX Suite 2.4.34 | Research Optimizer module. */
 function registerResearchOptimizer(SFUX) {
     SFUX.register({
         id: 'research', phase: 'ready',
@@ -6958,7 +6958,7 @@ function registerResearchOptimizer(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.4.33 | Buildings UX module. */
+/* StarFury UX Suite 2.4.34 | Buildings UX module. */
 function registerBuildingsUX(SFUX) {
     SFUX.register({
         id: 'buildings', phase: 'ready',
@@ -10087,9 +10087,9 @@ function registerBuildingsUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.4.33 | Ship Power Routing module. */
+/* StarFury UX Suite 2.4.34 | Ship Power Routing module. */
 
-/* StarFury UX Suite 2.4.33 | Rewards UX module. */
+/* StarFury UX Suite 2.4.34 | Rewards UX module. */
 function registerRewardsUX(SFUX) {
     'use strict';
 
@@ -10755,7 +10755,7 @@ function registerRewardsUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.4.33 | Attack Room command layout and fleet accounting. */
+/* StarFury UX Suite 2.4.34 | Attack Room command layout and fleet accounting. */
 function registerAttackUX(SFUX) {
     'use strict';
 
@@ -11872,7 +11872,7 @@ function registerAttackUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.4.33 | Raid roster density, mercenary selection, and payout accounting. */
+/* StarFury UX Suite 2.4.34 | Raid roster density, mercenary selection, and payout accounting. */
 function registerRaidUX(SFUX) {
     'use strict';
 
@@ -18024,31 +18024,29 @@ function registerShipPowerRouting(SFUX) {
                         }
 
                         /*
-                         * Repair is a primary touch action. Expand only repairable
-                         * frames to a 44px target while keeping the visible HP bar thin.
+                         * Repair remains a generous touch action without changing
+                         * card geometry. The visible/layout frame stays 19px like
+                         * every other integrity bar; an invisible generated hit
+                         * area extends beyond it and clicks still resolve to frame.
                          */
                         .sfux-dock-integrity--repairable .sfux-dock-integrity-frame {
                             position: relative;
-                            height: 44px;
+                            height: 19px;
+                            overflow: visible;
                         }
 
-                        .sfux-dock-integrity--repairable .sfux-dock-integrity-track {
+                        .sfux-dock-integrity--repairable
+                        .sfux-dock-integrity-frame::before {
+                            content: "";
                             position: absolute;
+                            z-index: 4;
+                            top: 50%;
                             left: 0;
                             right: 0;
-                            top: 50%;
-                            height: 19px;
+                            height: 44px;
                             transform: translateY(-50%);
-                        }
-
-                        .sfux-dock-integrity--repairable .sfux-dock-integrity-text,
-                        .sfux-dock-integrity--repairable .sfux-dock-integrity-action {
-                            top: 50%;
-                            bottom: auto;
-                            height: 19px;
-                            transform: translateY(-50%);
-                            padding-top: 3px;
-                            box-sizing: border-box;
+                            background: transparent;
+                            pointer-events: auto;
                         }
 
                         .sfux-dock-integrity--repairable .sfux-dock-integrity-repair-cue {
