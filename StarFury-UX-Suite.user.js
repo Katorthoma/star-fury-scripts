@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury UX Suite
 // @namespace    starfuryx.com
-// @version      2.4.26
+// @version      2.4.33
 // @author       Zathman
 // @license      MIT
 // @homepageURL  https://github.com/Katorthoma/star-fury-scripts
@@ -21,10 +21,10 @@
 
 (() => {
 'use strict';
-/* StarFury UX Suite 2.4.26 | Shared runtime. No globals are published by the bundle. */
+/* StarFury UX Suite 2.4.33 | Shared runtime. No globals are published by the bundle. */
 function createSFUX() {
     'use strict';
-    const SFUX = { version: '2.4.26', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
+    const SFUX = { version: '2.4.33', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
     // UI ASSUMPTION: dense building columns and nine navigation items need earlier stacking.
     SFUX.responsive = Object.freeze({ mobile: 640, navigation: 768, buildings: 800, phone: 430, narrowHeader: 460, tinyHud: 360 });
     SFUX.page = new URL(window.location.href);
@@ -553,7 +553,7 @@ html body input[type="button"].button-primary:not(.sf-raze-submit):disabled {
     return SFUX;
 }
 
-/* StarFury UX Suite 2.4.26 | Global UX module. */
+/* StarFury UX Suite 2.4.33 | Global UX module. */
 function registerGlobalUX(SFUX) {
     SFUX.register({
         id: 'global', phase: 'early',
@@ -4236,7 +4236,7 @@ function registerGlobalUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.4.26 | Research Optimizer module. */
+/* StarFury UX Suite 2.4.33 | Research Optimizer module. */
 function registerResearchOptimizer(SFUX) {
     SFUX.register({
         id: 'research', phase: 'ready',
@@ -6958,7 +6958,7 @@ function registerResearchOptimizer(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.4.26 | Buildings UX module. */
+/* StarFury UX Suite 2.4.33 | Buildings UX module. */
 function registerBuildingsUX(SFUX) {
     SFUX.register({
         id: 'buildings', phase: 'ready',
@@ -10087,9 +10087,9 @@ function registerBuildingsUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.4.26 | Ship Power Routing module. */
+/* StarFury UX Suite 2.4.33 | Ship Power Routing module. */
 
-/* StarFury UX Suite 2.4.26 | Rewards UX module. */
+/* StarFury UX Suite 2.4.33 | Rewards UX module. */
 function registerRewardsUX(SFUX) {
     'use strict';
 
@@ -10755,7 +10755,7 @@ function registerRewardsUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.4.26 | Attack Room command layout and fleet accounting. */
+/* StarFury UX Suite 2.4.33 | Attack Room command layout and fleet accounting. */
 function registerAttackUX(SFUX) {
     'use strict';
 
@@ -11864,6 +11864,1220 @@ function registerAttackUX(SFUX) {
             return {
                 init() {
                     return SFUX.safeRun('attack:page', main);
+                },
+                destroy: ctx.destroy
+            };
+        }
+    });
+}
+
+
+/* StarFury UX Suite 2.4.33 | Raid roster density, mercenary selection, and payout accounting. */
+function registerRaidUX(SFUX) {
+    'use strict';
+
+    SFUX.register({
+        id: 'raid',
+        phase: 'ready',
+        matches(path) {
+            return path === '/raid.php';
+        },
+        create(ctx) {
+            const STYLE_ID = 'sfux-raid-style';
+            const PAYOUT_MIN = 6;
+            const PAYOUT_MAX = 20;
+            const PAYOUT_TARGET = 100;
+
+            const ROLE_LABELS = {
+                '0': 'Leader',
+                '1': 'Attack',
+                '2': 'Defence',
+                '3': 'Intel',
+                '4': 'Support Attack',
+                '5': 'Support Defence',
+                '6': 'Support Intel',
+                '7': 'Leecher'
+            };
+
+            function injectStyles() {
+                ctx.style(STYLE_ID, `
+                    body.sfux-raid-page .sfux-raid-roster-wrap {
+                        overflow: visible;
+                    }
+
+                    body.sfux-raid-page table.sfux-raid-roster {
+                        width: 100%;
+                        table-layout: auto;
+                        border-collapse: collapse;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    tr.sfux-raid-roster-head td {
+                        padding: 7px 9px;
+                        color: rgba(255,255,255,.62);
+                        background: #1d2022;
+                        border-color: rgba(255,255,255,.09);
+                        font-size: 10px;
+                        font-weight: 800;
+                        letter-spacing: .035em;
+                        text-align: left;
+                        text-transform: uppercase;
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    tr.sfux-raid-roster-head
+                    td.sfux-raid-role-cell,
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    tr.sfux-raid-roster-head
+                    td.sfux-raid-payout-cell,
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    tr.sfux-raid-roster-head
+                    td.sfux-raid-status-cell,
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    tr.sfux-raid-roster-head
+                    td.sfux-raid-action-cell {
+                        text-align: center !important;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    tr.sfux-raid-member td {
+                        box-sizing: border-box;
+                        padding: 7px 9px;
+                        vertical-align: middle;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    tr.sfux-raid-member p {
+                        margin: 0;
+                        line-height: 1.25;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-repeat-label {
+                        display: none !important;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-role-cell {
+                        width: 1% !important;
+                        min-width: 0;
+                        text-align: center !important;
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-role-cell > img {
+                        display: block;
+                        width: 34px !important;
+                        height: 34px !important;
+                        margin: 0 auto;
+                        object-fit: contain;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-empire-cell {
+                        width: auto !important;
+                        min-width: 0;
+                        font-weight: 700;
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-empire-cell p {
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-fleet-cell {
+                        width: auto !important;
+                        min-width: 0;
+                        color: rgba(255,255,255,.82);
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-fleet-cell p {
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-fleet-cell p + p {
+                        margin-top: 2px;
+                        color: rgba(255,255,255,.58);
+                        font-size: 10px;
+                        font-variant-numeric: tabular-nums;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-payout-cell {
+                        width: 1% !important;
+                        min-width: 0;
+                        text-align: center !important;
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-payout-cell input.inputBox {
+                        box-sizing: border-box;
+                        width: 42px !important;
+                        min-width: 42px !important;
+                        height: 30px;
+                        margin: 0 2px 0 0 !important;
+                        padding: 4px 5px !important;
+                        text-align: center;
+                        font-size: 13px;
+                        font-weight: 800;
+                        font-variant-numeric: tabular-nums;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-payout-cell input.sfux-raid-payout--low {
+                        border-color: rgba(228,197,111,.82) !important;
+                        box-shadow: inset 0 0 0 1px rgba(228,197,111,.16);
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-payout-cell input.sfux-raid-payout--high {
+                        border-color: rgba(212,93,93,.92) !important;
+                        box-shadow: inset 0 0 0 1px rgba(212,93,93,.20);
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-status-cell {
+                        width: 1% !important;
+                        min-width: 0;
+                        text-align: center !important;
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-action-cell {
+                        width: 1% !important;
+                        min-width: 0;
+                        text-align: center !important;
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-action-cell img {
+                        width: 24px !important;
+                        height: 24px !important;
+                        object-fit: contain;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    tr.sfux-raid-empty-slot td {
+                        padding: 7px 10px !important;
+                        color: rgba(255,255,255,.36);
+                        background: rgba(15,18,20,.72);
+                        font-size: 10px;
+                        font-weight: 800;
+                        letter-spacing: .045em;
+                        text-align: center;
+                        text-transform: uppercase;
+                    }
+
+                    body.sfux-raid-page table.sfux-raid-merc-table {
+                        width: 100%;
+                        table-layout: auto;
+                        border-collapse: collapse;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-merc-table td {
+                        box-sizing: border-box;
+                        padding: 6px 8px;
+                        vertical-align: middle;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-merc-table .sfux-raid-merc-role {
+                        width: 1% !important;
+                        min-width: 48px;
+                        text-align: center;
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-merc-table .sfux-raid-merc-role img {
+                        display: block;
+                        width: 36px !important;
+                        height: 36px !important;
+                        margin: 0 auto;
+                        object-fit: contain;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-merc-table .sfux-raid-merc-loadout {
+                        width: auto !important;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-merc-table .sfux-raid-merc-payout {
+                        width: 1% !important;
+                        min-width: 66px;
+                        font-weight: 800;
+                        text-align: center;
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-merc-table .sfux-raid-merc-action {
+                        width: 1% !important;
+                        min-width: 96px;
+                        text-align: center;
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-merc-table .sfux-raid-merc-action a {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        min-height: 32px;
+                        padding: 0 10px;
+                        border: 1px solid rgba(37,174,218,.45);
+                        background: rgba(20,126,165,.16);
+                    }
+
+                    body.sfux-raid-page .sfux-raid-payout-summary {
+                        display: grid;
+                        grid-template-columns: repeat(3, minmax(0, 1fr));
+                        gap: 1px;
+                        max-width: 520px;
+                        margin: 14px auto 10px;
+                        border: 1px solid rgba(255,255,255,.10);
+                        background: rgba(10,13,15,.76);
+                    }
+
+                    body.sfux-raid-page .sfux-raid-payout-metric {
+                        display: grid;
+                        gap: 3px;
+                        min-width: 0;
+                        padding: 9px 12px;
+                        text-align: center;
+                    }
+
+                    body.sfux-raid-page
+                    .sfux-raid-payout-metric + .sfux-raid-payout-metric {
+                        border-left: 1px solid rgba(255,255,255,.08);
+                    }
+
+                    body.sfux-raid-page .sfux-raid-payout-label {
+                        color: rgba(255,255,255,.42);
+                        font-size: 9px;
+                        font-weight: 800;
+                        letter-spacing: .055em;
+                        line-height: 1;
+                        text-transform: uppercase;
+                    }
+
+                    body.sfux-raid-page .sfux-raid-payout-value {
+                        color: rgba(255,255,255,.94);
+                        font-size: 16px;
+                        font-weight: 800;
+                        font-variant-numeric: tabular-nums;
+                        line-height: 1.1;
+                    }
+
+                    body.sfux-raid-page
+                    .sfux-raid-payout-summary[data-state="under"]
+                    .sfux-raid-payout-value--remaining {
+                        color: var(--sfux-warning);
+                    }
+
+                    body.sfux-raid-page
+                    .sfux-raid-payout-summary[data-state="exact"] {
+                        border-color: rgba(121,207,145,.42);
+                    }
+
+                    body.sfux-raid-page
+                    .sfux-raid-payout-summary[data-state="exact"]
+                    .sfux-raid-payout-value--allocated,
+                    body.sfux-raid-page
+                    .sfux-raid-payout-summary[data-state="exact"]
+                    .sfux-raid-payout-value--remaining {
+                        color: var(--sfux-success);
+                    }
+
+                    body.sfux-raid-page
+                    .sfux-raid-payout-summary[data-state="over"] {
+                        border-color: rgba(212,93,93,.54);
+                    }
+
+                    body.sfux-raid-page
+                    .sfux-raid-payout-summary[data-state="over"]
+                    .sfux-raid-payout-value--allocated,
+                    body.sfux-raid-page
+                    .sfux-raid-payout-summary[data-state="over"]
+                    .sfux-raid-payout-value--remaining {
+                        color: var(--sfux-danger);
+                    }
+
+                    body.sfux-raid-page .sfux-raid-payout-detail {
+                        grid-column: 1 / -1;
+                        padding: 7px 10px;
+                        border-top: 1px solid rgba(255,255,255,.08);
+                        color: rgba(255,255,255,.48);
+                        font-size: 10px;
+                        line-height: 1.25;
+                        text-align: center;
+                    }
+
+                    @media (max-width: ${SFUX.responsive.mobile}px) {
+                        body.sfux-raid-page .sfux-raid-roster-wrap {
+                            overflow: visible !important;
+                        }
+
+                        body.sfux-raid-page table.sfux-raid-roster,
+                        body.sfux-raid-page table.sfux-raid-roster tbody {
+                            display: block;
+                            width: 100%;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        tr.sfux-raid-roster-head {
+                            display: none;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        tr.sfux-raid-member {
+                            display: grid;
+                            grid-template-columns:
+                                44px
+                                minmax(0, 1fr)
+                                minmax(68px, auto)
+                                34px;
+                            grid-template-areas:
+                                "role empire payout action"
+                                "role fleet status action";
+                            align-items: center;
+                            min-height: 68px;
+                            margin-bottom: 5px;
+                            border: 1px solid rgba(255,255,255,.10);
+                            background: rgba(24,27,29,.96);
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster.sfux-raid-roster--no-actions
+                        tr.sfux-raid-member {
+                            grid-template-columns:
+                                44px
+                                minmax(0, 1fr)
+                                minmax(68px, auto);
+                            grid-template-areas:
+                                "role empire payout"
+                                "role fleet status";
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        tr.sfux-raid-member td {
+                            display: block;
+                            width: auto !important;
+                            min-width: 0;
+                            padding: 5px 7px;
+                            border: 0;
+                            text-align: left;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-role-cell {
+                            grid-area: role;
+                            align-self: stretch;
+                            display: grid !important;
+                            place-items: center;
+                            padding: 4px !important;
+                            border-right: 1px solid rgba(255,255,255,.07) !important;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-role-cell > img {
+                            width: 34px !important;
+                            height: 34px !important;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-empire-cell {
+                            grid-area: empire;
+                            align-self: end;
+                            padding-bottom: 1px;
+                            font-size: 12px;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-fleet-cell {
+                            grid-area: fleet;
+                            align-self: start;
+                            padding-top: 1px;
+                            color: rgba(255,255,255,.62);
+                            font-size: 10px;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-fleet-cell p + p {
+                            font-size: 9px;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-payout-cell {
+                            grid-area: payout;
+                            align-self: end;
+                            text-align: center;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-status-cell {
+                            grid-area: status;
+                            align-self: start;
+                            color: rgba(255,255,255,.58);
+                            font-size: 10px;
+                            text-align: center;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-action-cell {
+                            grid-area: action;
+                            align-self: stretch;
+                            display: grid !important;
+                            place-items: center;
+                            padding: 4px !important;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-action-cell a {
+                            display: grid;
+                            place-items: center;
+                            width: 34px;
+                            height: 44px;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-payout-cell input.inputBox {
+                            width: 48px !important;
+                            height: 36px;
+                            font-size: 16px;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        tr.sfux-raid-empty-slot {
+                            display: block;
+                            width: 100%;
+                            margin-bottom: 5px;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        tr.sfux-raid-empty-slot td {
+                            display: block;
+                            width: 100% !important;
+                            min-height: 0;
+                            padding: 8px 10px !important;
+                        }
+
+                        body.sfux-raid-page table.sfux-raid-merc-table,
+                        body.sfux-raid-page table.sfux-raid-merc-table tbody {
+                            display: block;
+                            width: 100%;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-merc-table tr:first-child {
+                            display: none;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-merc-table tr.sfux-raid-merc-row {
+                            display: grid;
+                            grid-template-columns: 44px minmax(0, 1fr) 58px auto;
+                            grid-template-areas: "role loadout payout action";
+                            align-items: center;
+                            min-height: 54px;
+                            margin-bottom: 5px;
+                            border: 1px solid rgba(255,255,255,.10);
+                            background: rgba(24,27,29,.96);
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-merc-table tr.sfux-raid-merc-row td {
+                            display: block;
+                            width: auto !important;
+                            min-width: 0;
+                            padding: 6px;
+                            border: 0;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-merc-table .sfux-raid-merc-role {
+                            grid-area: role;
+                            align-self: stretch;
+                            display: grid !important;
+                            place-items: center;
+                            border-right: 1px solid rgba(255,255,255,.07) !important;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-merc-table .sfux-raid-merc-role img {
+                            width: 32px !important;
+                            height: 32px !important;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-merc-table .sfux-raid-merc-loadout {
+                            grid-area: loadout;
+                            font-size: 11px;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-merc-table .sfux-raid-merc-payout {
+                            grid-area: payout;
+                            text-align: center;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-merc-table .sfux-raid-merc-action {
+                            grid-area: action;
+                            padding-right: 8px !important;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-merc-table .sfux-raid-merc-action a {
+                            min-height: 40px;
+                            padding: 0 9px;
+                        }
+
+                        body.sfux-raid-page .sfux-raid-payout-summary {
+                            max-width: none;
+                            margin: 10px 0 8px;
+                        }
+
+                        body.sfux-raid-page .sfux-raid-payout-metric {
+                            padding: 8px 5px;
+                        }
+
+                        body.sfux-raid-page .sfux-raid-payout-label {
+                            font-size: 8px;
+                        }
+
+                        body.sfux-raid-page .sfux-raid-payout-value {
+                            font-size: 14px;
+                        }
+
+                        body.sfux-raid-page .sfux-raid-payout-detail {
+                            font-size: 9px;
+                        }
+                    }
+                `);
+            }
+
+            function findNoticeTable(titleText) {
+                const title = Array.from(
+                    document.querySelectorAll('.sectionTitle')
+                ).find(node =>
+                    String(node.textContent || '')
+                        .trim()
+                        .toLowerCase() === titleText.toLowerCase()
+                );
+
+                if (!title) return null;
+
+                let node = title.nextElementSibling;
+                while (node) {
+                    if (node.classList?.contains('sectionTitle')) break;
+                    if (node.classList?.contains('noticeBody')) {
+                        return node.querySelector('table.basictable');
+                    }
+                    node = node.nextElementSibling;
+                }
+
+                return null;
+            }
+
+            function parsePercent(value) {
+                const number = Number.parseFloat(String(value ?? '').trim());
+                return Number.isFinite(number) ? number : 0;
+            }
+
+            function formatPercent(value) {
+                const number = Number(value);
+                if (!Number.isFinite(number)) return '0%';
+
+                const rounded = Math.round(number * 10) / 10;
+                return `${Number.isInteger(rounded)
+                    ? rounded.toFixed(0)
+                    : rounded.toFixed(1)}%`;
+            }
+
+            function tagRepeatedLabel(cell) {
+                const paragraphs = Array.from(cell?.children || [])
+                    .filter(child => child.tagName === 'P');
+
+                for (const paragraph of paragraphs) {
+                    if (paragraph.querySelector('.bold')) {
+                        paragraph.classList.add('sfux-raid-repeat-label');
+                    }
+                }
+            }
+
+            function roleLabelFromImage(image) {
+                const src = String(image?.getAttribute('src') || '');
+                const match = src.match(/\/raid\/icons\/(\d+)\./i);
+                return match ? ROLE_LABELS[match[1]] || 'Raid role' : 'Raid role';
+            }
+
+            function makeHeaderRow(hasActionColumn = true) {
+                const row = ctx.element('tr');
+                row.className = 'sfux-raid-roster-head';
+
+                const columns = [
+                    ['Role', 'sfux-raid-role-cell'],
+                    ['Empire', 'sfux-raid-empire-cell'],
+                    ['Fleet', 'sfux-raid-fleet-cell'],
+                    ['Payout', 'sfux-raid-payout-cell'],
+                    ['Status', 'sfux-raid-status-cell']
+                ];
+
+                if (hasActionColumn) {
+                    columns.push(['', 'sfux-raid-action-cell']);
+                }
+
+                for (const [label, className] of columns) {
+                    const cell = ctx.element('td');
+                    cell.className = `tableheader ${className}`;
+                    cell.textContent = label;
+                    row.appendChild(cell);
+                }
+
+                return row;
+            }
+
+            function syncRosterColumnGrid(tables) {
+                const activeTables = tables.filter(table =>
+                    table?.classList.contains('sfux-raid-roster')
+                );
+                if (!activeTables.length) return;
+
+                const hasActionColumn = activeTables.some(table =>
+                    Boolean(table.querySelector('.sfux-raid-action-cell'))
+                );
+
+                const columnSelectors = [
+                    '.sfux-raid-role-cell',
+                    '.sfux-raid-empire-cell',
+                    '.sfux-raid-fleet-cell',
+                    '.sfux-raid-payout-cell',
+                    '.sfux-raid-status-cell'
+                ];
+
+                if (hasActionColumn) {
+                    columnSelectors.push('.sfux-raid-action-cell');
+                }
+
+                const ensureColGroup = table => {
+                    let colgroup = table.querySelector(
+                        ':scope > colgroup.sfux-raid-roster-columns'
+                    );
+                    if (!colgroup) {
+                        colgroup = ctx.element('colgroup');
+                        colgroup.className = 'sfux-raid-roster-columns';
+                        for (let i = 0; i < columnSelectors.length; i += 1) {
+                            colgroup.appendChild(ctx.element('col'));
+                        }
+                        table.insertBefore(colgroup, table.firstChild);
+                    }
+                    return colgroup;
+                };
+
+                const colGroups = activeTables.map(ensureColGroup);
+
+                const mobileMedia =
+                    typeof window !== 'undefined' &&
+                    typeof window.matchMedia === 'function'
+                        ? window.matchMedia(
+                            `(max-width: ${SFUX.responsive.mobile}px)`
+                        )
+                        : null;
+
+                const measureIntrinsicWidth = cells => {
+                    if (!cells.length) return 0;
+
+                    const previous = cells.map(cell => ({
+                        cell,
+                        width: cell.style.width,
+                        minWidth: cell.style.minWidth,
+                        maxWidth: cell.style.maxWidth
+                    }));
+
+                    for (const { cell } of previous) {
+                        cell.style.width = '1px';
+                        cell.style.minWidth = '0';
+                        cell.style.maxWidth = '1px';
+                    }
+
+                    const width = Math.ceil(Math.max(
+                        ...cells.map(cell => cell.scrollWidth)
+                    ));
+
+                    for (const state of previous) {
+                        state.cell.style.width = state.width;
+                        state.cell.style.minWidth = state.minWidth;
+                        state.cell.style.maxWidth = state.maxWidth;
+                    }
+
+                    return width;
+                };
+
+                const applyGrid = () => {
+                    const isMobile = Boolean(mobileMedia?.matches);
+
+                    for (const table of activeTables) {
+                        table.style.removeProperty('table-layout');
+                    }
+                    for (const colgroup of colGroups) {
+                        for (const col of colgroup.children) {
+                            col.style.removeProperty('width');
+                        }
+                    }
+
+                    if (isMobile) return;
+
+                    const measured = columnSelectors.map(selector => {
+                        const cells = activeTables.flatMap(table =>
+                            Array.from(table.querySelectorAll(selector))
+                        );
+                        return measureIntrinsicWidth(cells);
+                    });
+
+                    const available = Math.floor(Math.min(
+                        ...activeTables.map(table => table.clientWidth)
+                    ));
+
+                    /*
+                     * Intrinsic width alone is visually too tight. Add a small
+                     * comfort gutter to each measured track, then let Empire
+                     * absorb remaining desktop space. Leaders have an action
+                     * column; ordinary raid participants do not.
+                     *
+                     * Role | Empire | Fleet | Payout | Status | [Remove]
+                     */
+                    const comfortGutter = hasActionColumn
+                        ? [8, 14, 20, 14, 18, 8]
+                        : [8, 14, 20, 14, 18];
+
+                    const comfortable = measured.map(
+                        (width, index) => width + comfortGutter[index]
+                    );
+
+                    const fixedIndexes = hasActionColumn
+                        ? [0, 2, 3, 4, 5]
+                        : [0, 2, 3, 4];
+                    const fixedWidth = fixedIndexes.reduce(
+                        (sum, index) => sum + comfortable[index],
+                        0
+                    );
+
+                    const empireWidth = Math.max(
+                        comfortable[1],
+                        available - fixedWidth
+                    );
+
+                    const widths = [...comfortable];
+                    widths[1] = empireWidth;
+
+                    for (const table of activeTables) {
+                        table.style.tableLayout = 'fixed';
+                    }
+
+                    for (const colgroup of colGroups) {
+                        Array.from(colgroup.children).forEach((col, index) => {
+                            col.style.width = `${widths[index]}px`;
+                        });
+                    }
+                };
+
+                requestAnimationFrame(applyGrid);
+
+                if (mobileMedia) {
+                    ctx.on(mobileMedia, 'change', () => {
+                        requestAnimationFrame(applyGrid);
+                    });
+                }
+            }
+
+            function enhanceRosterTable(table, showHeader = false) {
+                if (!table || table.classList.contains('sfux-raid-roster')) {
+                    return [];
+                }
+
+                const allRows = Array.from(table.rows).filter(
+                    row => row.cells.length === 5 || row.cells.length === 6
+                );
+
+                const rows = allRows.filter(row => {
+                    const payoutCell = row.cells[3];
+                    return Boolean(
+                        payoutCell.querySelector('input.inputBox') ||
+                        /%/.test(payoutCell.textContent || '')
+                    );
+                });
+
+                const emptyRows = allRows.filter(row => {
+                    if (rows.includes(row)) return false;
+                    const emptyMarkers = row.querySelectorAll('.disabledLink');
+                    return emptyMarkers.length >= 4 &&
+                        Array.from(emptyMarkers).every(marker =>
+                            String(marker.textContent || '')
+                                .trim()
+                                .toUpperCase() === 'EMPTY'
+                        );
+                });
+
+                if (!rows.length && !emptyRows.length) return [];
+
+                table.classList.add('sfux-raid-roster');
+                table.closest('.responsive-table-container')
+                    ?.classList.add('sfux-raid-roster-wrap');
+
+                const hasActionColumn = rows.some(
+                    row => row.cells.length === 6
+                );
+
+                table.classList.toggle(
+                    'sfux-raid-roster--no-actions',
+                    !hasActionColumn
+                );
+
+                const body = table.tBodies[0] || table;
+                if (showHeader) {
+                    body.insertBefore(
+                        makeHeaderRow(hasActionColumn),
+                        body.firstChild
+                    );
+                }
+
+                for (const row of rows) {
+                    row.classList.add('sfux-raid-member');
+
+                    const [
+                        roleCell,
+                        empireCell,
+                        fleetCell,
+                        payoutCell,
+                        statusCell,
+                        actionCell = null
+                    ] = Array.from(row.cells);
+
+                    roleCell.classList.add('sfux-raid-role-cell');
+                    empireCell.classList.add('sfux-raid-empire-cell');
+                    fleetCell.classList.add('sfux-raid-fleet-cell');
+                    payoutCell.classList.add('sfux-raid-payout-cell');
+                    statusCell.classList.add('sfux-raid-status-cell');
+                    actionCell?.classList.add('sfux-raid-action-cell');
+
+                    for (const cell of row.cells) {
+                        cell.removeAttribute('width');
+                    }
+
+                    tagRepeatedLabel(empireCell);
+                    tagRepeatedLabel(fleetCell);
+                    tagRepeatedLabel(payoutCell);
+                    tagRepeatedLabel(statusCell);
+
+                    const roleImage = roleCell.querySelector('img');
+                    if (roleImage) {
+                        const roleLabel = roleLabelFromImage(roleImage);
+                        roleImage.alt = roleLabel;
+                        roleImage.title ||= roleLabel;
+                    }
+                }
+
+                for (const row of emptyRows) {
+                    row.className = 'sfux-raid-empty-slot';
+                    const cells = Array.from(row.cells);
+                    const first = cells[0];
+                    if (!first) continue;
+
+                    first.colSpan = hasActionColumn ? 6 : 5;
+                    first.removeAttribute('width');
+                    first.textContent = 'Empty raid slot';
+                    for (const cell of cells.slice(1)) cell.remove();
+                }
+
+                return rows;
+            }
+
+            function enhanceMercenaryTable() {
+                const query = new URLSearchParams(window.location.search);
+                if (!query.has('addmerc')) return false;
+
+                const title = Array.from(
+                    document.querySelectorAll('.boxheadertext')
+                ).find(node =>
+                    String(node.textContent || '')
+                        .trim()
+                        .toLowerCase() === 'add raid mercenary'
+                );
+
+                const box = title?.closest('.contentbox');
+                const table = box?.querySelector('table.basictable');
+                if (!table || table.classList.contains('sfux-raid-merc-table')) {
+                    return Boolean(table);
+                }
+
+                table.classList.add('sfux-raid-merc-table');
+                table.closest('.responsive-table-container')
+                    ?.classList.add('sfux-raid-roster-wrap');
+
+                const headerRow = table.rows[0];
+                if (headerRow) {
+                    for (const cell of headerRow.cells) {
+                        cell.removeAttribute('width');
+                    }
+                }
+
+                const rows = Array.from(table.rows).slice(1).filter(
+                    row => row.cells.length === 4
+                );
+
+                for (const row of rows) {
+                    row.classList.add('sfux-raid-merc-row');
+                    const [roleCell, loadoutCell, payoutCell, actionCell] =
+                        Array.from(row.cells);
+
+                    roleCell.classList.add('sfux-raid-merc-role');
+                    loadoutCell.classList.add('sfux-raid-merc-loadout');
+                    payoutCell.classList.add('sfux-raid-merc-payout');
+                    actionCell.classList.add('sfux-raid-merc-action');
+
+                    for (const cell of row.cells) cell.removeAttribute('width');
+
+                    const roleImage = roleCell.querySelector('img');
+                    if (roleImage) {
+                        const roleLabel = roleLabelFromImage(roleImage);
+                        roleImage.alt = roleLabel;
+                        roleImage.title ||= roleLabel;
+                    }
+                }
+
+                return rows.length > 0;
+            }
+
+            function buildPayoutSummary(rows) {
+                const finalizeButton = Array.from(
+                    document.querySelectorAll(
+                        'input[type="submit"], button[type="submit"]'
+                    )
+                ).find(button =>
+                    String(button.value || button.textContent || '')
+                        .trim()
+                        .toLowerCase() === 'finalize percentages'
+                );
+
+                if (!finalizeButton) return;
+
+                const host =
+                    finalizeButton.closest('.center') ||
+                    finalizeButton.parentElement;
+                if (!host) return;
+
+                const summary = ctx.element('div');
+                summary.className = 'sfux-raid-payout-summary';
+                summary.setAttribute('role', 'status');
+                summary.setAttribute('aria-live', 'polite');
+
+                function makeMetric(label, modifier = '') {
+                    const metric = ctx.element('div');
+                    metric.className = 'sfux-raid-payout-metric';
+
+                    const metricLabel = ctx.element('span');
+                    metricLabel.className = 'sfux-raid-payout-label';
+                    metricLabel.textContent = label;
+
+                    const metricValue = ctx.element('span');
+                    metricValue.className =
+                        `sfux-raid-payout-value ${modifier}`.trim();
+
+                    metric.append(metricLabel, metricValue);
+                    summary.appendChild(metric);
+
+                    return metricValue;
+                }
+
+                const allocatedValue = makeMetric(
+                    'Allocated',
+                    'sfux-raid-payout-value--allocated'
+                );
+                const remainingValue = makeMetric(
+                    'Remaining',
+                    'sfux-raid-payout-value--remaining'
+                );
+                const memberValue = makeMetric('Members');
+
+                const detail = ctx.element('div');
+                detail.className = 'sfux-raid-payout-detail';
+                summary.appendChild(detail);
+
+                host.parentElement?.insertBefore(summary, host);
+
+                const editableInputs = rows
+                    .map(row =>
+                        row.querySelector(
+                            '.sfux-raid-payout-cell input.inputBox'
+                        )
+                    )
+                    .filter(Boolean);
+
+                function fixedPercentForRow(row) {
+                    const cell = row.querySelector('.sfux-raid-payout-cell');
+                    if (!cell || cell.querySelector('input.inputBox')) return 0;
+
+                    const match = String(cell.textContent || '')
+                        .match(/(-?\d+(?:\.\d+)?)\s*%/);
+
+                    return match ? parsePercent(match[1]) : 0;
+                }
+
+                const fixedTotal = rows.reduce(
+                    (sum, row) => sum + fixedPercentForRow(row),
+                    0
+                );
+
+                function updateInputRange(input) {
+                    const value = parsePercent(input.value);
+
+                    input.classList.remove(
+                        'sfux-raid-payout--low',
+                        'sfux-raid-payout--high'
+                    );
+                    input.removeAttribute('aria-invalid');
+
+                    if (value < PAYOUT_MIN) {
+                        input.classList.add('sfux-raid-payout--low');
+                        input.setAttribute('aria-invalid', 'true');
+                        input.title =
+                            `Payout is below the ${PAYOUT_MIN}% per-empire minimum.`;
+                    } else if (value > PAYOUT_MAX) {
+                        input.classList.add('sfux-raid-payout--high');
+                        input.setAttribute('aria-invalid', 'true');
+                        input.title =
+                            `Payout exceeds the ${PAYOUT_MAX}% per-empire maximum.`;
+                    } else {
+                        input.title =
+                            `Per-empire payout range: ${PAYOUT_MIN}%–${PAYOUT_MAX}%.`;
+                    }
+                }
+
+                function updateSummary() {
+                    let editableTotal = 0;
+
+                    for (const input of editableInputs) {
+                        updateInputRange(input);
+                        editableTotal += parsePercent(input.value);
+                    }
+
+                    const allocated = fixedTotal + editableTotal;
+                    const remaining = PAYOUT_TARGET - allocated;
+
+                    summary.dataset.state =
+                        allocated > PAYOUT_TARGET
+                            ? 'over'
+                            : allocated === PAYOUT_TARGET
+                                ? 'exact'
+                                : 'under';
+
+                    allocatedValue.textContent =
+                        `${formatPercent(allocated)} / ${PAYOUT_TARGET}%`;
+
+                    remainingValue.textContent =
+                        remaining < 0
+                            ? `${formatPercent(Math.abs(remaining))} over`
+                            : formatPercent(remaining);
+
+                    memberValue.textContent = String(rows.length);
+
+                    detail.textContent =
+                        `${formatPercent(fixedTotal)} fixed + ` +
+                        `${formatPercent(editableTotal)} editable · ` +
+                        `player payouts ${PAYOUT_MIN}%–${PAYOUT_MAX}% each`;
+                }
+
+                for (const input of editableInputs) {
+                    ctx.on(input, 'input', updateSummary);
+                    ctx.on(input, 'change', updateSummary);
+                }
+
+                updateSummary();
+            }
+
+            function main() {
+                document.body.classList.add('sfux-raid-page');
+                injectStyles();
+
+                if (enhanceMercenaryTable()) return;
+
+                const fleetOne = findNoticeTable('Raid Fleet One');
+                const fleetTwo = findNoticeTable('Raid Fleet Two');
+
+                let headerShown = false;
+                const rows = [];
+
+                for (const table of [fleetOne, fleetTwo]) {
+                    const enhanced = enhanceRosterTable(table, !headerShown);
+                    if (enhanced.length) {
+                        rows.push(...enhanced);
+                        headerShown = true;
+                    }
+                }
+
+                if (!rows.length) return;
+
+                syncRosterColumnGrid([
+                    fleetOne,
+                    fleetTwo
+                ]);
+
+                buildPayoutSummary(rows);
+            }
+
+            return {
+                init() {
+                    return SFUX.safeRun('raid:page', main);
                 },
                 destroy: ctx.destroy
             };
@@ -21092,6 +22306,7 @@ registerResearchOptimizer(SFUX);
 registerBuildingsUX(SFUX);
 registerRewardsUX(SFUX);
 registerAttackUX(SFUX);
+registerRaidUX(SFUX);
 registerShipPowerRouting(SFUX);
 SFUX.boot();
 })();
