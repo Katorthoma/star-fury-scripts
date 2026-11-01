@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury UX Suite
 // @namespace    starfuryx.com
-// @version      2.5.0
+// @version      2.5.8
 // @author       Zathman
 // @license      MIT
 // @homepageURL  https://github.com/Katorthoma/star-fury-scripts
@@ -21,10 +21,10 @@
 
 (() => {
 'use strict';
-/* StarFury UX Suite 2.5.0 | Shared runtime. No globals are published by the bundle. */
+/* StarFury UX Suite 2.5.8 | Shared runtime. No globals are published by the bundle. */
 function createSFUX() {
     'use strict';
-    const SFUX = { version: '2.5.0', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
+    const SFUX = { version: '2.5.8', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
     // UI ASSUMPTION: dense building columns and nine navigation items need earlier stacking.
     SFUX.responsive = Object.freeze({ mobile: 640, navigation: 768, buildings: 800, phone: 430, narrowHeader: 460, tinyHud: 360 });
     SFUX.page = new URL(window.location.href);
@@ -117,6 +117,17 @@ function createSFUX() {
             };
         }
 
+        if (key.includes('transfer')) {
+            // Match StarFury's native Transferring badge: sunflower/olive gold.
+            return {
+                key: 'transferring',
+                color: '#b8ac3c',
+                background: 'rgba(132,124,45,0.96)',
+                border: 'rgba(216,200,77,0.96)',
+                glow: 'rgba(184,172,60,0.38)'
+            };
+        }
+
         if (key.includes('explor')) {
             return {
                 key: 'exploring',
@@ -183,6 +194,9 @@ function createSFUX() {
     SFUX.storage.localSet = (key, value) => { try { localStorage.setItem(key, value); } catch { /* Optional preference. */ } };
     SFUX.storage.sessionGet = (key, fallback = null) => { try { return sessionStorage.getItem(key) ?? fallback; } catch { return fallback; } };
     SFUX.storage.sessionSet = (key, value) => { try { sessionStorage.setItem(key, value); } catch { /* Optional preference. */ } };
+    SFUX.storage.keys = Object.freeze({
+        shipMetadata: 'sfuxShipNamesV1'
+    });
 
     // One bounded discovery stream serves all late shell nodes. It is disconnected
     // once subscribers are resolved, and each subscriber expires after 3 seconds.
@@ -553,7 +567,7 @@ html body input[type="button"].button-primary:not(.sf-raze-submit):disabled {
     return SFUX;
 }
 
-/* StarFury UX Suite 2.5.0 | Global UX module. */
+/* StarFury UX Suite 2.5.8 | Global UX module. */
 function registerGlobalUX(SFUX) {
     SFUX.register({
         id: 'global', phase: 'early',
@@ -836,7 +850,7 @@ function registerGlobalUX(SFUX) {
                         #cssmenu.${NAV_CLASS} > ul > li:hover > a,
                         #cssmenu.${NAV_CLASS} > ul > li:focus-within > a {
                             color: #ffffff !important;
-                            background: rgba(255,255,255,0.055) !important;
+                            background: rgba(255,255,255,0.085) !important;
                             box-shadow: inset 0 -2px 0 rgba(var(--sfux-info-rgb), 0.72) !important;
                         }
 
@@ -939,10 +953,17 @@ function registerGlobalUX(SFUX) {
                         }
 
                         #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:hover,
-                        #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:focus-visible {
+                        #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:focus-visible,
+                        #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:active {
                             color: #ffffff !important;
-                            background: rgba(var(--sfux-info-rgb), 0.13) !important;
+                            background: rgba(var(--sfux-info-rgb), 0.16) !important;
                             outline: none !important;
+                        }
+
+                        #cssmenu.${NAV_CLASS} > ul > li > ul > li.sfgu-current-link > a {
+                            color: #ffffff !important;
+                            background: rgba(var(--sfux-info-rgb), 0.11) !important;
+                            box-shadow: inset 2px 0 0 rgba(var(--sfux-info-rgb), 0.92) !important;
                         }
                     }
 
@@ -1251,8 +1272,15 @@ function registerGlobalUX(SFUX) {
                         #cssmenu.${NAV_CLASS} > ul > li > a:active,
                         #cssmenu.${NAV_CLASS} > ul > li > a:focus-visible {
                             color: #ffffff !important;
-                            background: rgba(255,255,255,0.085) !important;
+                            background: rgba(255,255,255,0.10) !important;
                             outline: none !important;
+                        }
+
+                        @media (hover: hover) and (pointer: fine) {
+                            #cssmenu.${NAV_CLASS} > ul > li > a:hover {
+                                color: #ffffff !important;
+                                background: rgba(255,255,255,0.06) !important;
+                            }
                         }
 
                         #cssmenu.${NAV_CLASS}
@@ -1373,8 +1401,21 @@ function registerGlobalUX(SFUX) {
                         #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:active,
                         #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:focus-visible {
                             color: #ffffff !important;
-                            background: rgba(var(--sfux-info-rgb), 0.09) !important;
+                            background: rgba(var(--sfux-info-rgb), 0.12) !important;
                             outline: none !important;
+                        }
+
+                        #cssmenu.${NAV_CLASS} > ul > li > ul > li.sfgu-current-link > a {
+                            color: #ffffff !important;
+                            background: rgba(var(--sfux-info-rgb), 0.10) !important;
+                            box-shadow: inset 3px 0 0 rgba(var(--sfux-info-rgb), 0.92) !important;
+                        }
+
+                        @media (hover: hover) and (pointer: fine) {
+                            #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:hover {
+                                color: #ffffff !important;
+                                background: rgba(var(--sfux-info-rgb), 0.09) !important;
+                            }
                         }
                     }
 
@@ -2021,10 +2062,11 @@ function registerGlobalUX(SFUX) {
                         z-index: 2147483000 !important;
                         display: none;
                         box-sizing: border-box !important;
-                        max-width: min(300px, calc(100vw - 16px)) !important;
-                        padding: 7px 9px !important;
+                        width: min(150px, calc(100vw - 16px)) !important;
+                        max-width: min(150px, calc(100vw - 16px)) !important;
+                        padding: 7px 8px 8px !important;
                         border: 1px solid rgba(255,255,255,0.22) !important;
-                        border-radius: 3px !important;
+                        border-radius: 4px !important;
                         background: rgba(8,10,13,0.97) !important;
                         box-shadow:
                             0 8px 22px rgba(0,0,0,0.48),
@@ -2034,11 +2076,140 @@ function registerGlobalUX(SFUX) {
                         font-family:
                             "Titillium Web", Arial, sans-serif !important;
                         font-size: 13px !important;
-                        font-weight: 600 !important;
-                        line-height: 1.3 !important;
-                        white-space: pre-line !important;
+                        line-height: 1.25 !important;
+                        white-space: normal !important;
                         text-align: left !important;
                         pointer-events: none !important;
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-header {
+                        display: grid;
+                        grid-template-columns: minmax(0, 1fr) auto;
+                        align-items: center;
+                        gap: 6px;
+                        min-width: 0;
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-name {
+                        overflow: hidden;
+                        min-width: 0;
+                        color: rgba(255,255,255,.97);
+                        font-size: 14px;
+                        font-weight: 800;
+                        line-height: 1.1;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-mode-icon {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 14px;
+                        height: 14px;
+                        font-size: 11px;
+                        line-height: 1;
+                    }
+
+                    #${DOCK_TOOLTIP_ID}
+                    .sfgu-dock-tooltip-mode-icon--fixed {
+                        color: rgba(var(--sfux-danger-rgb), .95);
+                    }
+
+                    #${DOCK_TOOLTIP_ID}
+                    .sfgu-dock-tooltip-mode-icon--flexible {
+                        color: rgba(var(--sfux-success-rgb), .95);
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-meta {
+                        display: flex;
+                        align-items: center;
+                        gap: 4px;
+                        min-width: 0;
+                        margin-top: 2px;
+                        color: rgba(220,226,230,.72);
+                        font-size: 11px;
+                        font-weight: 600;
+                        line-height: 1.15;
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-status {
+                        overflow: hidden;
+                        min-width: 0;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-integrity {
+                        position: relative;
+                        height: 16px;
+                        margin-top: 6px;
+                        overflow: hidden;
+                        border: 1px solid rgba(255,255,255,.075);
+                        background: rgba(0,0,0,.34);
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-integrity-fill {
+                        position: absolute;
+                        inset: 0 auto 0 0;
+                        background: linear-gradient(
+                            90deg,
+                            rgb(12,110,152),
+                            rgb(20,124,128)
+                        );
+                    }
+
+                    #${DOCK_TOOLTIP_ID}
+                    .sfgu-dock-tooltip-integrity--warning
+                    .sfgu-dock-tooltip-integrity-fill {
+                        background: rgb(176,138,44);
+                    }
+
+                    #${DOCK_TOOLTIP_ID}
+                    .sfgu-dock-tooltip-integrity--danger
+                    .sfgu-dock-tooltip-integrity-fill,
+                    #${DOCK_TOOLTIP_ID}
+                    .sfgu-dock-tooltip-integrity--critical
+                    .sfgu-dock-tooltip-integrity-fill,
+                    #${DOCK_TOOLTIP_ID}
+                    .sfgu-dock-tooltip-integrity--terminal
+                    .sfgu-dock-tooltip-integrity-fill {
+                        background: rgb(178,62,62);
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-sheath {
+                        position: absolute;
+                        z-index: 1;
+                        top: 0;
+                        right: 0;
+                        left: 0;
+                        height: 3px;
+                        background: rgba(0,0,0,.55);
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-sheath > span {
+                        position: absolute;
+                        inset: 0 auto 0 0;
+                        background: rgb(140,214,30);
+                        box-shadow: 0 0 4px rgba(140,214,30,.55);
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-integrity-text {
+                        position: absolute;
+                        z-index: 2;
+                        inset: 0;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding-top: 2px;
+                        color: #f2f5f7;
+                        font-size: 11px;
+                        font-weight: 800;
+                        line-height: 1;
+                        letter-spacing: .015em;
+                        font-variant-numeric: tabular-nums;
+                        text-shadow: 0 1px 0 rgba(0,0,0,.85);
+                        white-space: nowrap;
                     }
 
 
@@ -2829,13 +3000,12 @@ function registerGlobalUX(SFUX) {
             function getDockStatusIndicator(link) {
                 if (!link) return null;
 
-                const lines = getDockTooltipText(link)
-                    .split('\n')
-                    .map(part => part.trim())
-                    .filter(Boolean);
-
+                const payload = parseDockTooltipPayload(link);
                 const statusIcon = link.querySelector('img.statusIcon');
-                const statusLine = lines[1] || statusIcon?.alt?.trim() || '';
+                const statusLine =
+                    payload.status ||
+                    statusIcon?.alt?.trim() ||
+                    '';
 
                 const timedMatch = statusLine.match(
                     /^(.+?)\s*\(\s*(\d+)\s*(?:ticks?|t)?\s*\)\s*$/i
@@ -3333,14 +3503,244 @@ function registerGlobalUX(SFUX) {
                 return tooltip;
             }
 
-            function getDockTooltipText(link) {
-                return (link?.getAttribute('data-tooltip') || '')
+            function parseDockTooltipPayload(link) {
+                const parts = (link?.getAttribute('data-tooltip') || '')
                     .replace(/&#010;/gi, '\n')
                     .replace(/\r/g, '')
                     .split('\n')
                     .map(part => part.trim())
-                    .filter(Boolean)
-                    .join('\n');
+                    .filter(Boolean);
+
+                const parsePool = value => {
+                    const match = String(value || '')
+                        .replace(/,/g, '')
+                        .match(/(\d+)\s*\/\s*(\d+)/);
+
+                    if (!match) return null;
+
+                    const current = Number(match[1]);
+                    const maximum = Number(match[2]);
+
+                    return (
+                        Number.isFinite(current) &&
+                        Number.isFinite(maximum) &&
+                        maximum > 0
+                    )
+                        ? {
+                            current: Math.max(0, Math.min(current, maximum)),
+                            maximum
+                        }
+                        : null;
+                };
+
+                return {
+                    shipClass: parts[0] || '',
+                    status: parts[1] || '',
+                    hull: parsePool(parts[2]),
+                    shield: parsePool(parts[3])
+                };
+            }
+
+            function dockShipId(link) {
+                try {
+                    return new URL(link?.href || '', window.location.href)
+                        .searchParams
+                        .get('ShipID') || '';
+                } catch {
+                    return '';
+                }
+            }
+
+            function cachedDockShipMetadata(link) {
+                const shipId = dockShipId(link);
+                if (!shipId) return { shipId: '', name: '', mode: '' };
+
+                const saved = SFUX.storage.get(
+                    SFUX.storage.keys.shipMetadata,
+                    {}
+                );
+                const entry = saved && typeof saved === 'object'
+                    ? saved[shipId]
+                    : null;
+
+                const modeKey = String(entry?.mode || '')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .toLowerCase();
+
+                const mode = modeKey === 'fixed'
+                    ? 'Fixed'
+                    : modeKey === 'flexible'
+                        ? 'Flexible'
+                        : '';
+
+                return {
+                    shipId,
+                    name: String(entry?.name || '')
+                        .replace(/\s+/g, ' ')
+                        .trim(),
+                    mode
+                };
+            }
+
+            function dockIntegrityModel(payload) {
+                const hull = payload?.hull;
+                const shield = payload?.shield;
+
+                if (!hull && !shield) return null;
+
+                const safePool = pool => pool || { current: 0, maximum: 0 };
+                const h = safePool(hull);
+                const s = safePool(shield);
+                const maximum = h.maximum + s.maximum;
+
+                if (maximum <= 0) return null;
+
+                const current = h.current + s.current;
+                const percent = (current / maximum) * 100;
+                const hullPercent = h.maximum
+                    ? (h.current / h.maximum) * 100
+                    : 100;
+                const shieldPercent = s.maximum
+                    ? (s.current / s.maximum) * 100
+                    : 0;
+
+                const hullSeverity =
+                    hullPercent <= 0 ? 'terminal' :
+                    hullPercent < 25 ? 'critical' :
+                    hullPercent < 50 ? 'danger' :
+                    hullPercent < 75 ? 'warning' :
+                    'nominal';
+
+                const shieldSeverity =
+                    shieldPercent <= 0 && s.maximum > 0 ? 'warning' :
+                    shieldPercent < 75 && s.maximum > 0 ? 'warning' :
+                    'nominal';
+
+                const severity =
+                    ['terminal', 'critical', 'danger'].includes(hullSeverity)
+                        ? hullSeverity
+                        : (
+                            hullSeverity === 'warning' ||
+                            shieldSeverity === 'warning'
+                        )
+                            ? 'warning'
+                            : 'nominal';
+
+                return {
+                    current,
+                    maximum,
+                    percent: Math.max(0, Math.min(100, percent)),
+                    shieldPercent: Math.max(0, Math.min(100, shieldPercent)),
+                    hasShield: s.maximum > 0,
+                    severity
+                };
+            }
+
+            function buildDockTooltipModel(link) {
+                const native = parseDockTooltipPayload(link);
+                const cached = cachedDockShipMetadata(link);
+                const integrity = dockIntegrityModel(native);
+
+                const name =
+                    cached.name ||
+                    native.shipClass ||
+                    (cached.shipId ? `Ship ${cached.shipId}` : 'Ship');
+
+                const status = native.status || '';
+                const mode = cached.mode || '';
+
+                const ariaPieces = [name];
+                if (mode) ariaPieces.push(mode);
+                if (status) ariaPieces.push(status);
+                if (integrity) {
+                    ariaPieces.push(
+                        `${integrity.current.toLocaleString()} of ` +
+                        `${integrity.maximum.toLocaleString()} total integrity`
+                    );
+                }
+
+                return {
+                    name,
+                    mode,
+                    status,
+                    integrity,
+                    ariaLabel: ariaPieces.join(', ')
+                };
+            }
+
+            function renderDockTooltip(tooltip, link) {
+                const model = buildDockTooltipModel(link);
+                if (!model?.name) return false;
+
+                const header = ctx.element('div');
+                header.className = 'sfgu-dock-tooltip-header';
+
+                const name = ctx.element('div');
+                name.className = 'sfgu-dock-tooltip-name';
+                name.textContent = model.name;
+                header.appendChild(name);
+
+                if (model.mode) {
+                    const fixed = model.mode === 'Fixed';
+                    const modeIcon = ctx.element('span');
+                    modeIcon.className =
+                        `fa ${fixed ? 'fa-lock' : 'fa-unlock'} ` +
+                        'sfgu-dock-tooltip-mode-icon ' +
+                        `sfgu-dock-tooltip-mode-icon--${fixed ? 'fixed' : 'flexible'}`;
+                    modeIcon.title = model.mode;
+                    modeIcon.setAttribute('aria-label', model.mode);
+                    header.appendChild(modeIcon);
+                }
+
+                const meta = ctx.element('div');
+                meta.className = 'sfgu-dock-tooltip-meta';
+
+                if (model.status) {
+                    const status = ctx.element('span');
+                    status.className = 'sfgu-dock-tooltip-status';
+                    status.textContent = model.status;
+                    meta.appendChild(status);
+                }
+
+                tooltip.replaceChildren(header);
+                if (meta.childNodes.length) tooltip.appendChild(meta);
+
+                if (model.integrity) {
+                    const bar = ctx.element('div');
+                    bar.className =
+                        'sfgu-dock-tooltip-integrity ' +
+                        `sfgu-dock-tooltip-integrity--${model.integrity.severity}`;
+
+                    const fill = ctx.element('span');
+                    fill.className = 'sfgu-dock-tooltip-integrity-fill';
+                    fill.style.width = `${model.integrity.percent}%`;
+                    bar.appendChild(fill);
+
+                    if (model.integrity.hasShield) {
+                        const sheath = ctx.element('span');
+                        sheath.className = 'sfgu-dock-tooltip-sheath';
+
+                        const sheathFill = ctx.element('span');
+                        sheathFill.style.width =
+                            `${model.integrity.shieldPercent}%`;
+
+                        sheath.appendChild(sheathFill);
+                        bar.appendChild(sheath);
+                    }
+
+                    const text = ctx.element('span');
+                    text.className = 'sfgu-dock-tooltip-integrity-text';
+                    text.textContent =
+                        `${model.integrity.current.toLocaleString()} / ` +
+                        `${model.integrity.maximum.toLocaleString()}`;
+
+                    bar.appendChild(text);
+                    tooltip.appendChild(bar);
+                }
+
+                link?.setAttribute('aria-label', model.ariaLabel);
+                return true;
             }
 
             function positionDockTooltip(tooltip, anchor) {
@@ -3395,11 +3795,9 @@ function registerGlobalUX(SFUX) {
             }
 
             function showDockTooltip(link, slot) {
-                const text = getDockTooltipText(link);
-                if (!text) return;
-
                 const tooltip = ensureDockTooltipElement();
-                tooltip.textContent = text;
+                if (!renderDockTooltip(tooltip, link)) return;
+
                 tooltip.style.display = 'block';
                 tooltip.setAttribute('aria-hidden', 'false');
 
@@ -3485,25 +3883,15 @@ function registerGlobalUX(SFUX) {
                 );
 
                 for (const link of links) {
-                    if (link.hasAttribute('aria-label')) continue;
-
-                    const tooltip = (link.getAttribute('data-tooltip') || '')
-                        .replace(/&#010;/gi, '\n')
-                        .replace(/\r/g, '')
-                        .split('\n')
-                        .map(part => part.trim())
-                        .filter(Boolean);
-
-                    if (tooltip.length) {
-                        const [shipClass, status] = tooltip;
-                        const pieces = ['Ship'];
-                        if (shipClass) pieces.push(shipClass);
-
+                    const model = buildDockTooltipModel(link);
+                    if (model?.ariaLabel) {
                         const role = link.dataset.sfguRoleLabel;
-                        if (role) pieces.push(`${role} dock`);
-
-                        if (status) pieces.push(status);
-                        link.setAttribute('aria-label', pieces.join(', '));
+                        link.setAttribute(
+                            'aria-label',
+                            role
+                                ? `${model.ariaLabel}, ${role} dock`
+                                : model.ariaLabel
+                        );
                         continue;
                     }
 
@@ -4619,18 +5007,26 @@ function registerGlobalUX(SFUX) {
                 const currentPath = normalizedPath(window.location.href);
                 const topItems = Array.from(nav.querySelectorAll(':scope > ul > li'));
 
+                for (const currentLink of nav.querySelectorAll('.sfgu-current-link')) {
+                    currentLink.classList.remove('sfgu-current-link');
+                }
+
                 for (const item of topItems) {
                     item.classList.remove('sfgu-current');
 
                     const links = Array.from(item.querySelectorAll('a[href]'));
-                    const exactMatch = links.some(link => {
+                    const exactLink = links.find(link => {
                         const href = link.getAttribute('href') || '';
                         if (!href || href === '#' || href.startsWith('javascript:')) return false;
                         return normalizedPath(link.href) === currentPath;
                     });
 
-                    if (exactMatch) {
+                    if (exactLink) {
                         item.classList.add('sfgu-current');
+                        const submenuItem = exactLink.closest('li');
+                        if (submenuItem && submenuItem !== item) {
+                            submenuItem.classList.add('sfgu-current-link');
+                        }
                         return;
                     }
                 }
@@ -4977,7 +5373,7 @@ function registerGlobalUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.5.0 | Research Optimizer module. */
+/* StarFury UX Suite 2.5.8 | Research Optimizer module. */
 function registerResearchOptimizer(SFUX) {
     SFUX.register({
         id: 'research', phase: 'ready',
@@ -7596,7 +7992,7 @@ function registerResearchOptimizer(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.5.0 | Buildings UX module. */
+/* StarFury UX Suite 2.5.8 | Buildings UX module. */
 function registerBuildingsUX(SFUX) {
     SFUX.register({
         id: 'buildings', phase: 'ready',
@@ -10756,9 +11152,9 @@ function registerBuildingsUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.5.0 | Ship Power Routing module. */
+/* StarFury UX Suite 2.5.8 | Ship Power Routing module. */
 
-/* StarFury UX Suite 2.5.0 | Rewards UX module. */
+/* StarFury UX Suite 2.5.8 | Rewards UX module. */
 function registerRewardsUX(SFUX) {
     'use strict';
 
@@ -11515,7 +11911,7 @@ function registerRewardsUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.5.0 | Attack Room command layout and fleet accounting. */
+/* StarFury UX Suite 2.5.8 | Attack Room command layout and fleet accounting. */
 function registerAttackUX(SFUX) {
     'use strict';
 
@@ -12632,7 +13028,7 @@ function registerAttackUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.5.0 | Raid roster density, mercenary selection, and payout accounting. */
+/* StarFury UX Suite 2.5.8 | Raid roster density, mercenary selection, and payout accounting. */
 function registerRaidUX(SFUX) {
     'use strict';
 
@@ -13885,7 +14281,7 @@ function registerShipPowerRouting(SFUX) {
             // ---------------------------------------------------------------------
             const STYLE_ID = 'sfux-ship-power-routing-style';
             const PROFILE_KEY = 'sfuxShipPowerProfilesV1';
-            const SHIP_NAME_CACHE_KEY = 'sfuxShipNamesV1';
+            const SHIP_NAME_CACHE_KEY = SFUX.storage.keys.shipMetadata;
             // Client-side request/cache budgets, not game rules.
             const NAME_CACHE_MAX = 400;
             const NAME_CACHE_RETAIN = 350;
@@ -13902,19 +14298,44 @@ function registerShipPowerRouting(SFUX) {
                 return String(shipNameCache[shipId]?.name || '').trim();
             }
 
-            function rememberShipName(shipId, name) {
+            function cachedShipMode(shipId) {
+                if (!shipId) return '';
+
+                const key = String(shipNameCache[shipId]?.mode || '')
+                    .trim()
+                    .toLowerCase();
+
+                return key === 'fixed'
+                    ? 'Fixed'
+                    : key === 'flexible'
+                        ? 'Flexible'
+                        : '';
+            }
+
+            function rememberShipMetadata(shipId, { name = '', mode = '' } = {}) {
                 const cleanId = String(shipId || '').trim();
                 const cleanName = String(name || '').replace(/\s+/g, ' ').trim();
 
-                if (!cleanId || !cleanName) return;
+                const modeKey = String(mode || '').trim().toLowerCase();
+                const cleanMode = modeKey === 'fixed'
+                    ? 'Fixed'
+                    : modeKey === 'flexible'
+                        ? 'Flexible'
+                        : '';
 
-                if (shipNameCache[cleanId]?.name === cleanName) {
-                    shipNameCache[cleanId].seenAt = Date.now();
-                    return;
-                }
+                if (!cleanId || (!cleanName && !cleanMode)) return;
+
+                const existing = (
+                    shipNameCache[cleanId] &&
+                    typeof shipNameCache[cleanId] === 'object'
+                )
+                    ? shipNameCache[cleanId]
+                    : {};
 
                 shipNameCache[cleanId] = {
-                    name: cleanName,
+                    ...existing,
+                    ...(cleanName ? { name: cleanName } : {}),
+                    ...(cleanMode ? { mode: cleanMode } : {}),
                     seenAt: Date.now()
                 };
 
@@ -13930,6 +14351,14 @@ function registerShipPowerRouting(SFUX) {
                 SFUX.storage.set(SHIP_NAME_CACHE_KEY, shipNameCache);
             }
 
+            function rememberShipName(shipId, name) {
+                rememberShipMetadata(shipId, { name });
+            }
+
+            function rememberShipMode(shipId, mode) {
+                rememberShipMetadata(shipId, { mode });
+            }
+
             function shipNameFromDocument(doc) {
                 const form = Array.from(doc.forms || []).find(candidate => {
                     const action = candidate.getAttribute('action') || '';
@@ -13940,12 +14369,44 @@ function registerShipPowerRouting(SFUX) {
                 return String(input?.value || '').replace(/\s+/g, ' ').trim();
             }
 
+            function shipModeFromDocument(doc) {
+                const rows = Array.from(
+                    doc.querySelectorAll('.shipviewtable tr')
+                );
+
+                for (const row of rows) {
+                    const cells = Array.from(row.cells || []);
+                    if (cells.length < 2) continue;
+
+                    const label = String(cells[0].textContent || '')
+                        .replace(/\s+/g, ' ')
+                        .trim()
+                        .toLowerCase();
+
+                    if (label !== 'modification') continue;
+
+                    const mode = String(cells[1].textContent || '')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+
+                    return /^fixed$/i.test(mode)
+                        ? 'Fixed'
+                        : /^flexible$/i.test(mode)
+                            ? 'Flexible'
+                            : '';
+                }
+
+                return '';
+            }
+
             function rememberCurrentViewShipName() {
                 const shipId = getShipId();
                 if (!shipId) return;
 
                 const name = shipNameFromDocument(document);
-                if (name) rememberShipName(shipId, name);
+                const mode = shipModeFromDocument(document);
+
+                rememberShipMetadata(shipId, { name, mode });
             }
 
             const DEFAULT_PROFILES = {
@@ -20238,6 +20699,7 @@ function registerShipPowerRouting(SFUX) {
                 let mode = '';
                 if (imageCell.querySelector('.fixedIcon')) mode = 'Fixed';
                 if (imageCell.querySelector('.flexIcon')) mode = 'Flexible';
+                if (shipId && mode) rememberShipMode(shipId, mode);
 
                 let shipName = '';
                 if (shipId) {
@@ -21762,20 +22224,24 @@ function registerShipPowerRouting(SFUX) {
                 return true;
             }
 
-            async function fetchShipNameFromViewPage(link) {
+            async function fetchShipMetadataFromViewPage(link) {
                 try {
                     const response = await ctx.fetch(link.href, {
                         method: 'GET',
                         credentials: 'same-origin'
                     });
 
-                    if (!response.ok) return '';
+                    if (!response.ok) return { name: '', mode: '' };
 
                     const html = await response.text();
                     const doc = new DOMParser().parseFromString(html, 'text/html');
-                    return shipNameFromDocument(doc);
+
+                    return {
+                        name: shipNameFromDocument(doc),
+                        mode: shipModeFromDocument(doc)
+                    };
                 } catch (error) {
-                    return '';
+                    return { name: '', mode: '' };
                 }
             }
 
@@ -21810,16 +22276,16 @@ function registerShipPowerRouting(SFUX) {
                     if (lookupsUsed >= lookupBudget) continue;
                     lookupsUsed += 1;
 
-                    const name = await fetchShipNameFromViewPage(link);
+                    const metadata = await fetchShipMetadataFromViewPage(link);
                     if (!ctx.alive) return;
 
-                    if (name) {
-                        rememberShipName(shipId, name);
+                    if (metadata.name || metadata.mode) {
+                        rememberShipMetadata(shipId, metadata);
+                    }
 
-                        if (link.isConnected) {
-                            link.textContent = name;
-                            link.classList.remove('sfux-dock-ship-name--fallback');
-                        }
+                    if (metadata.name && link.isConnected) {
+                        link.textContent = metadata.name;
+                        link.classList.remove('sfux-dock-ship-name--fallback');
                     }
 
                     await new Promise(resolve => ctx.timeout(resolve, NAME_LOOKUP_DELAY_MS));
