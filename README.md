@@ -21,8 +21,8 @@ The UX Suite combines the earlier Star Fury interface projects into one modular 
 
 It currently covers:
 
-- responsive navigation and empire-status HUD, including overlay-style mobile navigation that does not push page content downward
-- unified Advisor + compact Star Dock with persistent open/closed state, improved alignment, reduced page-load flashing, and full-bar mobile expand/collapse controls
+- responsive navigation and empire-status HUD, including overlay-style mobile navigation that does not push page content downward, current-page highlighting, and consistent hover, focus, and touch feedback
+- unified Advisor + compact Star Dock with persistent open/closed state, improved alignment, reduced page-load flashing, full-bar mobile expand/collapse controls, and compact desktop ship tooltips showing name, operational status, Fixed/Flexible state, and Sheathed Integrity
 - global notification toasts for Star Fury notice, warning, and error messages with severity-aware persistence, sequential timing, progress indication, manual dismissal, and navigation-safe layering
 - Research redesign with progress information, ETAs, queue presentation, completed/max-state handling, compact research explanations, responsive mobile layouts, and accessible technology information controls
 - native Research section-limit handling based on Star Fury's `[Limit: #]` data rather than inferred race-specific path rules
