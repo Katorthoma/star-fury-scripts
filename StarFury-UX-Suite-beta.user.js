@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury UX Suite Beta
 // @namespace    starfuryx.com
-// @version      2.5.10-beta.1
+// @version      2.5.10-beta.2
 // @author       Zathman
 // @license      MIT
 // @homepageURL  https://github.com/Katorthoma/star-fury-scripts
@@ -21,10 +21,10 @@
 
 (() => {
 'use strict';
-/* StarFury UX Suite 2.5.10-beta.1 | Shared runtime. No globals are published by the bundle. */
+/* StarFury UX Suite 2.5.10-beta.2 | Shared runtime. No globals are published by the bundle. */
 function createSFUX() {
     'use strict';
-    const SFUX = { version: '2.5.10-beta.1', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
+    const SFUX = { version: '2.5.10-beta.2', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
     // UI ASSUMPTION: dense building columns and nine navigation items need earlier stacking.
     SFUX.responsive = Object.freeze({ mobile: 640, navigation: 768, buildings: 800, phone: 430, narrowHeader: 460, tinyHud: 360 });
     SFUX.page = new URL(window.location.href);
@@ -567,7 +567,7 @@ html body input[type="button"].button-primary:not(.sf-raze-submit):disabled {
     return SFUX;
 }
 
-/* StarFury UX Suite 2.5.10-beta.1 | Global UX module. */
+/* StarFury UX Suite 2.5.10-beta.2 | Global UX module. */
 function registerGlobalUX(SFUX) {
     SFUX.register({
         id: 'global', phase: 'early',
@@ -5471,7 +5471,7 @@ function registerGlobalUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.5.10-beta.1 | Research Optimizer module. */
+/* StarFury UX Suite 2.5.10-beta.2 | Research Optimizer module. */
 function registerResearchOptimizer(SFUX) {
     SFUX.register({
         id: 'research', phase: 'ready',
@@ -8101,7 +8101,7 @@ function registerResearchOptimizer(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.5.10-beta.1 | Buildings UX module. */
+/* StarFury UX Suite 2.5.10-beta.2 | Buildings UX module. */
 function registerBuildingsUX(SFUX) {
     SFUX.register({
         id: 'buildings', phase: 'ready',
@@ -11261,9 +11261,9 @@ function registerBuildingsUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.5.10-beta.1 | Ship Power Routing module. */
+/* StarFury UX Suite 2.5.10-beta.2 | Ship Power Routing module. */
 
-/* StarFury UX Suite 2.5.10-beta.1 | Rewards UX module. */
+/* StarFury UX Suite 2.5.10-beta.2 | Rewards UX module. */
 function registerRewardsUX(SFUX) {
     'use strict';
 
@@ -12020,7 +12020,7 @@ function registerRewardsUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.5.10-beta.1 | Attack Room command layout and fleet accounting. */
+/* StarFury UX Suite 2.5.10-beta.2 | Attack Room command layout and fleet accounting. */
 function registerAttackUX(SFUX) {
     'use strict';
 
@@ -13143,7 +13143,7 @@ function registerAttackUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.5.10-beta.1 | Raid roster density, mercenary selection, and payout accounting. */
+/* StarFury UX Suite 2.5.10-beta.2 | Raid roster density, mercenary selection, and payout accounting. */
 function registerRaidUX(SFUX) {
     'use strict';
 
@@ -14396,6 +14396,7 @@ function registerShipPowerRouting(SFUX) {
             // ---------------------------------------------------------------------
             const STYLE_ID = 'sfux-ship-power-routing-style';
             const PROFILE_KEY = 'sfuxShipPowerProfilesV1';
+            const PROFILE_LOCAL_KEY = 'sfuxShipPowerProfilesV1:json';
             const SHIP_NAME_CACHE_KEY = SFUX.storage.keys.shipMetadata;
             // Client-side request/cache budgets, not game rules.
             const NAME_CACHE_MAX = 400;
@@ -14537,8 +14538,29 @@ function registerShipPowerRouting(SFUX) {
 
             const clampPercent = value => SFUX.format.clamp(value, 0, 100);
 
+            function parseStoredProfiles(raw) {
+                if (!raw) return null;
+
+                if (typeof raw === 'string') {
+                    try {
+                        const parsed = JSON.parse(raw);
+                        return parsed && typeof parsed === 'object' ? parsed : null;
+                    } catch {
+                        return null;
+                    }
+                }
+
+                return typeof raw === 'object' ? raw : null;
+            }
+
             function loadProfiles() {
-                const saved = SFUX.storage.get(PROFILE_KEY, null) || {};
+                const gmSaved = parseStoredProfiles(
+                    SFUX.storage.get(PROFILE_KEY, null)
+                );
+                const localSaved = parseStoredProfiles(
+                    SFUX.storage.localGet(PROFILE_LOCAL_KEY, null)
+                );
+                const saved = gmSaved || localSaved || {};
 
                 return {
                     weapons: {
@@ -14565,8 +14587,16 @@ function registerShipPowerRouting(SFUX) {
                     weapons: normalizeProfile(profiles.weapons),
                     sensors: normalizeProfile(profiles.sensors)
                 };
+                const serialized = JSON.stringify(normalized);
 
-                SFUX.storage.set(PROFILE_KEY, normalized);
+                /*
+                 * Persist as a primitive string for broad userscript-manager
+                 * compatibility. Some Safari managers are less reliable with
+                 * nested object values. Keep a same-origin localStorage fallback
+                 * and continue accepting legacy object-form GM values on read.
+                 */
+                SFUX.storage.set(PROFILE_KEY, serialized);
+                SFUX.storage.localSet(PROFILE_LOCAL_KEY, serialized);
                 return normalized;
             }
 
@@ -19514,9 +19544,12 @@ function registerShipPowerRouting(SFUX) {
                 editor.append(head, bar, legend, control, actions);
                 SFUX.ui.number(ctx, engineInput, { min: 0, max: 100, step: 1, spinner: true });
 
+                let editorEngineValue = 0;
+
                 function setEngineValue(value) {
                     const engine = clampPercent(value);
                     const primary = 100 - engine;
+                    editorEngineValue = engine;
 
                     engineInput.value = String(engine);
                     engineRange.value = String(engine);
@@ -19541,26 +19574,31 @@ function registerShipPowerRouting(SFUX) {
                     return editor.classList.contains('sfux-power-editor-open');
                 }
 
-                ctx.on(engineRange, 'input', () => {
+                const syncRange = () => {
                     setEngineValue(engineRange.value);
-                });
-
-                ctx.on(engineInput, 'input', () => {
+                };
+                const syncNumber = () => {
                     if (engineInput.value === '') return;
                     setEngineValue(engineInput.value);
-                });
+                };
 
-                ctx.on(engineInput, 'blur', () => {
-                    setEngineValue(engineInput.value);
-                });
+                ctx.on(engineRange, 'input', syncRange);
+                ctx.on(engineRange, 'change', syncRange);
+
+                ctx.on(engineInput, 'input', syncNumber);
+                ctx.on(engineInput, 'change', syncNumber);
+                ctx.on(engineInput, 'blur', syncNumber);
 
                 ctx.on(reset, 'click', () => {
                     setEngineValue(0);
                 });
 
                 ctx.on(save, 'click', () => {
+                    // Save the normalized editor state rather than depending on a
+                    // final DOM-value read at tap time on mobile Safari.
+                    setEngineValue(editorEngineValue);
                     profiles[mode] = normalizeProfile({
-                        engine: clampPercent(engineInput.value)
+                        engine: editorEngineValue
                     });
 
                     const savedProfiles = saveProfiles(profiles);
