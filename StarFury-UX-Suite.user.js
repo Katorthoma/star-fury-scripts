@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury UX Suite
 // @namespace    starfuryx.com
-// @version      2.5.9
+// @version      2.5.10
 // @author       Zathman
 // @license      MIT
 // @homepageURL  https://github.com/Katorthoma/star-fury-scripts
@@ -21,10 +21,10 @@
 
 (() => {
 'use strict';
-/* StarFury UX Suite 2.5.9 | Shared runtime. No globals are published by the bundle. */
+/* StarFury UX Suite 2.5.10 | Shared runtime. No globals are published by the bundle. */
 function createSFUX() {
     'use strict';
-    const SFUX = { version: '2.5.9', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
+    const SFUX = { version: '2.5.10', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
     // UI ASSUMPTION: dense building columns and nine navigation items need earlier stacking.
     SFUX.responsive = Object.freeze({ mobile: 640, navigation: 768, buildings: 800, phone: 430, narrowHeader: 460, tinyHud: 360 });
     SFUX.page = new URL(window.location.href);
@@ -33,11 +33,11 @@ function createSFUX() {
         try {
             const result = callback();
             if (result && typeof result.then === 'function') return result.catch(error => {
-                if (error.name !== 'AbortError') console.error(`[SFUX:${name}]`, error);
+                if (error?.name !== 'AbortError') console.error(`[SFUX:${name}]`, error);
             });
             return result;
         } catch (error) {
-            if (error.name !== 'AbortError') console.error(`[SFUX:${name}]`, error);
+            if (error?.name !== 'AbortError') console.error(`[SFUX:${name}]`, error);
         }
     };
     SFUX.dom.text = value => String(value || '').replace(/\s+/g, ' ').trim();
@@ -567,7 +567,7 @@ html body input[type="button"].button-primary:not(.sf-raze-submit):disabled {
     return SFUX;
 }
 
-/* StarFury UX Suite 2.5.9 | Global UX module. */
+/* StarFury UX Suite 2.5.10 | Global UX module. */
 function registerGlobalUX(SFUX) {
     SFUX.register({
         id: 'global', phase: 'early',
@@ -3824,11 +3824,16 @@ function registerGlobalUX(SFUX) {
                 const slots = contextRow.querySelectorAll(
                     '.minimapships > ul > li'
                 );
+                const hoverQuery = window.matchMedia?.(
+                    '(hover: hover) and (pointer: fine)'
+                );
+
+                const liveShipLink = slot => slot.querySelector(
+                    'a[href*="viewship.php"]'
+                );
 
                 for (const slot of slots) {
-                    const link = slot.querySelector(
-                        'a[href*="viewship.php"]'
-                    );
+                    const link = liveShipLink(slot);
                     if (!link) continue;
 
                     slot.classList.add(DOCK_CLICKABLE_CLASS);
@@ -3851,31 +3856,62 @@ function registerGlobalUX(SFUX) {
 
                     slot.dataset.sfguDockInteractionBound = 'true';
 
+                    /*
+                     * Touch taps must navigate immediately. Compatibility mouse events
+                     * on iOS therefore never open the hover card. Real fine-pointer
+                     * hover and keyboard focus still expose the tooltip.
+                     */
                     ctx.on(slot, 'mouseenter', () => {
-                        showDockTooltip(link, slot);
+                        if (hoverQuery && !hoverQuery.matches) return;
+
+                        const currentLink = liveShipLink(slot);
+                        if (currentLink) showDockTooltip(currentLink, slot);
                     });
 
                     ctx.on(slot, 'mouseleave', hideDockTooltip);
 
-                    ctx.on(link, 'focus', () => {
-                        showDockTooltip(link, slot);
+                    // Delegate focus so native replacement of the inner link is safe.
+                    ctx.on(slot, 'focusin', event => {
+                        const currentLink = event.target.closest?.(
+                            'a[href*="viewship.php"]'
+                        );
+                        if (currentLink && slot.contains(currentLink)) {
+                            showDockTooltip(currentLink, slot);
+                        }
                     });
 
-                    ctx.on(link, 'blur', hideDockTooltip);
+                    ctx.on(slot, 'focusout', event => {
+                        if (!slot.contains(event.relatedTarget)) {
+                            hideDockTooltip();
+                        }
+                    });
 
                     /*
                      * Any otherwise-unused area of the colored slot navigates to the
-                     * same ship. Clicking the original <a> remains fully native.
+                     * current ship. Clicking the original <a> remains fully native.
+                     * Modifier gestures are not forced into same-tab navigation.
                      */
                     ctx.on(slot, 'click', event => {
                         if (event.defaultPrevented) return;
+                        if (
+                            event.ctrlKey ||
+                            event.metaKey ||
+                            event.shiftKey ||
+                            event.altKey ||
+                            event.button !== 0
+                        ) {
+                            return;
+                        }
 
                         if (event.target.closest('a[href]')) {
                             return;
                         }
 
+                        const currentLink = liveShipLink(slot);
+                        if (!currentLink) return;
+
                         hideDockTooltip();
-                        window.location.href = link.href;
+                        window.location.href = currentLink.href;
                     });
                 }
             }
@@ -4177,6 +4213,9 @@ function registerGlobalUX(SFUX) {
                 const contextRow = document.querySelector('#advisor-dock');
                 if (!contextRow) return false;
 
+                const runDockStep = (name, callback) =>
+                    SFUX.safeRun(`global:dock:${name}`, callback);
+
                 if (contextRow.dataset.sfguContextInitialized === 'true') {
                     if (
                         !contextRow.style.getPropertyValue(
@@ -4193,25 +4232,25 @@ function registerGlobalUX(SFUX) {
                         );
                     }
 
-                    initializeUnifiedContextHeader(contextRow);
-                    improveAdvisorInformation(contextRow);
-                    ensureDockStarfield(contextRow);
-                    layoutMinimapShips(contextRow);
-                    improveMinimapAccessibility(contextRow);
-                    initializeDockShipInteractions(contextRow);
-                    fitAdvisorCopy(contextRow);
+                    runDockStep('header', () => initializeUnifiedContextHeader(contextRow));
+                    runDockStep('advisor', () => improveAdvisorInformation(contextRow));
+                    runDockStep('starfield', () => ensureDockStarfield(contextRow));
+                    runDockStep('layout', () => layoutMinimapShips(contextRow));
+                    runDockStep('accessibility', () => improveMinimapAccessibility(contextRow));
+                    runDockStep('interactions', () => initializeDockShipInteractions(contextRow));
+                    runDockStep('advisor-fit', () => fitAdvisorCopy(contextRow));
                     document.documentElement?.classList.remove(
                         CONTEXT_PREP_CLASS
                     );
                     return true;
                 }
 
-                captureNativeContextHeight(contextRow);
+                runDockStep('native-height', () => captureNativeContextHeight(contextRow));
 
                 contextRow.dataset.sfguContextInitialized = 'true';
                 contextRow.classList.add(CONTEXT_ROW_CLASS);
-                initializeUnifiedContextHeader(contextRow);
-                improveAdvisorInformation(contextRow);
+                runDockStep('header', () => initializeUnifiedContextHeader(contextRow));
+                runDockStep('advisor', () => improveAdvisorInformation(contextRow));
 
                 const advisor = contextRow.querySelector('.advisor-container');
                 const dock = contextRow.querySelector('.dock-container');
@@ -4226,26 +4265,16 @@ function registerGlobalUX(SFUX) {
                     dock.setAttribute('aria-label', 'Star Dock');
                 }
 
-                ensureDockStarfield(contextRow);
-                layoutMinimapShips(contextRow);
-                improveMinimapAccessibility(contextRow);
-                initializeDockShipInteractions(contextRow);
-                fitAdvisorCopy(contextRow);
+                runDockStep('starfield', () => ensureDockStarfield(contextRow));
+                runDockStep('layout', () => layoutMinimapShips(contextRow));
+                runDockStep('accessibility', () => improveMinimapAccessibility(contextRow));
+                runDockStep('interactions', () => initializeDockShipInteractions(contextRow));
+                runDockStep('advisor-fit', () => fitAdvisorCopy(contextRow));
 
-                /*
-                 * Reveal only after native Advisor/Dock markup has been transformed.
-                 * visibility kept its original layout footprint during initialization,
-                 * so this removes the native-to-custom flash without a layout jump.
-                 */
                 document.documentElement?.classList.remove(
                     CONTEXT_PREP_CLASS
                 );
 
-                /*
-                 * The minimap contents can be rebuilt by native page logic. Watch only
-                 * this small local subtree and re-apply accessibility/fallback handling
-                 * when that happens. This observer is entirely client-side.
-                 */
                 const dockContent = contextRow.querySelector('#stardock-content');
                 if (dockContent) {
                     let queued = false;
@@ -4256,20 +4285,14 @@ function registerGlobalUX(SFUX) {
 
                         ctx.raf(() => {
                             queued = false;
-                            ensureDockStarfield(contextRow);
-                            layoutMinimapShips(contextRow);
-                            improveMinimapAccessibility(contextRow);
-                            initializeDockShipInteractions(contextRow);
+                            runDockStep('observer-starfield', () => ensureDockStarfield(contextRow));
+                            runDockStep('observer-layout', () => layoutMinimapShips(contextRow));
+                            runDockStep('observer-accessibility', () => improveMinimapAccessibility(contextRow));
+                            runDockStep('observer-interactions', () => initializeDockShipInteractions(contextRow));
 
-                            /*
-                             * StarFury sometimes completes ship/status styling a moment
-                             * after inserting or updating the dock node. Re-run once
-                             * after that settling window so a transient tiny avatar can
-                             * never become the persistent compact-dock size.
-                             */
                             ctx.timeout(() => {
-                                layoutMinimapShips(contextRow);
-                                improveMinimapAccessibility(contextRow);
+                                runDockStep('settled-layout', () => layoutMinimapShips(contextRow));
+                                runDockStep('settled-accessibility', () => improveMinimapAccessibility(contextRow));
                             }, 90);
                         });
                     });
@@ -4280,29 +4303,19 @@ function registerGlobalUX(SFUX) {
                     });
                 }
 
-                /*
-                 * Re-check after window load in case the native theme's image stylesheet
-                 * resolves later than DOMContentLoaded. Native imagery replaces the
-                 * procedural fallback automatically when detected.
-                 */
                 ctx.on(window, 'load', () => {
-                    ensureDockStarfield(contextRow);
-                    layoutMinimapShips(contextRow);
-                    initializeDockShipInteractions(contextRow);
-                    fitAdvisorCopy(contextRow);
+                    runDockStep('load-starfield', () => ensureDockStarfield(contextRow));
+                    runDockStep('load-layout', () => layoutMinimapShips(contextRow));
+                    runDockStep('load-interactions', () => initializeDockShipInteractions(contextRow));
+                    runDockStep('load-advisor-fit', () => fitAdvisorCopy(contextRow));
                 }, { once: true });
 
-                /*
-                 * Reflow on actual panel-size changes, including responsive breakpoints
-                 * and expanded/collapsed surrounding layout. ResizeObserver is local and
-                 * performs no network activity.
-                 */
                 ctx.on(window, 'scroll', hideDockTooltip, {
                     passive: true
                 });
                 ctx.on(window, 'resize', () => {
                     hideDockTooltip();
-                    fitAdvisorCopy(contextRow);
+                    runDockStep('resize-advisor-fit', () => fitAdvisorCopy(contextRow));
                 }, {
                     passive: true
                 });
@@ -4316,7 +4329,7 @@ function registerGlobalUX(SFUX) {
 
                         ctx.raf(() => {
                             resizeQueued = false;
-                            layoutMinimapShips(contextRow);
+                            runDockStep('resize-layout', () => layoutMinimapShips(contextRow));
                         });
                     });
 
@@ -4338,6 +4351,7 @@ function registerGlobalUX(SFUX) {
              * paint time, then moves the native message node into a fixed toast
              * host. Native message text/links remain authoritative.
              * --------------------------------------------------------------------- */
+
             function injectToastStyles() {
                 ctx.style(TOAST_STYLE_ID, `
                     /*
@@ -5264,6 +5278,13 @@ function registerGlobalUX(SFUX) {
                     item.classList.add('sfgu-pressed');
                 };
 
+                const scheduleRelease = delay => {
+                    if (releaseTimer) {
+                        window.clearTimeout(releaseTimer);
+                    }
+                    releaseTimer = window.setTimeout(clearPressed, delay);
+                };
+
                 // Safari can follow a link before CSS :active becomes visibly painted.
                 // Apply the row state as soon as contact begins instead.
                 ctx.on(nav, 'pointerdown', pressTarget, {
@@ -5284,6 +5305,16 @@ function registerGlobalUX(SFUX) {
                     capture: true
                 });
 
+                // Clear stale feedback when a gesture does not unload this page.
+                ctx.on(nav, 'pointerup', () => scheduleRelease(600), {
+                    passive: true,
+                    capture: true
+                });
+                ctx.on(nav, 'touchend', () => scheduleRelease(600), {
+                    passive: true,
+                    capture: true
+                });
+
                 // Category labels remain on-page, so clear their pressed state shortly
                 // after the submenu action. Navigating links clear naturally on unload.
                 ctx.on(nav, 'click', event => {
@@ -5293,7 +5324,7 @@ function registerGlobalUX(SFUX) {
                     const href = link?.getAttribute('href')?.trim() || '';
 
                     if (!href || href === '#' || href.startsWith('javascript:')) {
-                        releaseTimer = window.setTimeout(clearPressed, 140);
+                        scheduleRelease(140);
                     }
                 }, true);
 
@@ -5412,14 +5443,19 @@ function registerGlobalUX(SFUX) {
              * integration should prefer explicit lifecycle hooks when available.
              * --------------------------------------------------------------------- */
             function start() {
-                /*
-                 * Styles and the anti-flash marker are installed at document-start,
-                 * before StarFury paints the native Advisor/Star Dock on normal loads.
-                 */
                 injectStyles();
-                injectToastStyles();
-                initializeMessageToasts();
                 document.documentElement?.classList.add(CONTEXT_PREP_CLASS);
+
+                // Schedule navigation/HUD/dock before independent toast setup.
+                ctx.find('#cssmenu', prepareEarlyNavigationShell);
+                ctx.ready(() => ctx.timeout(() => {
+                    ctx.find('#cssmenu', initializeNavigation);
+                    ctx.find('#statbar', initializeStatHud);
+                    ctx.find('#advisor-dock', initializeContextRow);
+                }, 20));
+
+                SFUX.safeRun('global:toast-styles', injectToastStyles);
+                SFUX.safeRun('global:toasts', initializeMessageToasts);
 
                 // Safety valve: never leave the native context invisible if a page is
                 // unusually slow, omits the expected markup, or another script fails.
@@ -5428,13 +5464,6 @@ function registerGlobalUX(SFUX) {
                         CONTEXT_PREP_CLASS
                     );
                 }, 2200);
-
-                ctx.find('#cssmenu', prepareEarlyNavigationShell);
-                ctx.ready(() => ctx.timeout(() => {
-                    ctx.find('#cssmenu', initializeNavigation);
-                    ctx.find('#statbar', initializeStatHud);
-                    ctx.find('#advisor-dock', initializeContextRow);
-                }, 20));
             }
 
             return { init() { return start(); }, destroy: ctx.destroy };
@@ -5442,7 +5471,7 @@ function registerGlobalUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.5.9 | Research Optimizer module. */
+/* StarFury UX Suite 2.5.10 | Research Optimizer module. */
 function registerResearchOptimizer(SFUX) {
     SFUX.register({
         id: 'research', phase: 'ready',
@@ -6011,31 +6040,38 @@ function registerResearchOptimizer(SFUX) {
                         white-space: nowrap !important;
                     }
 
-                    /* Active Research dashboard card */
+                    .sfro-active-heading {
+                        display: flex;
+                        align-items: center;
+                        flex-wrap: wrap;
+                        gap: 7px;
+                    }
+
+                    .sfro-active-heading .sfro-rp-rate {
+                        margin-left: 0;
+                        font-size: 12px !important;
+                    }
+
+                    /* Active Research mirrors the Research Queue card grammar. */
                     .sfro-active-card {
+                        display: grid;
+                        grid-template-columns: minmax(0,1fr) auto auto;
+                        grid-template-areas:
+                            "main metrics action"
+                            "progress progress progress";
+                        align-items: center;
+                        gap: 8px 10px;
                         margin: 0;
-                        padding: 12px 14px 13px;
-                        border: 1px solid rgba(var(--sfux-warning-rgb), 0.22);
-                        border-left: 3px solid rgba(var(--sfux-warning-rgb), 0.72);
-                        background: linear-gradient(
-                            180deg,
-                            rgba(78,66,38,0.22),
-                            rgba(38,34,27,0.18)
-                        );
+                        padding: 9px 11px 10px;
+                        border: 1px solid rgba(255,255,255,0.07);
+                        border-left: 3px solid rgba(var(--sfux-warning-rgb), .72);
+                        background: rgba(255,255,255,0.022);
                         box-shadow: inset 0 1px 0 rgba(255,255,255,0.025);
                     }
 
-                    .sfro-active-card-top {
-                        display: flex;
-                        align-items: center;
-                        justify-content: space-between;
-                        gap: 14px;
+                    .sfro-active-main {
+                        grid-area: main;
                         min-width: 0;
-                    }
-
-                    .sfro-active-card-title-wrap {
-                        min-width: 0;
-                        flex: 1 1 auto;
                     }
 
                     .sfro-active-card-title {
@@ -6057,26 +6093,13 @@ function registerResearchOptimizer(SFUX) {
                         text-overflow: ellipsis;
                     }
 
-                    .sfro-active-card-actions {
-                        display: flex;
-                        align-items: center;
-                        gap: 10px;
-                        flex: 0 0 auto;
-                    }
-
-                    .sfro-active-big-eta {
-                        display: inline-block;
-                        padding: 4px 8px;
-                        border: 1px solid rgba(var(--sfux-warning-rgb), 0.38);
-                        border-radius: 4px;
-                        background: rgba(var(--sfux-warning-rgb), 0.08);
-                        color: var(--sfux-warning);
-                        font-size: 13px;
-                        font-weight: 700;
-                        white-space: nowrap;
+                    .sfro-active-metrics {
+                        grid-area: metrics;
                     }
 
                     .sfro-active-cancel {
+                        grid-area: action;
+                        justify-self: end;
                         opacity: 0.46;
                         font-size: 12px !important;
                         transition: opacity 120ms ease;
@@ -6087,10 +6110,18 @@ function registerResearchOptimizer(SFUX) {
                         opacity: 1;
                     }
 
+                    .sfro-active-progress-row {
+                        grid-area: progress;
+                        display: grid;
+                        grid-template-columns: minmax(0,1fr) max-content;
+                        align-items: center;
+                        gap: 6px;
+                        margin-top: 1px;
+                    }
+
                     .sfro-active-progress {
                         position: relative;
                         height: 8px;
-                        margin-top: 11px;
                         overflow: hidden;
                         border: 1px solid rgba(255,255,255,0.08);
                         border-radius: 999px;
@@ -6107,27 +6138,15 @@ function registerResearchOptimizer(SFUX) {
                         );
                     }
 
-                    .sfro-active-meta {
-                        display: flex;
-                        align-items: center;
-                        flex-wrap: wrap;
-                        gap: 5px 14px;
-                        margin-top: 9px;
-                        color: rgba(255,255,255,0.67);
-                        font-size: 12.5px;
-                    }
-
-                    .sfro-active-meta strong {
-                        color: rgba(255,255,255,0.88);
-                        font-weight: 700;
-                    }
-
-                    .sfro-active-meta .sfro-active-percent {
+                    .sfro-active-progress-percent {
+                        min-width: 0;
                         color: var(--sfux-warning);
-                    }
-
-                    .sfro-active-rate {
-                        color: rgba(255,255,255,0.58);
+                        font-size: 13px;
+                        font-weight: 800;
+                        line-height: 1;
+                        text-align: right;
+                        font-variant-numeric: tabular-nums;
+                        white-space: nowrap;
                     }
 
                     /* Queue summary appended to the native section heading. */
@@ -6149,7 +6168,7 @@ function registerResearchOptimizer(SFUX) {
 
                     .sfro-queue-item {
                         display: grid;
-                        grid-template-columns: auto minmax(0,1fr) auto auto;
+                        grid-template-columns: minmax(0,1fr) auto auto;
                         align-items: center;
                         gap: 10px;
                         padding: 9px 11px;
@@ -6162,25 +6181,41 @@ function registerResearchOptimizer(SFUX) {
                         border-left-color: rgba(109,148,176,0.34);
                     }
 
-                    .sfro-queue-order {
-                        min-width: 36px;
-                        color: rgba(255,255,255,0.52);
-                        font-size: 11px;
-                        font-weight: 700;
-                        text-align: center;
-                        text-transform: uppercase;
-                        letter-spacing: .035em;
-                    }
-
-                    .sfro-queue-item:first-child .sfro-queue-order {
-                        color: var(--sfux-warning);
-                    }
-
                     .sfro-queue-main {
                         min-width: 0;
                     }
 
+                    .sfro-queue-head {
+                        display: flex;
+                        align-items: center;
+                        gap: 7px;
+                        min-width: 0;
+                    }
+
+                    .sfro-queue-order {
+                        flex: 0 0 auto;
+                        min-width: 0;
+                        padding: 2px 5px;
+                        border: 1px solid rgba(255,255,255,.10);
+                        border-radius: 3px;
+                        background: rgba(255,255,255,.035);
+                        color: rgba(255,255,255,0.52);
+                        font-size: 9.5px;
+                        font-weight: 800;
+                        line-height: 1.1;
+                        text-align: center;
+                        text-transform: uppercase;
+                        letter-spacing: .045em;
+                    }
+
+                    .sfro-queue-item:first-child .sfro-queue-order {
+                        border-color: rgba(var(--sfux-warning-rgb), .36);
+                        background: rgba(var(--sfux-warning-rgb), .075);
+                        color: var(--sfux-warning);
+                    }
+
                     .sfro-queue-tech {
+                        min-width: 0;
                         color: rgba(255,255,255,0.91);
                         font-size: 13.5px;
                         font-weight: 700;
@@ -6190,7 +6225,7 @@ function registerResearchOptimizer(SFUX) {
                     }
 
                     .sfro-queue-effect {
-                        margin-top: 2px;
+                        margin-top: 3px;
                         color: rgba(255,255,255,0.50);
                         font-size: 11.5px;
                         white-space: nowrap;
@@ -6200,26 +6235,40 @@ function registerResearchOptimizer(SFUX) {
 
                     .sfro-queue-metrics {
                         display: flex;
-                        align-items: center;
-                        gap: 7px;
+                        align-items: stretch;
+                        gap: 5px;
                         color: rgba(255,255,255,0.69);
-                        font-size: 12.5px;
-                        font-weight: 600;
                         white-space: nowrap;
                     }
 
-                    .sfro-queue-duration {
-                        padding: 2px 5px;
-                        border: 1px solid rgba(255,255,255,0.13);
-                        border-radius: 4px;
-                        background: rgba(255,255,255,0.045);
-                        color: rgba(255,255,255,0.79);
-                        font-weight: 700;
+                    .sfro-queue-metric {
+                        display: grid;
+                        gap: 1px;
+                        min-width: 62px;
+                        padding: 4px 6px;
+                        border: 1px solid rgba(255,255,255,.075);
+                        background: rgba(255,255,255,.025);
+                        text-align: center;
                     }
 
-                    .sfro-queue-complete {
-                        color: rgba(var(--sfux-warning-rgb), 0.88);
-                        font-weight: 700;
+                    .sfro-queue-metric-label {
+                        color: rgba(255,255,255,.48);
+                        font-size: 10.5px;
+                        font-weight: 800;
+                        line-height: 1;
+                        letter-spacing: .06em;
+                        text-transform: uppercase;
+                    }
+
+                    .sfro-queue-metric-value {
+                        color: rgba(255,255,255,.88);
+                        font-size: 12.5px;
+                        font-weight: 800;
+                        line-height: 1.15;
+                    }
+
+                    .sfro-queue-complete .sfro-queue-metric-value {
+                        color: rgba(var(--sfux-warning-rgb), 0.90);
                     }
 
                     .sfro-queue-remove {
@@ -6556,12 +6605,14 @@ function registerResearchOptimizer(SFUX) {
 
                         /* Active Research */
                         .sfro-active-card {
-                            padding: 11px 10px 12px;
-                        }
-
-                        .sfro-active-card-top {
-                            align-items: flex-start;
+                            grid-template-columns: minmax(0,1fr) auto;
+                            grid-template-areas:
+                                "main action"
+                                "metrics metrics"
+                                "progress progress";
+                            align-items: start;
                             gap: 8px;
+                            padding: 10px 9px;
                         }
 
                         .sfro-active-card-title {
@@ -6572,38 +6623,44 @@ function registerResearchOptimizer(SFUX) {
                         }
 
                         .sfro-active-card-effect {
-                            margin-top: 2px;
-                            font-size: 12px;
-                            line-height: 1.25;
+                            margin-top: 5px;
+                            font-size: 12.5px;
+                            line-height: 1.3;
                             white-space: normal;
                             overflow: visible;
                         }
 
-                        .sfro-active-progress {
-                            margin-top: 9px;
+                        .sfro-active-metrics {
+                            display: grid;
+                            grid-template-columns: repeat(3, minmax(0, 1fr));
+                            gap: 5px;
+                            width: 100%;
                         }
 
-                        .sfro-active-meta {
-                            display: grid;
-                            grid-template-columns: repeat(2, minmax(0, 1fr));
-                            gap: 5px 10px;
-                            margin-top: 8px;
-                            font-size: 12px;
+                        .sfro-active-metrics .sfro-queue-metric {
+                            min-width: 0;
+                            padding: 7px 5px;
+                        }
+
+                        .sfro-active-progress-row {
+                            gap: 6px;
+                            margin-top: 1px;
+                        }
+
+                        .sfro-active-progress-percent {
+                            min-width: 0;
+                            font-size: 13px;
                         }
 
                         /* Queue */
                         .sfro-queue-item {
-                            grid-template-columns: auto minmax(0, 1fr) auto;
+                            grid-template-columns: minmax(0, 1fr) auto;
                             grid-template-areas:
-                                "order main action"
-                                ". metrics metrics";
-                            gap: 5px 8px;
-                            padding: 9px 8px;
-                        }
-
-                        .sfro-queue-order {
-                            grid-area: order;
-                            min-width: 29px;
+                                "main action"
+                                "metrics metrics";
+                            align-items: start;
+                            gap: 8px 8px;
+                            padding: 10px 9px;
                         }
 
                         .sfro-queue-main {
@@ -6611,13 +6668,40 @@ function registerResearchOptimizer(SFUX) {
                             min-width: 0;
                         }
 
+                        .sfro-queue-head {
+                            align-items: baseline;
+                            gap: 6px;
+                        }
+
+                        .sfro-queue-order {
+                            padding: 3px 6px;
+                            font-size: 11px;
+                            line-height: 1.1;
+                        }
+
                         .sfro-queue-metrics {
                             grid-area: metrics;
-                            justify-self: end;
-                            flex-wrap: wrap;
-                            justify-content: flex-end;
-                            gap: 5px 6px;
-                            font-size: 12px;
+                            display: grid;
+                            grid-template-columns: repeat(3, minmax(0, 1fr));
+                            gap: 5px;
+                            width: 100%;
+                        }
+
+                        .sfro-queue-metric {
+                            min-width: 0;
+                            padding: 7px 5px;
+                        }
+
+                        .sfro-queue-metric-label {
+                            font-size: 11px;
+                            line-height: 1.1;
+                            letter-spacing: .045em;
+                        }
+
+                        .sfro-queue-metric-value {
+                            margin-top: 2px;
+                            font-size: 13px;
+                            line-height: 1.2;
                         }
 
                         .sfro-queue-item > :last-child {
@@ -6626,19 +6710,28 @@ function registerResearchOptimizer(SFUX) {
                         }
 
                         .sfro-queue-tech {
-                            font-size: 13px;
-                            line-height: 1.2;
+                            font-size: 14.5px;
+                            line-height: 1.22;
+                            white-space: normal;
+                            overflow: visible;
                         }
 
                         .sfro-queue-effect {
-                            font-size: 11px;
-                            line-height: 1.2;
+                            margin-top: 5px;
+                            color: rgba(255,255,255,.60);
+                            font-size: 12.5px;
+                            line-height: 1.3;
                             white-space: normal;
                             overflow: visible;
                         }
 
                         .sfro-queue-title-summary {
-                            font-size: 11.5px;
+                            display: block;
+                            margin: 4px 0 0;
+                            color: rgba(255,255,255,.64);
+                            font-size: 12px;
+                            line-height: 1.25;
+                            vertical-align: 0;
                         }
                     }
 
@@ -6669,26 +6762,11 @@ function registerResearchOptimizer(SFUX) {
                             text-align: center;
                         }
 
-                        .sfro-active-card-top {
-                            flex-direction: column;
-                            gap: 8px;
-                        }
-
-                        .sfro-active-card-actions {
-                            width: 100%;
-                            justify-content: space-between;
-                        }
-
-                        .sfro-active-meta {
-                            grid-template-columns: 1fr 1fr;
-                        }
-
                         .sfro-queue-item {
-                            grid-template-columns: auto minmax(0, 1fr);
+                            grid-template-columns: minmax(0, 1fr) auto;
                             grid-template-areas:
-                                "order main"
-                                ". metrics"
-                                ". action";
+                                "main action"
+                                "metrics metrics";
                         }
 
                         .sfro-queue-item > :last-child {
@@ -6710,8 +6788,9 @@ function registerResearchOptimizer(SFUX) {
 
                         .sfro-active-cancel,
                         .sfro-queue-remove {
-                            min-height: 28px;
-                            padding: 5px 7px;
+                            min-height: 32px;
+                            padding: 6px 8px;
+                            font-size: 12px !important;
                         }
                     }
                 `); }
@@ -7320,17 +7399,16 @@ function registerResearchOptimizer(SFUX) {
             function markResearchRate(researchRate) {
                 if (!researchRate) return;
 
-                const sectionTitle = [...document.querySelectorAll('.sectionTitle')]
-                    .find(el => /^Tech Tree$/i.test(normalizeText(el.textContent)));
-
+                const sectionTitle = findResearchSectionTitle(/Active Research/i);
                 if (!sectionTitle) return;
-                sectionTitle.classList.add('sfro-tech-title');
+
+                sectionTitle.classList.add('sfro-active-heading');
                 if (sectionTitle.querySelector('.sfro-rp-rate')) return;
 
                 const badge = ctx.element('span');
                 badge.className = 'sfro-rp-rate';
                 badge.textContent = `${researchRate.toLocaleString()} RP/tick`;
-                badge.title = 'All ETAs use the current Research Points per Tick shown by the Advisor.';
+                badge.title = 'Current Research Points per Tick. All research ETAs use this rate.';
                 sectionTitle.appendChild(badge);
             }
 
@@ -7808,43 +7886,72 @@ function registerResearchOptimizer(SFUX) {
                 const card = ctx.element('div');
                 card.className = 'sfro-active-card';
 
-                const top = ctx.element('div');
-                top.className = 'sfro-active-card-top';
-
-                const titleWrap = ctx.element('div');
-                titleWrap.className = 'sfro-active-card-title-wrap';
+                const main = ctx.element('div');
+                main.className = 'sfro-active-main';
 
                 const title = ctx.element('div');
                 title.className = 'sfro-active-card-title';
                 title.textContent = activeResearch.name;
-
-                titleWrap.appendChild(title);
+                main.appendChild(title);
 
                 if (effect) {
                     const effectLine = ctx.element('div');
                     effectLine.className = 'sfro-active-card-effect';
                     effectLine.textContent = effect;
                     effectLine.title = effect;
-                    titleWrap.appendChild(effectLine);
+                    main.appendChild(effectLine);
                 }
 
-                const actions = ctx.element('div');
-                actions.className = 'sfro-active-card-actions';
+                const metrics = ctx.element('div');
+                metrics.className = 'sfro-queue-metrics sfro-active-metrics';
 
-                const eta = ctx.element('span');
-                eta.className = 'sfro-active-big-eta';
-                eta.textContent = `≈${ticks} ticks left`;
-                eta.title = `${activeResearch.remaining.toLocaleString()} RP remaining ÷ ${researchRate.toLocaleString()} RP/tick = ${ticks} ticks`;
+                const createMetric = (labelText, valueText, extraClass = '') => {
+                    const metric = ctx.element('span');
+                    metric.className =
+                        `sfro-queue-metric${extraClass ? ` ${extraClass}` : ''}`;
 
-                actions.appendChild(eta);
+                    const label = ctx.element('span');
+                    label.className = 'sfro-queue-metric-label';
+                    label.textContent = labelText;
 
+                    const value = ctx.element('span');
+                    value.className = 'sfro-queue-metric-value';
+                    value.textContent = valueText;
+
+                    metric.append(label, value);
+                    return metric;
+                };
+
+                const rp = createMetric(
+                    'RP',
+                    `${activeResearch.achieved.toLocaleString()} / ${activeResearch.total.toLocaleString()}`
+                );
+
+                const remaining = createMetric(
+                    'Remaining',
+                    `${activeResearch.remaining.toLocaleString()} RP`
+                );
+
+                const eta = createMetric(
+                    'Ticks left',
+                    `≈${ticks} ticks`,
+                    'sfro-queue-complete'
+                );
+                eta.title =
+                    `${activeResearch.remaining.toLocaleString()} RP remaining ÷ ` +
+                    `${researchRate.toLocaleString()} RP/tick = ${ticks} ticks`;
+
+                metrics.append(rp, remaining, eta);
+
+                let action = ctx.element('span');
                 if (cancelLink) {
                     cancelLink.classList.add('sfro-active-cancel');
                     cancelLink.title = 'Cancel research and lose all current progress';
-                    actions.appendChild(cancelLink);
+                    action = cancelLink;
                 }
 
-                top.append(titleWrap, actions);
+                const progressRow = ctx.element('div');
+                progressRow.className = 'sfro-active-progress-row';
 
                 const progress = ctx.element('div');
                 progress.className = 'sfro-active-progress';
@@ -7855,26 +7962,12 @@ function registerResearchOptimizer(SFUX) {
                 fill.style.width = `${Math.max(0, Math.min(100, percentExact))}%`;
                 progress.appendChild(fill);
 
-                const meta = ctx.element('div');
-                meta.className = 'sfro-active-meta';
-
-                const progressText = ctx.element('span');
-                progressText.innerHTML =
-                    `<strong>${activeResearch.achieved.toLocaleString()}</strong> / ${activeResearch.total.toLocaleString()} RP`;
-
                 const percent = ctx.element('span');
-                percent.className = 'sfro-active-percent';
-                percent.innerHTML = `<strong>${percentExact.toFixed(1)}%</strong> complete`;
+                percent.className = 'sfro-active-progress-percent';
+                percent.textContent = `${percentExact.toFixed(1)}%`;
 
-                const remaining = ctx.element('span');
-                remaining.innerHTML = `<strong>${activeResearch.remaining.toLocaleString()}</strong> RP remaining`;
-
-                const rate = ctx.element('span');
-                rate.className = 'sfro-active-rate';
-                rate.textContent = `${researchRate.toLocaleString()} RP/tick`;
-
-                meta.append(progressText, percent, remaining, rate);
-                card.append(top, progress, meta);
+                progressRow.append(progress, percent);
+                card.append(main, metrics, action, progressRow);
 
                 table.replaceWith(card);
             }
@@ -7976,18 +8069,22 @@ function registerResearchOptimizer(SFUX) {
                     const row = ctx.element('div');
                     row.className = 'sfro-queue-item';
 
-                    const order = ctx.element('div');
-                    order.className = 'sfro-queue-order';
-                    order.textContent = index === 0 ? 'NEXT' : `#${item.order}`;
-
                     const main = ctx.element('div');
                     main.className = 'sfro-queue-main';
+
+                    const head = ctx.element('div');
+                    head.className = 'sfro-queue-head';
+
+                    const order = ctx.element('span');
+                    order.className = 'sfro-queue-order';
+                    order.textContent = index === 0 ? 'NEXT' : `#${item.order}`;
 
                     const tech = ctx.element('div');
                     tech.className = 'sfro-queue-tech';
                     tech.textContent = item.name;
 
-                    main.appendChild(tech);
+                    head.append(order, tech);
+                    main.appendChild(head);
 
                     const effect = TECH_SUMMARIES[item.name] || '';
                     if (effect) {
@@ -8001,17 +8098,40 @@ function registerResearchOptimizer(SFUX) {
                     const metrics = ctx.element('div');
                     metrics.className = 'sfro-queue-metrics';
 
-                    const rp = ctx.element('span');
-                    rp.textContent = `${item.points.toLocaleString()} RP`;
+                    const createMetric = (labelText, valueText, extraClass = '') => {
+                        const metric = ctx.element('span');
+                        metric.className = `sfro-queue-metric${extraClass ? ` ${extraClass}` : ''}`;
 
-                    const duration = ctx.element('span');
-                    duration.className = 'sfro-queue-duration';
-                    duration.textContent = `${durationTicks} ticks`;
+                        const label = ctx.element('span');
+                        label.className = 'sfro-queue-metric-label';
+                        label.textContent = labelText;
+
+                        const value = ctx.element('span');
+                        value.className = 'sfro-queue-metric-value';
+                        value.textContent = valueText;
+
+                        metric.append(label, value);
+                        return metric;
+                    };
+
+                    const rp = createMetric(
+                        'RP',
+                        item.points.toLocaleString(),
+                        'sfro-queue-rp'
+                    );
+
+                    const duration = createMetric(
+                        'Duration',
+                        `${durationTicks} ticks`,
+                        'sfro-queue-duration'
+                    );
                     duration.title = `${item.points.toLocaleString()} RP ÷ ${researchRate.toLocaleString()} RP/tick = ${durationTicks} ticks`;
 
-                    const complete = ctx.element('span');
-                    complete.className = 'sfro-queue-complete';
-                    complete.textContent = `≈${cumulativeTicks} ticks from now`;
+                    const complete = createMetric(
+                        'From now',
+                        `≈${cumulativeTicks} ticks`,
+                        'sfro-queue-complete'
+                    );
                     complete.title =
                         'Approximate completion from now. Assumes the current RP/tick rate stays constant and conservatively rounds each research item separately; RP carryover between finishing ticks is not assumed.';
 
@@ -8025,7 +8145,7 @@ function registerResearchOptimizer(SFUX) {
                         action = item.removeLink;
                     }
 
-                    row.append(order, main, metrics, action);
+                    row.append(main, metrics, action);
                     list.appendChild(row);
                 });
 
@@ -8046,13 +8166,24 @@ function registerResearchOptimizer(SFUX) {
                 const activeResearch = getActiveResearch();
 
                 for (const table of document.querySelectorAll('.noticeBody table.basictable')) {
-                    optimizeTechTree(table, researchRate, activeResearch);
+                    SFUX.safeRun(
+                        'research:tree',
+                        () => optimizeTechTree(table, researchRate, activeResearch)
+                    );
                 }
 
-                handleZeroResearchState(researchRate, activeResearch);
-
-                optimizeActiveResearch(researchRate, activeResearch);
-                optimizeQueue(researchRate, activeResearch);
+                SFUX.safeRun(
+                    'research:zero-state',
+                    () => handleZeroResearchState(researchRate, activeResearch)
+                );
+                SFUX.safeRun(
+                    'research:active',
+                    () => optimizeActiveResearch(researchRate, activeResearch)
+                );
+                SFUX.safeRun(
+                    'research:queue',
+                    () => optimizeQueue(researchRate, activeResearch)
+                );
             }
 
 
@@ -8061,7 +8192,7 @@ function registerResearchOptimizer(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.5.9 | Buildings UX module. */
+/* StarFury UX Suite 2.5.10 | Buildings UX module. */
 function registerBuildingsUX(SFUX) {
     SFUX.register({
         id: 'buildings', phase: 'ready',
@@ -11221,9 +11352,9 @@ function registerBuildingsUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.5.9 | Ship Power Routing module. */
+/* StarFury UX Suite 2.5.10 | Ship Power Routing module. */
 
-/* StarFury UX Suite 2.5.9 | Rewards UX module. */
+/* StarFury UX Suite 2.5.10 | Rewards UX module. */
 function registerRewardsUX(SFUX) {
     'use strict';
 
@@ -11980,7 +12111,7 @@ function registerRewardsUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.5.9 | Attack Room command layout and fleet accounting. */
+/* StarFury UX Suite 2.5.10 | Attack Room command layout and fleet accounting. */
 function registerAttackUX(SFUX) {
     'use strict';
 
@@ -12035,6 +12166,21 @@ function registerAttackUX(SFUX) {
             function formatPair(stats) {
                 if (!stats) return '—';
                 return `${formatInteger(stats.current)} / ${formatInteger(stats.maximum)}`;
+            }
+
+            function formatCompactInteger(value) {
+                const number = Number(value);
+                if (!Number.isFinite(number)) return '—';
+                if (Math.abs(number) < 1000) return Math.trunc(number).toLocaleString('en-US');
+
+                const thousands = number / 1000;
+                const decimals = Number.isInteger(thousands) ? 0 : 1;
+                return `${thousands.toFixed(decimals).replace(/\.0$/, '')}K`;
+            }
+
+            function formatCompactPair(stats) {
+                if (!stats) return '—';
+                return `${formatCompactInteger(stats.current)} / ${formatCompactInteger(stats.maximum)}`;
             }
 
             function getRoleKey(row, fallbackRoleClass = null) {
@@ -12422,17 +12568,15 @@ function registerAttackUX(SFUX) {
                         color: rgba(255,255,255,.90);
                     }
 
-                    body.sfux-attack-page .sfux-attack-subtotal-meta,
-                    body.sfux-attack-page .sfux-attack-grand-meta {
-                        margin-left: 6px;
-                        color: rgba(255,255,255,.42);
-                        font-size: 9.5px;
-                        font-weight: 700;
-                    }
-
                     body.sfux-attack-page .sfux-attack-select-count {
                         color: rgba(255,255,255,.92) !important;
                         font-weight: 800 !important;
+                    }
+
+                    body.sfux-attack-page
+                    tr:not(.sfux-attack-group-header):not(.sfux-attack-subtotal):not(.sfux-attack-grand-total)
+                    .sfux-attack-name-column {
+                        font-weight: 800;
                     }
 
                     body.sfux-attack-page .sfux-attack-selection-summary {
@@ -12478,14 +12622,104 @@ function registerAttackUX(SFUX) {
                         margin-top: 2px !important;
                     }
 
+                    body.sfux-attack-page .sfux-attack-mobile-meta,
+                    body.sfux-attack-page .sfux-attack-hp-compact {
+                        display: none;
+                    }
+
                     @media (max-width: ${SFUX.responsive.mobile}px) {
+                        body.sfux-attack-page .sfux-attack-table-wrap {
+                            overflow-x: visible;
+                        }
+
+                        body.sfux-attack-page table.sfux-attack-table {
+                            width: 100% !important;
+                            min-width: 0 !important;
+                            table-layout: fixed;
+                        }
+
                         body.sfux-attack-page
                         table.sfux-attack-table
                         .sfux-attack-hull-column,
                         body.sfux-attack-page
                         table.sfux-attack-table
-                        .sfux-attack-shield-column {
+                        .sfux-attack-shield-column,
+                        body.sfux-attack-page
+                        table.sfux-attack-table
+                        .sfux-attack-class-column,
+                        body.sfux-attack-page
+                        table.sfux-attack-table
+                        .sfux-attack-engine-column {
                             display: none !important;
+                        }
+
+                        body.sfux-attack-page .sfux-attack-hp-full {
+                            display: none;
+                        }
+
+                        body.sfux-attack-page .sfux-attack-hp-compact {
+                            display: inline;
+                        }
+
+                        body.sfux-attack-page .sfux-attack-mobile-meta {
+                            display: block;
+                            margin-top: 3px;
+                            color: rgba(255,255,255,.64);
+                            font-size: 11.5px;
+                            font-weight: 700;
+                            line-height: 1.15;
+                            white-space: normal;
+                        }
+
+                        body.sfux-attack-page .sfux-attack-name-column {
+                            width: 30%;
+                            white-space: normal !important;
+                            line-height: 1.18;
+                        }
+
+                        body.sfux-attack-page .sfux-attack-hp,
+                        body.sfux-attack-page .sfux-attack-hp-header {
+                            width: 27%;
+                        }
+
+                        body.sfux-attack-page .sfux-attack-attack-column,
+                        body.sfux-attack-page .sfux-attack-damage-column {
+                            width: 16%;
+                        }
+
+                        body.sfux-attack-page .sfux-attack-select-column {
+                            width: 11%;
+                            min-width: 40px;
+                            text-align: center !important;
+                        }
+
+                        body.sfux-attack-page table.sfux-attack-table td,
+                        body.sfux-attack-page table.sfux-attack-table .tableheader {
+                            box-sizing: border-box;
+                            padding-right: 4px !important;
+                            padding-left: 4px !important;
+                            font-size: 11.5px;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                        }
+
+                        body.sfux-attack-page .sfux-attack-hp {
+                            font-size: 11.5px !important;
+                        }
+
+                        body.sfux-attack-page
+                        .sfux-attack-select-column input[type="checkbox"] {
+                            width: 20px;
+                            height: 20px;
+                            margin: 0 auto !important;
+                            accent-color: var(--sfux-info);
+                        }
+
+                        body.sfux-attack-page .sfux-attack-role-name,
+                        body.sfux-attack-page .sfux-attack-role-count,
+                        body.sfux-attack-page .sfux-attack-subtotal td,
+                        body.sfux-attack-page .sfux-attack-grand-total td {
+                            font-size: 11px;
                         }
                     }
 
@@ -12494,14 +12728,18 @@ function registerAttackUX(SFUX) {
                             grid-template-columns: 1fr;
                         }
 
+                        /*
+                         * Selected / Attack / Damage remain a compact three-column
+                         * instrument row on mobile rather than stacking vertically.
+                         */
                         body.sfux-attack-page .sfux-attack-selection-summary {
-                            grid-template-columns: 1fr;
+                            grid-template-columns: repeat(3, minmax(0, 1fr));
                         }
 
                         body.sfux-attack-page
                         .sfux-attack-selection-stat + .sfux-attack-selection-stat {
-                            border-top: 1px solid rgba(255,255,255,.06);
-                            border-left: 0;
+                            border-top: 0;
+                            border-left: 1px solid rgba(255,255,255,.06);
                         }
                     }
                 `);
@@ -12674,15 +12912,24 @@ function registerAttackUX(SFUX) {
                     'sfux-attack-shield-column'
                 );
 
+                headerRow.cells[0]?.classList.add('sfux-attack-name-column');
+                headerRow.cells[1]?.classList.add('sfux-attack-class-column');
+
                 const hpHeader = ctx.element('td');
-                hpHeader.className = 'tableheader';
+                hpHeader.className = 'tableheader sfux-attack-hp-header';
                 hpHeader.textContent = 'HP';
                 headerRow.insertBefore(hpHeader, headerRow.cells[4]);
 
-                // After HP insertion: Damage is column index 7.
-                if (headerRow.cells[7]) {
-                    headerRow.cells[7].classList.add('sfux-attack-damage-header');
-                }
+                // After HP insertion:
+                // 0 Name, 1 Class, 2 Hull, 3 Shields, 4 HP,
+                // 5 Engines, 6 Attack, 7 Damage, 8 Select.
+                headerRow.cells[5]?.classList.add('sfux-attack-engine-column');
+                headerRow.cells[6]?.classList.add('sfux-attack-attack-column');
+                headerRow.cells[7]?.classList.add(
+                    'sfux-attack-damage-header',
+                    'sfux-attack-damage-column'
+                );
+                headerRow.cells[8]?.classList.add('sfux-attack-select-column');
 
                 const groups = [];
                 const groupMap = new Map();
@@ -12719,12 +12966,16 @@ function registerAttackUX(SFUX) {
 
                     const hpCell = ctx.element('td');
                     hpCell.className = 'sfux-attack-hp';
-                    hpCell.textContent = formatPair(hp);
 
-                    // After HP insertion: Damage is column index 7.
-                    if (row.cells[7]) {
-                        row.cells[7].classList.add('sfux-attack-damage');
-                    }
+                    const hpFull = ctx.element('span');
+                    hpFull.className = 'sfux-attack-hp-full';
+                    hpFull.textContent = formatPair(hp);
+
+                    const hpCompact = ctx.element('span');
+                    hpCompact.className = 'sfux-attack-hp-compact';
+                    hpCompact.textContent = formatCompactPair(hp);
+
+                    hpCell.append(hpFull, hpCompact);
 
                     if (hull && shield) {
                         hpCell.title =
@@ -12732,6 +12983,26 @@ function registerAttackUX(SFUX) {
                     }
 
                     row.insertBefore(hpCell, row.cells[4]);
+
+                    row.cells[0]?.classList.add('sfux-attack-name-column');
+                    row.cells[1]?.classList.add('sfux-attack-class-column');
+                    row.cells[5]?.classList.add('sfux-attack-engine-column');
+                    row.cells[6]?.classList.add('sfux-attack-attack-column');
+                    row.cells[7]?.classList.add(
+                        'sfux-attack-damage',
+                        'sfux-attack-damage-column'
+                    );
+                    row.cells[8]?.classList.add('sfux-attack-select-column');
+
+                    const mobileMeta = ctx.element('span');
+                    mobileMeta.className = 'sfux-attack-mobile-meta';
+                    const classText = String(row.cells[1]?.textContent || '').trim();
+                    const engineText = String(row.cells[5]?.textContent || '').trim();
+                    mobileMeta.textContent = [
+                        classText,
+                        engineText ? `E${engineText}` : ''
+                    ].filter(Boolean).join(' · ');
+                    row.cells[0]?.appendChild(mobileMeta);
 
                     const checkbox = row.querySelector('input[name="shipid[]"][type="checkbox"]');
                     const attack = SFUX.format.number(
@@ -12859,34 +13130,43 @@ function registerAttackUX(SFUX) {
                         : 'sfux-attack-subtotal-label';
                     label.textContent = grand
                         ? 'Fleet total'
-                        : `${group.config.label} subtotal`;
+                        : 'Dock Subtotal';
 
-                    const meta = ctx.element('span');
-                    meta.className = grand
-                        ? 'sfux-attack-grand-meta'
-                        : 'sfux-attack-subtotal-meta';
-                    meta.textContent =
-                        `· ${group.count} ${group.count === 1 ? 'ship' : 'ships'}`;
+                    labelCell.appendChild(label);
 
-                    labelCell.append(label, meta);
-
-                    const hpCell = ctx.element('td');
-                    hpCell.textContent = formatPair({
+                    const hpStats = {
                         current: group.hpCurrent,
                         maximum: group.hpMaximum
-                    });
+                    };
+
+                    const hpCell = ctx.element('td');
+                    hpCell.className = 'sfux-attack-hp';
+
+                    const hpFull = ctx.element('span');
+                    hpFull.className = 'sfux-attack-hp-full';
+                    hpFull.textContent = formatPair(hpStats);
+
+                    const hpCompact = ctx.element('span');
+                    hpCompact.className = 'sfux-attack-hp-compact';
+                    hpCompact.textContent = formatCompactPair(hpStats);
+
+                    hpCell.append(hpFull, hpCompact);
 
                     const enginesCell = ctx.element('td');
+                    enginesCell.className = 'sfux-attack-engine-column';
                     enginesCell.textContent = '—';
 
                     const attackCell = ctx.element('td');
+                    attackCell.className = 'sfux-attack-attack-column';
                     attackCell.textContent = formatInteger(group.attack);
 
                     const damageCell = ctx.element('td');
+                    damageCell.className = 'sfux-attack-damage-column';
                     damageCell.textContent = formatInteger(group.damage);
 
                     const selectCell = ctx.element('td');
-                    selectCell.className = 'sfux-attack-select-count';
+                    selectCell.className =
+                        'sfux-attack-select-count sfux-attack-select-column';
                     selectCell.textContent = `0 / ${group.count}`;
                     selectCell.title = 'Selected / available';
 
@@ -12944,7 +13224,7 @@ function registerAttackUX(SFUX) {
                         .querySelectorAll('.sfux-attack-group-header > td')
                         .forEach(cell => {
                             cell.colSpan = isMobile
-                                ? totalColumns - 2
+                                ? 5
                                 : totalColumns;
                         });
 
@@ -12954,7 +13234,7 @@ function registerAttackUX(SFUX) {
                             '.sfux-attack-grand-total > td:first-child'
                         )
                         .forEach(cell => {
-                            cell.colSpan = isMobile ? 2 : 4;
+                            cell.colSpan = isMobile ? 1 : 4;
                         });
                 };
 
@@ -13080,10 +13360,16 @@ function registerAttackUX(SFUX) {
                 injectStyles();
 
                 if (SFUX.path === '/attack.php') {
-                    enhanceCommandArea(shipTable);
+                    SFUX.safeRun(
+                        'attack:command',
+                        () => enhanceCommandArea(shipTable)
+                    );
                 }
 
-                enhanceFleetTable(shipTable);
+                SFUX.safeRun(
+                    'attack:fleet',
+                    () => enhanceFleetTable(shipTable)
+                );
             }
 
             return {
@@ -13097,7 +13383,7 @@ function registerAttackUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.5.9 | Raid roster density, mercenary selection, and payout accounting. */
+/* StarFury UX Suite 2.5.10 | Raid roster density, mercenary selection, and payout accounting. */
 function registerRaidUX(SFUX) {
     'use strict';
 
@@ -13555,7 +13841,9 @@ function registerRaidUX(SFUX) {
                             grid-area: empire;
                             align-self: end;
                             padding-bottom: 1px;
-                            font-size: 12px;
+                            font-size: 13px;
+                            font-weight: 800;
+                            line-height: 1.2;
                         }
 
                         body.sfux-raid-page
@@ -13563,15 +13851,19 @@ function registerRaidUX(SFUX) {
                         .sfux-raid-fleet-cell {
                             grid-area: fleet;
                             align-self: start;
-                            padding-top: 1px;
-                            color: rgba(255,255,255,.62);
-                            font-size: 10px;
+                            padding-top: 2px;
+                            color: rgba(255,255,255,.68);
+                            font-size: 11.5px;
+                            line-height: 1.25;
                         }
 
                         body.sfux-raid-page
                         table.sfux-raid-roster
                         .sfux-raid-fleet-cell p + p {
-                            font-size: 9px;
+                            margin-top: 3px;
+                            color: rgba(255,255,255,.58);
+                            font-size: 11px;
+                            line-height: 1.2;
                         }
 
                         body.sfux-raid-page
@@ -13579,6 +13871,10 @@ function registerRaidUX(SFUX) {
                         .sfux-raid-payout-cell {
                             grid-area: payout;
                             align-self: end;
+                            color: rgba(255,255,255,.92);
+                            font-size: 12px;
+                            font-weight: 800;
+                            line-height: 1.2;
                             text-align: center;
                         }
 
@@ -13587,8 +13883,9 @@ function registerRaidUX(SFUX) {
                         .sfux-raid-status-cell {
                             grid-area: status;
                             align-self: start;
-                            color: rgba(255,255,255,.58);
-                            font-size: 10px;
+                            color: rgba(255,255,255,.66);
+                            font-size: 11.5px;
+                            line-height: 1.2;
                             text-align: center;
                         }
 
@@ -13634,6 +13931,8 @@ function registerRaidUX(SFUX) {
                             width: 100% !important;
                             min-height: 0;
                             padding: 8px 10px !important;
+                            font-size: 11px;
+                            line-height: 1.2;
                         }
 
                         body.sfux-raid-page table.sfux-raid-merc-table,
@@ -13686,7 +13985,8 @@ function registerRaidUX(SFUX) {
                         body.sfux-raid-page
                         table.sfux-raid-merc-table .sfux-raid-merc-loadout {
                             grid-area: loadout;
-                            font-size: 11px;
+                            font-size: 11.5px;
+                            line-height: 1.25;
                         }
 
                         body.sfux-raid-page
@@ -13717,7 +14017,8 @@ function registerRaidUX(SFUX) {
                         }
 
                         body.sfux-raid-page .sfux-raid-payout-label {
-                            font-size: 8px;
+                            font-size: 11px;
+                            line-height: 1.1;
                         }
 
                         body.sfux-raid-page .sfux-raid-payout-value {
@@ -13725,7 +14026,8 @@ function registerRaidUX(SFUX) {
                         }
 
                         body.sfux-raid-page .sfux-raid-payout-detail {
-                            font-size: 9px;
+                            font-size: 11.5px;
+                            line-height: 1.25;
                         }
                     }
                 `);
@@ -14350,6 +14652,7 @@ function registerShipPowerRouting(SFUX) {
             // ---------------------------------------------------------------------
             const STYLE_ID = 'sfux-ship-power-routing-style';
             const PROFILE_KEY = 'sfuxShipPowerProfilesV1';
+            const PROFILE_LOCAL_KEY = 'sfuxShipPowerProfilesV1:json';
             const SHIP_NAME_CACHE_KEY = SFUX.storage.keys.shipMetadata;
             // Client-side request/cache budgets, not game rules.
             const NAME_CACHE_MAX = 400;
@@ -14491,8 +14794,29 @@ function registerShipPowerRouting(SFUX) {
 
             const clampPercent = value => SFUX.format.clamp(value, 0, 100);
 
+            function parseStoredProfiles(raw) {
+                if (!raw) return null;
+
+                if (typeof raw === 'string') {
+                    try {
+                        const parsed = JSON.parse(raw);
+                        return parsed && typeof parsed === 'object' ? parsed : null;
+                    } catch {
+                        return null;
+                    }
+                }
+
+                return typeof raw === 'object' ? raw : null;
+            }
+
             function loadProfiles() {
-                const saved = SFUX.storage.get(PROFILE_KEY, null) || {};
+                const gmSaved = parseStoredProfiles(
+                    SFUX.storage.get(PROFILE_KEY, null)
+                );
+                const localSaved = parseStoredProfiles(
+                    SFUX.storage.localGet(PROFILE_LOCAL_KEY, null)
+                );
+                const saved = gmSaved || localSaved || {};
 
                 return {
                     weapons: {
@@ -14519,8 +14843,16 @@ function registerShipPowerRouting(SFUX) {
                     weapons: normalizeProfile(profiles.weapons),
                     sensors: normalizeProfile(profiles.sensors)
                 };
+                const serialized = JSON.stringify(normalized);
 
-                SFUX.storage.set(PROFILE_KEY, normalized);
+                /*
+                 * Persist as a primitive string for broad userscript-manager
+                 * compatibility. Some Safari managers are less reliable with
+                 * nested object values. Keep a same-origin localStorage fallback
+                 * and continue accepting legacy object-form GM values on read.
+                 */
+                SFUX.storage.set(PROFILE_KEY, serialized);
+                SFUX.storage.localSet(PROFILE_LOCAL_KEY, serialized);
                 return normalized;
             }
 
@@ -19468,9 +19800,12 @@ function registerShipPowerRouting(SFUX) {
                 editor.append(head, bar, legend, control, actions);
                 SFUX.ui.number(ctx, engineInput, { min: 0, max: 100, step: 1, spinner: true });
 
+                let editorEngineValue = 0;
+
                 function setEngineValue(value) {
                     const engine = clampPercent(value);
                     const primary = 100 - engine;
+                    editorEngineValue = engine;
 
                     engineInput.value = String(engine);
                     engineRange.value = String(engine);
@@ -19495,26 +19830,31 @@ function registerShipPowerRouting(SFUX) {
                     return editor.classList.contains('sfux-power-editor-open');
                 }
 
-                ctx.on(engineRange, 'input', () => {
+                const syncRange = () => {
                     setEngineValue(engineRange.value);
-                });
-
-                ctx.on(engineInput, 'input', () => {
+                };
+                const syncNumber = () => {
                     if (engineInput.value === '') return;
                     setEngineValue(engineInput.value);
-                });
+                };
 
-                ctx.on(engineInput, 'blur', () => {
-                    setEngineValue(engineInput.value);
-                });
+                ctx.on(engineRange, 'input', syncRange);
+                ctx.on(engineRange, 'change', syncRange);
+
+                ctx.on(engineInput, 'input', syncNumber);
+                ctx.on(engineInput, 'change', syncNumber);
+                ctx.on(engineInput, 'blur', syncNumber);
 
                 ctx.on(reset, 'click', () => {
                     setEngineValue(0);
                 });
 
                 ctx.on(save, 'click', () => {
+                    // Save the normalized editor state rather than depending on a
+                    // final DOM-value read at tap time on mobile Safari.
+                    setEngineValue(editorEngineValue);
                     profiles[mode] = normalizeProfile({
-                        engine: clampPercent(engineInput.value)
+                        engine: editorEngineValue
                     });
 
                     const savedProfiles = saveProfiles(profiles);
@@ -20459,13 +20799,18 @@ function registerShipPowerRouting(SFUX) {
                 const nativeSubmit = Array.from(form.querySelectorAll('input[type="submit"]'))
                     .find(input => normalizeText(input.value).includes('modify power'));
 
-                if (!weaponsInput || !engineInput || !sensorsInput || !nativeTable) return;
+                if (
+                    !weaponsInput ||
+                    !engineInput ||
+                    !sensorsInput ||
+                    !nativeTable ||
+                    !nativeSubmit
+                ) {
+                    return;
+                }
                 if ([weaponsInput, engineInput, sensorsInput].some(field => field.matches(':disabled') || field.readOnly)) return;
 
                 injectStyles();
-
-                nativeTable.classList.add('sfux-power-native-hidden');
-                if (nativeSubmit) nativeSubmit.classList.add('sfux-power-native-hidden');
 
                 const profiles = loadProfiles();
                 let current = readDisplayedDistribution(form);
@@ -20585,6 +20930,11 @@ function registerShipPowerRouting(SFUX) {
 
                 form.insertBefore(router, nativeTable);
                 refresh();
+
+                // Hide native controls only after the replacement exists and has
+                // initialized successfully. Failure leaves the native form usable.
+                nativeTable.classList.add('sfux-power-native-hidden');
+                nativeSubmit.classList.add('sfux-power-native-hidden');
                 hideNativePowerDistributionTable();
             }
 
@@ -22442,7 +22792,7 @@ function registerShipPowerRouting(SFUX) {
                 if (!isStarDockOverviewPage()) return;
 
                 injectStyles();
-                enhanceCadetTraining();
+                SFUX.safeRun('military:stardock:cadets', enhanceCadetTraining);
 
                 const contentBox = Array.from(
                     document.querySelectorAll('#content .contentbox')
@@ -22456,7 +22806,10 @@ function registerShipPowerRouting(SFUX) {
                 }
 
                 contentBox.classList.add('sfux-stardock-overview');
-                syncDockCardStarfield(contentBox);
+                SFUX.safeRun(
+                    'military:stardock:starfield',
+                    () => syncDockCardStarfield(contentBox)
+                );
 
                 const containers = Array.from(
                     contentBox.querySelectorAll('.categoryContainer')
@@ -22467,6 +22820,7 @@ function registerShipPowerRouting(SFUX) {
                 let totalCapacity = 0;
 
                 for (const container of containers) {
+                    SFUX.safeRun('military:stardock:category', () => {
                     const sectionTitle = container.querySelector(':scope > .sectionTitle');
 
                     // Preserve StarFury's native Comms semantic state before rebuilding
@@ -22559,7 +22913,10 @@ function registerShipPowerRouting(SFUX) {
                         table.classList.add('sfux-dock-table');
 
                         for (const row of Array.from(table.rows || [])) {
-                            enhanceDockRow(row);
+                            SFUX.safeRun(
+                                'military:stardock:row',
+                                () => enhanceDockRow(row)
+                            );
                         }
 
                         const attentionRows = Array.from(
@@ -22631,6 +22988,7 @@ function registerShipPowerRouting(SFUX) {
                         title: parsed.title,
                         current: parsed.current,
                         maximum: parsed.maximum
+                    });
                     });
                 }
 
@@ -23591,8 +23949,14 @@ function registerShipPowerRouting(SFUX) {
 
                 if (isShipConstructionPage()) {
                     injectStyles();
-                    enhanceCadetTraining();
-                    enhanceShipConstruction();
+                    SFUX.safeRun(
+                        'military:construction:cadets',
+                        enhanceCadetTraining
+                    );
+                    SFUX.safeRun(
+                        'military:construction:dashboard',
+                        enhanceShipConstruction
+                    );
                     return;
                 }
 
