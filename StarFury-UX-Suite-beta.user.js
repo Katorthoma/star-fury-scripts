@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury UX Suite Beta
 // @namespace    starfuryx.com
-// @version      2.4.20-beta.1
+// @version      2.5.10-beta.1
 // @author       Zathman
 // @license      MIT
 // @homepageURL  https://github.com/Katorthoma/star-fury-scripts
@@ -21,10 +21,10 @@
 
 (() => {
 'use strict';
-/* StarFury UX Suite 2.4.20 | Shared runtime. No globals are published by the bundle. */
+/* StarFury UX Suite 2.5.10-beta.1 | Shared runtime. No globals are published by the bundle. */
 function createSFUX() {
     'use strict';
-    const SFUX = { version: '2.4.20', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
+    const SFUX = { version: '2.5.10-beta.1', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
     // UI ASSUMPTION: dense building columns and nine navigation items need earlier stacking.
     SFUX.responsive = Object.freeze({ mobile: 640, navigation: 768, buildings: 800, phone: 430, narrowHeader: 460, tinyHud: 360 });
     SFUX.page = new URL(window.location.href);
@@ -33,11 +33,11 @@ function createSFUX() {
         try {
             const result = callback();
             if (result && typeof result.then === 'function') return result.catch(error => {
-                if (error.name !== 'AbortError') console.error(`[SFUX:${name}]`, error);
+                if (error?.name !== 'AbortError') console.error(`[SFUX:${name}]`, error);
             });
             return result;
         } catch (error) {
-            if (error.name !== 'AbortError') console.error(`[SFUX:${name}]`, error);
+            if (error?.name !== 'AbortError') console.error(`[SFUX:${name}]`, error);
         }
     };
     SFUX.dom.text = value => String(value || '').replace(/\s+/g, ' ').trim();
@@ -117,6 +117,17 @@ function createSFUX() {
             };
         }
 
+        if (key.includes('transfer')) {
+            // Match StarFury's native Transferring badge: sunflower/olive gold.
+            return {
+                key: 'transferring',
+                color: '#b8ac3c',
+                background: 'rgba(132,124,45,0.96)',
+                border: 'rgba(216,200,77,0.96)',
+                glow: 'rgba(184,172,60,0.38)'
+            };
+        }
+
         if (key.includes('explor')) {
             return {
                 key: 'exploring',
@@ -183,6 +194,9 @@ function createSFUX() {
     SFUX.storage.localSet = (key, value) => { try { localStorage.setItem(key, value); } catch { /* Optional preference. */ } };
     SFUX.storage.sessionGet = (key, fallback = null) => { try { return sessionStorage.getItem(key) ?? fallback; } catch { return fallback; } };
     SFUX.storage.sessionSet = (key, value) => { try { sessionStorage.setItem(key, value); } catch { /* Optional preference. */ } };
+    SFUX.storage.keys = Object.freeze({
+        shipMetadata: 'sfuxShipNamesV1'
+    });
 
     // One bounded discovery stream serves all late shell nodes. It is disconnected
     // once subscribers are resolved, and each subscriber expires after 3 seconds.
@@ -553,7 +567,7 @@ html body input[type="button"].button-primary:not(.sf-raze-submit):disabled {
     return SFUX;
 }
 
-/* StarFury UX Suite 2.4.20 | Global UX module. */
+/* StarFury UX Suite 2.5.10-beta.1 | Global UX module. */
 function registerGlobalUX(SFUX) {
     SFUX.register({
         id: 'global', phase: 'early',
@@ -688,6 +702,16 @@ function registerGlobalUX(SFUX) {
             const DOCK_CLICKABLE_CLASS = 'sfgu-dock-ship-clickable';
             const DOCK_COUNTDOWN_CLASS = 'sfgu-dock-status-countdown';
             const DOCK_STATUS_REPLACED_CLASS = 'sfgu-status-countdown-replaced';
+
+            const TOAST_STYLE_ID = 'sfgu-toast-styles';
+            const TOAST_HOST_ID = 'sfgu-toast-host';
+            const TOAST_CLASS = 'sfgu-toast';
+            const TOAST_NOTICE_CLASS = 'sfgu-toast--notice';
+            const TOAST_WARN_CLASS = 'sfgu-toast--warn';
+            const TOAST_ERROR_CLASS = 'sfgu-toast--error';
+
+            const toastTimerQueue = [];
+            let activeToastTimer = null;
 
             /*
              * Native compact-dock ship avatars use a shared ~77 x 84 frame.
@@ -826,7 +850,7 @@ function registerGlobalUX(SFUX) {
                         #cssmenu.${NAV_CLASS} > ul > li:hover > a,
                         #cssmenu.${NAV_CLASS} > ul > li:focus-within > a {
                             color: #ffffff !important;
-                            background: rgba(255,255,255,0.055) !important;
+                            background: rgba(255,255,255,0.085) !important;
                             box-shadow: inset 0 -2px 0 rgba(var(--sfux-info-rgb), 0.72) !important;
                         }
 
@@ -929,10 +953,18 @@ function registerGlobalUX(SFUX) {
                         }
 
                         #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:hover,
-                        #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:focus-visible {
+                        #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:focus-visible,
+                        #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:active,
+                        #cssmenu.${NAV_CLASS} > ul > li > ul > li.sfgu-pressed > a {
                             color: #ffffff !important;
-                            background: rgba(var(--sfux-info-rgb), 0.13) !important;
+                            background: rgba(var(--sfux-info-rgb), 0.16) !important;
                             outline: none !important;
+                        }
+
+                        #cssmenu.${NAV_CLASS} > ul > li > ul > li.sfgu-current-link > a {
+                            color: #ffffff !important;
+                            background: rgba(var(--sfux-info-rgb), 0.11) !important;
+                            box-shadow: inset 2px 0 0 rgba(var(--sfux-info-rgb), 0.92) !important;
                         }
                     }
 
@@ -1145,27 +1177,46 @@ function registerGlobalUX(SFUX) {
                             transform: translateY(-6px) rotate(-45deg) !important;
                         }
 
-                        /* Critical bug fix: a closed menu occupies zero vertical space.
-                           Native menu classes cannot leave a tall invisible box behind. */
+                        /*
+                         * Mobile navigation is an overlay, not an accordion in page
+                         * flow. The 48px menu bar keeps its normal document position;
+                         * the expanded list floats directly beneath it so opening the
+                         * menu never pushes the HUD or page content downward.
+                         */
                         #cssmenu.${NAV_CLASS} > ul {
                             display: none !important;
-                            position: static !important;
+                            position: absolute !important;
+                            z-index: 1100 !important;
+                            top: 48px !important;
+                            right: 0 !important;
+                            left: 0 !important;
                             width: 100% !important;
                             height: 0 !important;
                             min-height: 0 !important;
-                            max-height: none !important;
+                            max-height: 0 !important;
                             margin: 0 !important;
                             padding: 0 !important;
                             overflow: hidden !important;
                             border: 0 !important;
                             background: #151515 !important;
+                            box-shadow: 0 16px 28px rgba(0,0,0,0.42) !important;
                         }
 
                         #cssmenu.${NAV_CLASS}.${MOBILE_OPEN_CLASS} > ul {
                             display: block !important;
                             height: auto !important;
-                            overflow: visible !important;
+                            max-height: calc(100dvh - 112px) !important;
+                            overflow-x: hidden !important;
+                            overflow-y: auto !important;
+                            overscroll-behavior: contain !important;
+                            -webkit-overflow-scrolling: touch !important;
                             border-top: 1px solid rgba(255,255,255,0.06) !important;
+                        }
+
+                        @supports not (height: 100dvh) {
+                            #cssmenu.${NAV_CLASS}.${MOBILE_OPEN_CLASS} > ul {
+                                max-height: calc(100vh - 112px) !important;
+                            }
                         }
 
                         #cssmenu.${NAV_CLASS} > ul > li {
@@ -1220,10 +1271,18 @@ function registerGlobalUX(SFUX) {
                         }
 
                         #cssmenu.${NAV_CLASS} > ul > li > a:active,
-                        #cssmenu.${NAV_CLASS} > ul > li > a:focus-visible {
+                        #cssmenu.${NAV_CLASS} > ul > li > a:focus-visible,
+                        #cssmenu.${NAV_CLASS} > ul > li.sfgu-pressed > a {
                             color: #ffffff !important;
-                            background: rgba(255,255,255,0.085) !important;
+                            background: rgba(255,255,255,0.10) !important;
                             outline: none !important;
+                        }
+
+                        @media (hover: hover) and (pointer: fine) {
+                            #cssmenu.${NAV_CLASS} > ul > li > a:hover {
+                                color: #ffffff !important;
+                                background: rgba(255,255,255,0.06) !important;
+                            }
                         }
 
                         #cssmenu.${NAV_CLASS}
@@ -1342,10 +1401,25 @@ function registerGlobalUX(SFUX) {
                         }
 
                         #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:active,
-                        #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:focus-visible {
+                        #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:focus-visible,
+                        #cssmenu.${NAV_CLASS} > ul > li > ul > li.sfgu-pressed > a {
                             color: #ffffff !important;
-                            background: rgba(var(--sfux-info-rgb), 0.09) !important;
+                            background: rgba(var(--sfux-info-rgb), 0.16) !important;
+                            box-shadow: inset 3px 0 0 rgba(var(--sfux-info-rgb), 0.9) !important;
                             outline: none !important;
+                        }
+
+                        #cssmenu.${NAV_CLASS} > ul > li > ul > li.sfgu-current-link > a {
+                            color: #ffffff !important;
+                            background: rgba(var(--sfux-info-rgb), 0.10) !important;
+                            box-shadow: inset 3px 0 0 rgba(var(--sfux-info-rgb), 0.92) !important;
+                        }
+
+                        @media (hover: hover) and (pointer: fine) {
+                            #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:hover {
+                                color: #ffffff !important;
+                                background: rgba(var(--sfux-info-rgb), 0.09) !important;
+                            }
                         }
                     }
 
@@ -1462,6 +1536,9 @@ function registerGlobalUX(SFUX) {
                         font: inherit !important;
                         line-height: 1 !important;
                         cursor: pointer !important;
+                        touch-action: manipulation !important;
+                        -webkit-tap-highlight-color:
+                            rgba(var(--sfux-info-rgb), 0.10) !important;
                     }
 
                     #advisor-dock.${CONTEXT_ROW_CLASS}
@@ -1989,10 +2066,11 @@ function registerGlobalUX(SFUX) {
                         z-index: 2147483000 !important;
                         display: none;
                         box-sizing: border-box !important;
-                        max-width: min(300px, calc(100vw - 16px)) !important;
-                        padding: 7px 9px !important;
+                        width: min(150px, calc(100vw - 16px)) !important;
+                        max-width: min(150px, calc(100vw - 16px)) !important;
+                        padding: 7px 8px 8px !important;
                         border: 1px solid rgba(255,255,255,0.22) !important;
-                        border-radius: 3px !important;
+                        border-radius: 4px !important;
                         background: rgba(8,10,13,0.97) !important;
                         box-shadow:
                             0 8px 22px rgba(0,0,0,0.48),
@@ -2002,11 +2080,140 @@ function registerGlobalUX(SFUX) {
                         font-family:
                             "Titillium Web", Arial, sans-serif !important;
                         font-size: 13px !important;
-                        font-weight: 600 !important;
-                        line-height: 1.3 !important;
-                        white-space: pre-line !important;
+                        line-height: 1.25 !important;
+                        white-space: normal !important;
                         text-align: left !important;
                         pointer-events: none !important;
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-header {
+                        display: grid;
+                        grid-template-columns: minmax(0, 1fr) auto;
+                        align-items: center;
+                        gap: 6px;
+                        min-width: 0;
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-name {
+                        overflow: hidden;
+                        min-width: 0;
+                        color: rgba(255,255,255,.97);
+                        font-size: 14px;
+                        font-weight: 800;
+                        line-height: 1.1;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-mode-icon {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 14px;
+                        height: 14px;
+                        font-size: 11px;
+                        line-height: 1;
+                    }
+
+                    #${DOCK_TOOLTIP_ID}
+                    .sfgu-dock-tooltip-mode-icon--fixed {
+                        color: rgba(var(--sfux-danger-rgb), .95);
+                    }
+
+                    #${DOCK_TOOLTIP_ID}
+                    .sfgu-dock-tooltip-mode-icon--flexible {
+                        color: rgba(var(--sfux-success-rgb), .95);
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-meta {
+                        display: flex;
+                        align-items: center;
+                        gap: 4px;
+                        min-width: 0;
+                        margin-top: 2px;
+                        color: rgba(220,226,230,.72);
+                        font-size: 11px;
+                        font-weight: 600;
+                        line-height: 1.15;
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-status {
+                        overflow: hidden;
+                        min-width: 0;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-integrity {
+                        position: relative;
+                        height: 16px;
+                        margin-top: 6px;
+                        overflow: hidden;
+                        border: 1px solid rgba(255,255,255,.075);
+                        background: rgba(0,0,0,.34);
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-integrity-fill {
+                        position: absolute;
+                        inset: 0 auto 0 0;
+                        background: linear-gradient(
+                            90deg,
+                            rgb(12,110,152),
+                            rgb(20,124,128)
+                        );
+                    }
+
+                    #${DOCK_TOOLTIP_ID}
+                    .sfgu-dock-tooltip-integrity--warning
+                    .sfgu-dock-tooltip-integrity-fill {
+                        background: rgb(176,138,44);
+                    }
+
+                    #${DOCK_TOOLTIP_ID}
+                    .sfgu-dock-tooltip-integrity--danger
+                    .sfgu-dock-tooltip-integrity-fill,
+                    #${DOCK_TOOLTIP_ID}
+                    .sfgu-dock-tooltip-integrity--critical
+                    .sfgu-dock-tooltip-integrity-fill,
+                    #${DOCK_TOOLTIP_ID}
+                    .sfgu-dock-tooltip-integrity--terminal
+                    .sfgu-dock-tooltip-integrity-fill {
+                        background: rgb(178,62,62);
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-sheath {
+                        position: absolute;
+                        z-index: 1;
+                        top: 0;
+                        right: 0;
+                        left: 0;
+                        height: 3px;
+                        background: rgba(0,0,0,.55);
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-sheath > span {
+                        position: absolute;
+                        inset: 0 auto 0 0;
+                        background: rgb(140,214,30);
+                        box-shadow: 0 0 4px rgba(140,214,30,.55);
+                    }
+
+                    #${DOCK_TOOLTIP_ID} .sfgu-dock-tooltip-integrity-text {
+                        position: absolute;
+                        z-index: 2;
+                        inset: 0;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding-top: 2px;
+                        color: #f2f5f7;
+                        font-size: 11px;
+                        font-weight: 800;
+                        line-height: 1;
+                        letter-spacing: .015em;
+                        font-variant-numeric: tabular-nums;
+                        text-shadow: 0 1px 0 rgba(0,0,0,.85);
+                        white-space: nowrap;
                     }
 
 
@@ -2115,6 +2322,40 @@ function registerGlobalUX(SFUX) {
                             line-height: 1 !important;
                             text-align: center !important;
                             transform: translateY(-1px) !important;
+                        }
+
+                        /*
+                         * Mobile treats the entire "Advisor + Star Dock" bar as the
+                         * expand/collapse control. Keep one real button for clean
+                         * keyboard/screen-reader semantics; only its mobile geometry
+                         * changes. The icon stays at the right edge as the affordance.
+                         */
+                        #advisor-dock.${CONTEXT_ROW_CLASS}
+                            > .sfgu-context-header .sfgu-context-toggle {
+                            z-index: 2 !important;
+                            top: 0 !important;
+                            right: 0 !important;
+                            left: 0 !important;
+                            width: 100% !important;
+                            min-width: 100% !important;
+                            height: 28px !important;
+                            min-height: 28px !important;
+                            justify-content: flex-end !important;
+                            padding: 0 8px !important;
+                            border-left: 0 !important;
+                            background: transparent !important;
+                        }
+
+                        #advisor-dock.${CONTEXT_ROW_CLASS}
+                            > .sfgu-context-header .sfgu-context-toggle:hover {
+                            background: rgba(255,255,255,0.035) !important;
+                        }
+
+                        #advisor-dock.${CONTEXT_ROW_CLASS}
+                            > .sfgu-context-header .sfgu-context-mobile-label {
+                            position: relative !important;
+                            z-index: 1 !important;
+                            pointer-events: none !important;
                         }
 
                         #advisor-dock.${CONTEXT_ROW_CLASS} > .advisor-container,
@@ -2763,13 +3004,12 @@ function registerGlobalUX(SFUX) {
             function getDockStatusIndicator(link) {
                 if (!link) return null;
 
-                const lines = getDockTooltipText(link)
-                    .split('\n')
-                    .map(part => part.trim())
-                    .filter(Boolean);
-
+                const payload = parseDockTooltipPayload(link);
                 const statusIcon = link.querySelector('img.statusIcon');
-                const statusLine = lines[1] || statusIcon?.alt?.trim() || '';
+                const statusLine =
+                    payload.status ||
+                    statusIcon?.alt?.trim() ||
+                    '';
 
                 const timedMatch = statusLine.match(
                     /^(.+?)\s*\(\s*(\d+)\s*(?:ticks?|t)?\s*\)\s*$/i
@@ -3267,14 +3507,244 @@ function registerGlobalUX(SFUX) {
                 return tooltip;
             }
 
-            function getDockTooltipText(link) {
-                return (link?.getAttribute('data-tooltip') || '')
+            function parseDockTooltipPayload(link) {
+                const parts = (link?.getAttribute('data-tooltip') || '')
                     .replace(/&#010;/gi, '\n')
                     .replace(/\r/g, '')
                     .split('\n')
                     .map(part => part.trim())
-                    .filter(Boolean)
-                    .join('\n');
+                    .filter(Boolean);
+
+                const parsePool = value => {
+                    const match = String(value || '')
+                        .replace(/,/g, '')
+                        .match(/(\d+)\s*\/\s*(\d+)/);
+
+                    if (!match) return null;
+
+                    const current = Number(match[1]);
+                    const maximum = Number(match[2]);
+
+                    return (
+                        Number.isFinite(current) &&
+                        Number.isFinite(maximum) &&
+                        maximum > 0
+                    )
+                        ? {
+                            current: Math.max(0, Math.min(current, maximum)),
+                            maximum
+                        }
+                        : null;
+                };
+
+                return {
+                    shipClass: parts[0] || '',
+                    status: parts[1] || '',
+                    hull: parsePool(parts[2]),
+                    shield: parsePool(parts[3])
+                };
+            }
+
+            function dockShipId(link) {
+                try {
+                    return new URL(link?.href || '', window.location.href)
+                        .searchParams
+                        .get('ShipID') || '';
+                } catch {
+                    return '';
+                }
+            }
+
+            function cachedDockShipMetadata(link) {
+                const shipId = dockShipId(link);
+                if (!shipId) return { shipId: '', name: '', mode: '' };
+
+                const saved = SFUX.storage.get(
+                    SFUX.storage.keys.shipMetadata,
+                    {}
+                );
+                const entry = saved && typeof saved === 'object'
+                    ? saved[shipId]
+                    : null;
+
+                const modeKey = String(entry?.mode || '')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .toLowerCase();
+
+                const mode = modeKey === 'fixed'
+                    ? 'Fixed'
+                    : modeKey === 'flexible'
+                        ? 'Flexible'
+                        : '';
+
+                return {
+                    shipId,
+                    name: String(entry?.name || '')
+                        .replace(/\s+/g, ' ')
+                        .trim(),
+                    mode
+                };
+            }
+
+            function dockIntegrityModel(payload) {
+                const hull = payload?.hull;
+                const shield = payload?.shield;
+
+                if (!hull && !shield) return null;
+
+                const safePool = pool => pool || { current: 0, maximum: 0 };
+                const h = safePool(hull);
+                const s = safePool(shield);
+                const maximum = h.maximum + s.maximum;
+
+                if (maximum <= 0) return null;
+
+                const current = h.current + s.current;
+                const percent = (current / maximum) * 100;
+                const hullPercent = h.maximum
+                    ? (h.current / h.maximum) * 100
+                    : 100;
+                const shieldPercent = s.maximum
+                    ? (s.current / s.maximum) * 100
+                    : 0;
+
+                const hullSeverity =
+                    hullPercent <= 0 ? 'terminal' :
+                    hullPercent < 25 ? 'critical' :
+                    hullPercent < 50 ? 'danger' :
+                    hullPercent < 75 ? 'warning' :
+                    'nominal';
+
+                const shieldSeverity =
+                    shieldPercent <= 0 && s.maximum > 0 ? 'warning' :
+                    shieldPercent < 75 && s.maximum > 0 ? 'warning' :
+                    'nominal';
+
+                const severity =
+                    ['terminal', 'critical', 'danger'].includes(hullSeverity)
+                        ? hullSeverity
+                        : (
+                            hullSeverity === 'warning' ||
+                            shieldSeverity === 'warning'
+                        )
+                            ? 'warning'
+                            : 'nominal';
+
+                return {
+                    current,
+                    maximum,
+                    percent: Math.max(0, Math.min(100, percent)),
+                    shieldPercent: Math.max(0, Math.min(100, shieldPercent)),
+                    hasShield: s.maximum > 0,
+                    severity
+                };
+            }
+
+            function buildDockTooltipModel(link) {
+                const native = parseDockTooltipPayload(link);
+                const cached = cachedDockShipMetadata(link);
+                const integrity = dockIntegrityModel(native);
+
+                const name =
+                    cached.name ||
+                    native.shipClass ||
+                    (cached.shipId ? `Ship ${cached.shipId}` : 'Ship');
+
+                const status = native.status || '';
+                const mode = cached.mode || '';
+
+                const ariaPieces = [name];
+                if (mode) ariaPieces.push(mode);
+                if (status) ariaPieces.push(status);
+                if (integrity) {
+                    ariaPieces.push(
+                        `${integrity.current.toLocaleString()} of ` +
+                        `${integrity.maximum.toLocaleString()} total integrity`
+                    );
+                }
+
+                return {
+                    name,
+                    mode,
+                    status,
+                    integrity,
+                    ariaLabel: ariaPieces.join(', ')
+                };
+            }
+
+            function renderDockTooltip(tooltip, link) {
+                const model = buildDockTooltipModel(link);
+                if (!model?.name) return false;
+
+                const header = ctx.element('div');
+                header.className = 'sfgu-dock-tooltip-header';
+
+                const name = ctx.element('div');
+                name.className = 'sfgu-dock-tooltip-name';
+                name.textContent = model.name;
+                header.appendChild(name);
+
+                if (model.mode) {
+                    const fixed = model.mode === 'Fixed';
+                    const modeIcon = ctx.element('span');
+                    modeIcon.className =
+                        `fa ${fixed ? 'fa-lock' : 'fa-unlock'} ` +
+                        'sfgu-dock-tooltip-mode-icon ' +
+                        `sfgu-dock-tooltip-mode-icon--${fixed ? 'fixed' : 'flexible'}`;
+                    modeIcon.title = model.mode;
+                    modeIcon.setAttribute('aria-label', model.mode);
+                    header.appendChild(modeIcon);
+                }
+
+                const meta = ctx.element('div');
+                meta.className = 'sfgu-dock-tooltip-meta';
+
+                if (model.status) {
+                    const status = ctx.element('span');
+                    status.className = 'sfgu-dock-tooltip-status';
+                    status.textContent = model.status;
+                    meta.appendChild(status);
+                }
+
+                tooltip.replaceChildren(header);
+                if (meta.childNodes.length) tooltip.appendChild(meta);
+
+                if (model.integrity) {
+                    const bar = ctx.element('div');
+                    bar.className =
+                        'sfgu-dock-tooltip-integrity ' +
+                        `sfgu-dock-tooltip-integrity--${model.integrity.severity}`;
+
+                    const fill = ctx.element('span');
+                    fill.className = 'sfgu-dock-tooltip-integrity-fill';
+                    fill.style.width = `${model.integrity.percent}%`;
+                    bar.appendChild(fill);
+
+                    if (model.integrity.hasShield) {
+                        const sheath = ctx.element('span');
+                        sheath.className = 'sfgu-dock-tooltip-sheath';
+
+                        const sheathFill = ctx.element('span');
+                        sheathFill.style.width =
+                            `${model.integrity.shieldPercent}%`;
+
+                        sheath.appendChild(sheathFill);
+                        bar.appendChild(sheath);
+                    }
+
+                    const text = ctx.element('span');
+                    text.className = 'sfgu-dock-tooltip-integrity-text';
+                    text.textContent =
+                        `${model.integrity.current.toLocaleString()} / ` +
+                        `${model.integrity.maximum.toLocaleString()}`;
+
+                    bar.appendChild(text);
+                    tooltip.appendChild(bar);
+                }
+
+                link?.setAttribute('aria-label', model.ariaLabel);
+                return true;
             }
 
             function positionDockTooltip(tooltip, anchor) {
@@ -3329,11 +3799,9 @@ function registerGlobalUX(SFUX) {
             }
 
             function showDockTooltip(link, slot) {
-                const text = getDockTooltipText(link);
-                if (!text) return;
-
                 const tooltip = ensureDockTooltipElement();
-                tooltip.textContent = text;
+                if (!renderDockTooltip(tooltip, link)) return;
+
                 tooltip.style.display = 'block';
                 tooltip.setAttribute('aria-hidden', 'false');
 
@@ -3356,11 +3824,16 @@ function registerGlobalUX(SFUX) {
                 const slots = contextRow.querySelectorAll(
                     '.minimapships > ul > li'
                 );
+                const hoverQuery = window.matchMedia?.(
+                    '(hover: hover) and (pointer: fine)'
+                );
+
+                const liveShipLink = slot => slot.querySelector(
+                    'a[href*="viewship.php"]'
+                );
 
                 for (const slot of slots) {
-                    const link = slot.querySelector(
-                        'a[href*="viewship.php"]'
-                    );
+                    const link = liveShipLink(slot);
                     if (!link) continue;
 
                     slot.classList.add(DOCK_CLICKABLE_CLASS);
@@ -3383,31 +3856,62 @@ function registerGlobalUX(SFUX) {
 
                     slot.dataset.sfguDockInteractionBound = 'true';
 
+                    /*
+                     * Touch taps must navigate immediately. Compatibility mouse events
+                     * on iOS therefore never open the hover card. Real fine-pointer
+                     * hover and keyboard focus still expose the tooltip.
+                     */
                     ctx.on(slot, 'mouseenter', () => {
-                        showDockTooltip(link, slot);
+                        if (hoverQuery && !hoverQuery.matches) return;
+
+                        const currentLink = liveShipLink(slot);
+                        if (currentLink) showDockTooltip(currentLink, slot);
                     });
 
                     ctx.on(slot, 'mouseleave', hideDockTooltip);
 
-                    ctx.on(link, 'focus', () => {
-                        showDockTooltip(link, slot);
+                    // Delegate focus so native replacement of the inner link is safe.
+                    ctx.on(slot, 'focusin', event => {
+                        const currentLink = event.target.closest?.(
+                            'a[href*="viewship.php"]'
+                        );
+                        if (currentLink && slot.contains(currentLink)) {
+                            showDockTooltip(currentLink, slot);
+                        }
                     });
 
-                    ctx.on(link, 'blur', hideDockTooltip);
+                    ctx.on(slot, 'focusout', event => {
+                        if (!slot.contains(event.relatedTarget)) {
+                            hideDockTooltip();
+                        }
+                    });
 
                     /*
                      * Any otherwise-unused area of the colored slot navigates to the
-                     * same ship. Clicking the original <a> remains fully native.
+                     * current ship. Clicking the original <a> remains fully native.
+                     * Modifier gestures are not forced into same-tab navigation.
                      */
                     ctx.on(slot, 'click', event => {
                         if (event.defaultPrevented) return;
+                        if (
+                            event.ctrlKey ||
+                            event.metaKey ||
+                            event.shiftKey ||
+                            event.altKey ||
+                            event.button !== 0
+                        ) {
+                            return;
+                        }
 
                         if (event.target.closest('a[href]')) {
                             return;
                         }
 
+                        const currentLink = liveShipLink(slot);
+                        if (!currentLink) return;
+
                         hideDockTooltip();
-                        window.location.href = link.href;
+                        window.location.href = currentLink.href;
                     });
                 }
             }
@@ -3419,25 +3923,15 @@ function registerGlobalUX(SFUX) {
                 );
 
                 for (const link of links) {
-                    if (link.hasAttribute('aria-label')) continue;
-
-                    const tooltip = (link.getAttribute('data-tooltip') || '')
-                        .replace(/&#010;/gi, '\n')
-                        .replace(/\r/g, '')
-                        .split('\n')
-                        .map(part => part.trim())
-                        .filter(Boolean);
-
-                    if (tooltip.length) {
-                        const [shipClass, status] = tooltip;
-                        const pieces = ['Ship'];
-                        if (shipClass) pieces.push(shipClass);
-
+                    const model = buildDockTooltipModel(link);
+                    if (model?.ariaLabel) {
                         const role = link.dataset.sfguRoleLabel;
-                        if (role) pieces.push(`${role} dock`);
-
-                        if (status) pieces.push(status);
-                        link.setAttribute('aria-label', pieces.join(', '));
+                        link.setAttribute(
+                            'aria-label',
+                            role
+                                ? `${model.ariaLabel}, ${role} dock`
+                                : model.ariaLabel
+                        );
                         continue;
                     }
 
@@ -3678,10 +4172,8 @@ function registerGlobalUX(SFUX) {
                         icon.classList.toggle('fa-expand', collapsed);
 
                         if (!collapsed) {
-                            ctx.raf(() => {
-                                ensureDockStarfield(contextRow);
-                                layoutMinimapShips(contextRow);
-                            });
+                            ensureDockStarfield(contextRow);
+                            layoutMinimapShips(contextRow);
                         }
                     });
                 }
@@ -3721,6 +4213,9 @@ function registerGlobalUX(SFUX) {
                 const contextRow = document.querySelector('#advisor-dock');
                 if (!contextRow) return false;
 
+                const runDockStep = (name, callback) =>
+                    SFUX.safeRun(`global:dock:${name}`, callback);
+
                 if (contextRow.dataset.sfguContextInitialized === 'true') {
                     if (
                         !contextRow.style.getPropertyValue(
@@ -3737,25 +4232,25 @@ function registerGlobalUX(SFUX) {
                         );
                     }
 
-                    initializeUnifiedContextHeader(contextRow);
-                    improveAdvisorInformation(contextRow);
-                    ensureDockStarfield(contextRow);
-                    layoutMinimapShips(contextRow);
-                    improveMinimapAccessibility(contextRow);
-                    initializeDockShipInteractions(contextRow);
-                    fitAdvisorCopy(contextRow);
+                    runDockStep('header', () => initializeUnifiedContextHeader(contextRow));
+                    runDockStep('advisor', () => improveAdvisorInformation(contextRow));
+                    runDockStep('starfield', () => ensureDockStarfield(contextRow));
+                    runDockStep('layout', () => layoutMinimapShips(contextRow));
+                    runDockStep('accessibility', () => improveMinimapAccessibility(contextRow));
+                    runDockStep('interactions', () => initializeDockShipInteractions(contextRow));
+                    runDockStep('advisor-fit', () => fitAdvisorCopy(contextRow));
                     document.documentElement?.classList.remove(
                         CONTEXT_PREP_CLASS
                     );
                     return true;
                 }
 
-                captureNativeContextHeight(contextRow);
+                runDockStep('native-height', () => captureNativeContextHeight(contextRow));
 
                 contextRow.dataset.sfguContextInitialized = 'true';
                 contextRow.classList.add(CONTEXT_ROW_CLASS);
-                initializeUnifiedContextHeader(contextRow);
-                improveAdvisorInformation(contextRow);
+                runDockStep('header', () => initializeUnifiedContextHeader(contextRow));
+                runDockStep('advisor', () => improveAdvisorInformation(contextRow));
 
                 const advisor = contextRow.querySelector('.advisor-container');
                 const dock = contextRow.querySelector('.dock-container');
@@ -3770,26 +4265,16 @@ function registerGlobalUX(SFUX) {
                     dock.setAttribute('aria-label', 'Star Dock');
                 }
 
-                ensureDockStarfield(contextRow);
-                layoutMinimapShips(contextRow);
-                improveMinimapAccessibility(contextRow);
-                initializeDockShipInteractions(contextRow);
-                fitAdvisorCopy(contextRow);
+                runDockStep('starfield', () => ensureDockStarfield(contextRow));
+                runDockStep('layout', () => layoutMinimapShips(contextRow));
+                runDockStep('accessibility', () => improveMinimapAccessibility(contextRow));
+                runDockStep('interactions', () => initializeDockShipInteractions(contextRow));
+                runDockStep('advisor-fit', () => fitAdvisorCopy(contextRow));
 
-                /*
-                 * Reveal only after native Advisor/Dock markup has been transformed.
-                 * visibility kept its original layout footprint during initialization,
-                 * so this removes the native-to-custom flash without a layout jump.
-                 */
                 document.documentElement?.classList.remove(
                     CONTEXT_PREP_CLASS
                 );
 
-                /*
-                 * The minimap contents can be rebuilt by native page logic. Watch only
-                 * this small local subtree and re-apply accessibility/fallback handling
-                 * when that happens. This observer is entirely client-side.
-                 */
                 const dockContent = contextRow.querySelector('#stardock-content');
                 if (dockContent) {
                     let queued = false;
@@ -3800,20 +4285,14 @@ function registerGlobalUX(SFUX) {
 
                         ctx.raf(() => {
                             queued = false;
-                            ensureDockStarfield(contextRow);
-                            layoutMinimapShips(contextRow);
-                            improveMinimapAccessibility(contextRow);
-                            initializeDockShipInteractions(contextRow);
+                            runDockStep('observer-starfield', () => ensureDockStarfield(contextRow));
+                            runDockStep('observer-layout', () => layoutMinimapShips(contextRow));
+                            runDockStep('observer-accessibility', () => improveMinimapAccessibility(contextRow));
+                            runDockStep('observer-interactions', () => initializeDockShipInteractions(contextRow));
 
-                            /*
-                             * StarFury sometimes completes ship/status styling a moment
-                             * after inserting or updating the dock node. Re-run once
-                             * after that settling window so a transient tiny avatar can
-                             * never become the persistent compact-dock size.
-                             */
                             ctx.timeout(() => {
-                                layoutMinimapShips(contextRow);
-                                improveMinimapAccessibility(contextRow);
+                                runDockStep('settled-layout', () => layoutMinimapShips(contextRow));
+                                runDockStep('settled-accessibility', () => improveMinimapAccessibility(contextRow));
                             }, 90);
                         });
                     });
@@ -3824,29 +4303,19 @@ function registerGlobalUX(SFUX) {
                     });
                 }
 
-                /*
-                 * Re-check after window load in case the native theme's image stylesheet
-                 * resolves later than DOMContentLoaded. Native imagery replaces the
-                 * procedural fallback automatically when detected.
-                 */
                 ctx.on(window, 'load', () => {
-                    ensureDockStarfield(contextRow);
-                    layoutMinimapShips(contextRow);
-                    initializeDockShipInteractions(contextRow);
-                    fitAdvisorCopy(contextRow);
+                    runDockStep('load-starfield', () => ensureDockStarfield(contextRow));
+                    runDockStep('load-layout', () => layoutMinimapShips(contextRow));
+                    runDockStep('load-interactions', () => initializeDockShipInteractions(contextRow));
+                    runDockStep('load-advisor-fit', () => fitAdvisorCopy(contextRow));
                 }, { once: true });
 
-                /*
-                 * Reflow on actual panel-size changes, including responsive breakpoints
-                 * and expanded/collapsed surrounding layout. ResizeObserver is local and
-                 * performs no network activity.
-                 */
                 ctx.on(window, 'scroll', hideDockTooltip, {
                     passive: true
                 });
                 ctx.on(window, 'resize', () => {
                     hideDockTooltip();
-                    fitAdvisorCopy(contextRow);
+                    runDockStep('resize-advisor-fit', () => fitAdvisorCopy(contextRow));
                 }, {
                     passive: true
                 });
@@ -3860,7 +4329,7 @@ function registerGlobalUX(SFUX) {
 
                         ctx.raf(() => {
                             resizeQueued = false;
-                            layoutMinimapShips(contextRow);
+                            runDockStep('resize-layout', () => layoutMinimapShips(contextRow));
                         });
                     });
 
@@ -3868,6 +4337,682 @@ function registerGlobalUX(SFUX) {
                 }
 
                 return true;
+            }
+
+            /* ---------------------------------------------------------------------
+             * MODULE: GLOBAL NOTICES / TOASTS
+             * StarFury emits transient server feedback as:
+             *   .msgBoxBase.msgBoxNotice
+             *   .msgBoxBase.msgBoxWarn
+             *   .msgBoxBase.msgBoxErr
+             *
+             * These bars are inserted between the context row and page content,
+             * causing layout shift. Global UX removes them from document flow at
+             * paint time, then moves the native message node into a fixed toast
+             * host. Native message text/links remain authoritative.
+             * --------------------------------------------------------------------- */
+
+            function injectToastStyles() {
+                ctx.style(TOAST_STYLE_ID, `
+                    /*
+                     * Immediate fallback before JS relocates a native msgBoxBase.
+                     * Because Global UX runs early, this prevents server-rendered
+                     * alerts from ever reserving height in the page layout.
+                     */
+                    .msgBoxBase:not(.${TOAST_CLASS}) {
+                        position: fixed !important;
+                        z-index: 450 !important;
+                        top: calc(12px + env(safe-area-inset-top, 0px)) !important;
+                        right: 12px !important;
+                        width: min(420px, calc(100vw - 24px)) !important;
+                        min-height: 0 !important;
+                        margin: 0 !important;
+                        border-radius: 6px !important;
+                        background-color: #17191c !important;
+                        background-image: none !important;
+                        box-shadow: 0 10px 28px rgba(0,0,0,.48) !important;
+                    }
+
+                    #${TOAST_HOST_ID} {
+                        position: fixed;
+                        z-index: 450;
+                        top: calc(12px + env(safe-area-inset-top, 0px));
+                        right: 12px;
+                        display: grid;
+                        gap: 8px;
+                        width: min(420px, calc(100vw - 24px));
+                        max-width: calc(100vw - 24px);
+                        pointer-events: none;
+                    }
+
+                    #${TOAST_HOST_ID},
+                    #${TOAST_HOST_ID} * {
+                        box-sizing: border-box;
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_CLASS} {
+                        position: relative !important;
+                        inset: auto !important;
+                        display: grid !important;
+                        grid-template-columns: 22px minmax(0, 1fr) 32px;
+                        align-items: start;
+                        gap: 11px;
+                        width: 100% !important;
+                        min-height: 50px !important;
+                        margin: 0 !important;
+                        padding: 11px 9px 11px 12px !important;
+                        overflow: hidden;
+                        border: 1px solid var(--sfgu-toast-border) !important;
+                        border-left-width: 3px !important;
+                        border-radius: 6px;
+                        background-color: #17191c !important;
+                        background-image: none !important;
+                        color: rgba(255,255,255,.96) !important;
+                        box-shadow:
+                            0 10px 28px rgba(0,0,0,.48),
+                            inset 0 1px 0 rgba(255,255,255,.04);
+                        line-height: 1.35 !important;
+                        text-align: left !important;
+                        pointer-events: auto;
+                        opacity: 1;
+                        transform: translateY(0);
+                        transition:
+                            opacity 140ms ease,
+                            transform 140ms ease;
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_CLASS}::before {
+                        content: "";
+                        display: block;
+                        align-self: center;
+                        width: 18px;
+                        height: 18px;
+                        margin-top: 0;
+                        background-position: center;
+                        background-repeat: no-repeat;
+                        background-size: contain;
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_NOTICE_CLASS} {
+                        --sfgu-toast-border: rgba(38,173,224,.86);
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_NOTICE_CLASS}::before {
+                        background-image: url("/images/icons/msgbox/notice.png");
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_WARN_CLASS} {
+                        --sfgu-toast-border: rgba(245,139,73,.96);
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_WARN_CLASS}::before {
+                        background-image: url("/images/icons/msgbox/warn.png");
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_ERROR_CLASS} {
+                        --sfgu-toast-border: rgba(224,72,72,.96);
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_ERROR_CLASS}::before {
+                        background-image: url("/images/icons/msgbox/err.png");
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_CLASS}.sfgu-toast--fallback {
+                        --sfgu-toast-border: rgba(255,255,255,.28);
+                    }
+
+                    .sfgu-toast-content {
+                        min-width: 0;
+                        align-self: center;
+                        font-size: 14px;
+                        font-weight: 600;
+                        line-height: 1.4;
+                        overflow-wrap: anywhere;
+                    }
+
+                    .sfgu-toast-content a {
+                        color: #fff !important;
+                        text-decoration: underline;
+                        text-underline-offset: 2px;
+                    }
+
+                    .sfgu-toast-dismiss {
+                        appearance: none;
+                        -webkit-appearance: none;
+                        display: grid;
+                        place-items: center;
+                        width: 32px;
+                        height: 32px;
+                        margin: -3px -2px 0 0;
+                        padding: 0;
+                        border: 1px solid transparent;
+                        border-radius: 5px;
+                        background: transparent;
+                        color: rgba(255,255,255,.58);
+                        font: 700 18px/1 Arial, sans-serif;
+                        cursor: pointer;
+                        touch-action: manipulation;
+                    }
+
+                    .sfgu-toast-dismiss:hover {
+                        border-color: rgba(255,255,255,.14);
+                        background: rgba(255,255,255,.055);
+                        color: rgba(255,255,255,.92);
+                    }
+
+                    .sfgu-toast-dismiss:focus-visible {
+                        outline: 2px solid rgba(255,255,255,.9);
+                        outline-offset: 2px;
+                    }
+
+                    .sfgu-toast-progress {
+                        position: absolute;
+                        z-index: 3;
+                        right: 0;
+                        bottom: 0;
+                        left: 0;
+                        height: 2px;
+                        overflow: hidden;
+                        border-radius: 0 0 5px 5px;
+                        background: rgba(255,255,255,.055);
+                        pointer-events: none;
+                    }
+
+                    .sfgu-toast-progress::after {
+                        content: "";
+                        position: absolute;
+                        inset: 0;
+                        background: var(--sfgu-toast-border);
+                        transform: scaleX(var(--sfgu-toast-progress, 1));
+                        transform-origin: left center;
+                        will-change: transform;
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_CLASS}.sfgu-toast--waiting
+                    .sfgu-toast-progress::after {
+                        opacity: .34;
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_CLASS}.sfgu-toast--timing
+                    .sfgu-toast-progress::after {
+                        opacity: .92;
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_CLASS}.sfgu-toast--leaving {
+                        opacity: 0;
+                        transform: translateY(9px);
+                        pointer-events: none;
+                    }
+
+                    @media (max-width: ${SFUX.responsive.mobile}px) {
+                        #${TOAST_HOST_ID} {
+                            right: 8px;
+                            left: 8px;
+                            width: auto;
+                            max-width: none;
+                            gap: 6px;
+                        }
+
+                        .msgBoxBase:not(.${TOAST_CLASS}) {
+                            top: calc(8px + env(safe-area-inset-top, 0px)) !important;
+                            right: 8px !important;
+                            left: 8px !important;
+                            width: auto !important;
+                        }
+
+                        #${TOAST_HOST_ID} .${TOAST_CLASS} {
+                            grid-template-columns: 20px minmax(0, 1fr) 40px;
+                            min-height: 54px !important;
+                            padding: 10px 8px 10px 10px !important;
+                        }
+
+                        .sfgu-toast-content {
+                            font-size: 14px;
+                            line-height: 1.4;
+                        }
+
+                        .sfgu-toast-dismiss {
+                            width: 40px;
+                            height: 40px;
+                            margin-top: -3px;
+                        }
+                    }
+
+                    @media (prefers-reduced-motion: reduce) {
+                        #${TOAST_HOST_ID} .${TOAST_CLASS} {
+                            transition: none;
+                        }
+
+                        .sfgu-toast-progress::after {
+                            will-change: auto;
+                        }
+                    }
+                `);
+            }
+
+            function ensureToastHost() {
+                let host = document.getElementById(TOAST_HOST_ID);
+                if (host) return host;
+
+                const parent = document.body || document.documentElement;
+                if (!parent) return null;
+
+                host = ctx.element('div');
+                host.id = TOAST_HOST_ID;
+                host.setAttribute('aria-label', 'Notifications');
+                parent.appendChild(host);
+                syncToastHostPosition();
+                return host;
+            }
+
+            function mobileToastAnchorBottom() {
+                const statbar = document.querySelector('#statbar');
+                if (!(statbar instanceof HTMLElement)) return 0;
+
+                const style = getComputedStyle(statbar);
+                if (
+                    style.display === 'none' ||
+                    style.visibility === 'hidden'
+                ) {
+                    return 0;
+                }
+
+                const rect = statbar.getBoundingClientRect();
+
+                if (rect.bottom > 0 && rect.top < window.innerHeight) {
+                    return rect.bottom;
+                }
+
+                return 0;
+            }
+
+            function syncToastHostPosition() {
+                const host = document.getElementById(TOAST_HOST_ID);
+                if (!host) return;
+
+                const isMobile = Boolean(
+                    window.matchMedia?.(
+                        `(max-width: ${SFUX.responsive.mobile}px)`
+                    )?.matches
+                );
+
+                /*
+                 * Desktop toasts use a stable viewport anchor. Chasing the full
+                 * StarFury header/nav/stat geometry made notifications appear
+                 * arbitrarily far down otherwise short pages.
+                 *
+                 * Mobile is different: a nearly full-width toast can obscure
+                 * the compact HUD, so it sits immediately below the visible
+                 * stat bar while that bar is onscreen.
+                 */
+                if (!isMobile) {
+                    host.style.top = '12px';
+                    return;
+                }
+
+                const anchorBottom = mobileToastAnchorBottom();
+                host.style.top = `${Math.max(
+                    8,
+                    Math.ceil(anchorBottom > 0 ? anchorBottom + 8 : 8)
+                )}px`;
+            }
+
+            function observeToastHostPosition() {
+                let frame = null;
+
+                const requestSync = () => {
+                    if (frame !== null) return;
+
+                    frame = requestAnimationFrame(() => {
+                        frame = null;
+                        syncToastHostPosition();
+                    });
+                };
+
+                ctx.on(window, 'scroll', requestSync, {
+                    passive: true
+                });
+                ctx.on(window, 'resize', requestSync, {
+                    passive: true
+                });
+
+                const statbar = document.querySelector('#statbar');
+                if (statbar) {
+                    const statObserver = ctx.observer(requestSync);
+                    statObserver.observe(statbar, {
+                        attributes: true,
+                        childList: true,
+                        subtree: true
+                    });
+                }
+
+                requestSync();
+            }
+
+            function toastSeverity(message) {
+                if (message.classList.contains('msgBoxErr')) {
+                    return {
+                        className: TOAST_ERROR_CLASS,
+                        role: 'alert',
+                        live: 'assertive',
+                        timeout: 0
+                    };
+                }
+
+                if (message.classList.contains('msgBoxWarn')) {
+                    return {
+                        className: TOAST_WARN_CLASS,
+                        role: 'alert',
+                        live: 'assertive',
+                        timeout: 0
+                    };
+                }
+
+                if (message.classList.contains('msgBoxNotice')) {
+                    return {
+                        className: TOAST_NOTICE_CLASS,
+                        role: 'status',
+                        live: 'polite',
+                        timeout: 8000
+                    };
+                }
+
+                /*
+                 * Unknown msgBoxBase subtypes should not silently disappear.
+                 * Treat them conservatively like warnings until their semantics
+                 * are known.
+                 */
+                return {
+                    className: 'sfgu-toast--fallback',
+                    role: 'status',
+                    live: 'polite',
+                    timeout: 0
+                };
+            }
+
+            function dismissToast(toast) {
+                if (
+                    !toast ||
+                    !toast.isConnected ||
+                    toast.dataset.sfguToastLeaving === 'true'
+                ) {
+                    return;
+                }
+
+                toast.dataset.sfguToastLeaving = 'true';
+                releaseToastTimer(toast);
+                toast.classList.add('sfgu-toast--leaving');
+
+                const remove = () => toast.remove();
+
+                if (
+                    window.matchMedia?.('(prefers-reduced-motion: reduce)')
+                        ?.matches
+                ) {
+                    remove();
+                    return;
+                }
+
+                ctx.timeout(remove, 160);
+            }
+
+            function clearActiveToastTimer() {
+                if (!activeToastTimer) return;
+
+                if (activeToastTimer.timeout !== null) {
+                    clearTimeout(activeToastTimer.timeout);
+                }
+
+                if (activeToastTimer.frame !== null) {
+                    cancelAnimationFrame(activeToastTimer.frame);
+                }
+
+                activeToastTimer.toast?.classList.remove(
+                    'sfgu-toast--timing'
+                );
+
+                activeToastTimer = null;
+            }
+
+            function removeToastFromTimerQueue(toast) {
+                for (let index = toastTimerQueue.length - 1; index >= 0; index--) {
+                    if (toastTimerQueue[index].toast === toast) {
+                        toastTimerQueue.splice(index, 1);
+                    }
+                }
+            }
+
+            function updateActiveToastProgress() {
+                if (!activeToastTimer) return;
+
+                const now = performance.now();
+                const elapsed = now - activeToastTimer.startedAt;
+                const remaining = Math.max(
+                    0,
+                    activeToastTimer.remaining - elapsed
+                );
+                const ratio = activeToastTimer.duration > 0
+                    ? remaining / activeToastTimer.duration
+                    : 0;
+
+                activeToastTimer.toast.style.setProperty(
+                    '--sfgu-toast-progress',
+                    String(Math.max(0, Math.min(1, ratio)))
+                );
+
+                if (remaining > 0) {
+                    activeToastTimer.frame = requestAnimationFrame(
+                        updateActiveToastProgress
+                    );
+                } else {
+                    activeToastTimer.frame = null;
+                }
+            }
+
+            function startActiveToastTimer() {
+                if (!activeToastTimer) return;
+
+                const state = activeToastTimer;
+                state.toast.classList.remove('sfgu-toast--waiting');
+                state.toast.classList.add('sfgu-toast--timing');
+                state.startedAt = performance.now();
+
+                state.timeout = setTimeout(() => {
+                    state.timeout = null;
+                    state.toast.style.setProperty(
+                        '--sfgu-toast-progress',
+                        '0'
+                    );
+                    dismissToast(state.toast);
+                }, state.remaining);
+
+                state.frame = requestAnimationFrame(
+                    updateActiveToastProgress
+                );
+            }
+
+            function startNextToastTimer() {
+                if (activeToastTimer) return;
+
+                while (toastTimerQueue.length) {
+                    const next = toastTimerQueue.shift();
+
+                    if (!next.toast?.isConnected) {
+                        continue;
+                    }
+
+                    activeToastTimer = {
+                        ...next,
+                        remaining: next.duration,
+                        startedAt: 0,
+                        timeout: null,
+                        frame: null
+                    };
+
+                    startActiveToastTimer();
+                    return;
+                }
+            }
+
+            function pauseToastTimer(toast) {
+                if (activeToastTimer?.toast !== toast) return;
+
+                const elapsed =
+                    performance.now() - activeToastTimer.startedAt;
+
+                activeToastTimer.remaining = Math.max(
+                    0,
+                    activeToastTimer.remaining - elapsed
+                );
+
+                if (activeToastTimer.timeout !== null) {
+                    clearTimeout(activeToastTimer.timeout);
+                    activeToastTimer.timeout = null;
+                }
+
+                if (activeToastTimer.frame !== null) {
+                    cancelAnimationFrame(activeToastTimer.frame);
+                    activeToastTimer.frame = null;
+                }
+            }
+
+            function resumeToastTimer(toast) {
+                if (activeToastTimer?.toast !== toast) return;
+
+                if (
+                    toast.matches(':hover') ||
+                    toast.contains(document.activeElement)
+                ) {
+                    return;
+                }
+
+                startActiveToastTimer();
+            }
+
+            function releaseToastTimer(toast) {
+                removeToastFromTimerQueue(toast);
+
+                if (activeToastTimer?.toast !== toast) {
+                    return false;
+                }
+
+                clearActiveToastTimer();
+
+                /*
+                 * Let the outgoing toast finish its short downward dismissal
+                 * before the next countdown begins.
+                 */
+                ctx.timeout(startNextToastTimer, 180);
+                return true;
+            }
+
+            function enqueueToastDismiss(toast, duration) {
+                if (!Number.isFinite(duration) || duration <= 0) return;
+
+                toast.classList.add('sfgu-toast--waiting');
+                toast.style.setProperty('--sfgu-toast-progress', '1');
+
+                toastTimerQueue.push({
+                    toast,
+                    duration
+                });
+
+                ctx.on(toast, 'mouseenter', () => pauseToastTimer(toast));
+                ctx.on(toast, 'mouseleave', () => resumeToastTimer(toast));
+                ctx.on(toast, 'focusin', () => pauseToastTimer(toast));
+                ctx.on(
+                    toast,
+                    'focusout',
+                    () => ctx.timeout(() => resumeToastTimer(toast), 0)
+                );
+
+                startNextToastTimer();
+            }
+
+            function upgradeMessageToToast(message) {
+                if (
+                    !(message instanceof HTMLElement) ||
+                    !message.classList.contains('msgBoxBase') ||
+                    message.dataset.sfguToast === 'true'
+                ) {
+                    return;
+                }
+
+                const host = ensureToastHost();
+                if (!host) return;
+
+                message.dataset.sfguToast = 'true';
+
+                const severity = toastSeverity(message);
+                const duration = severity.timeout;
+
+                message.classList.add(TOAST_CLASS, severity.className);
+                message.setAttribute('role', severity.role);
+                message.setAttribute('aria-live', severity.live);
+                message.setAttribute('aria-atomic', 'true');
+
+                const content = ctx.element('div');
+                content.className = 'sfgu-toast-content';
+
+                while (message.firstChild) {
+                    content.appendChild(message.firstChild);
+                }
+
+                const dismiss = ctx.element('button');
+                dismiss.type = 'button';
+                dismiss.className = 'sfgu-toast-dismiss';
+                dismiss.setAttribute('aria-label', 'Dismiss notification');
+                dismiss.textContent = '×';
+
+                message.append(content, dismiss);
+
+                if (duration > 0) {
+                    const progress = ctx.element('div');
+                    progress.className = 'sfgu-toast-progress';
+                    progress.setAttribute('aria-hidden', 'true');
+                    message.appendChild(progress);
+                }
+
+                host.appendChild(message);
+
+                ctx.on(dismiss, 'click', () => dismissToast(message));
+
+                enqueueToastDismiss(message, duration);
+            }
+
+            function initializeMessageToasts() {
+                injectToastStyles();
+
+                const scan = root => {
+                    if (!(root instanceof Element)) return;
+
+                    if (root.matches?.('.msgBoxBase')) {
+                        upgradeMessageToToast(root);
+                    }
+
+                    for (const message of root.querySelectorAll?.(
+                        '.msgBoxBase'
+                    ) || []) {
+                        upgradeMessageToToast(message);
+                    }
+                };
+
+                scan(document.documentElement);
+
+                const observer = ctx.observer(records => {
+                    for (const record of records) {
+                        for (const node of record.addedNodes) {
+                            scan(node);
+                        }
+                    }
+                });
+
+                observer.observe(document.documentElement, {
+                    childList: true,
+                    subtree: true
+                });
+
+                observeToastHostPosition();
             }
 
             /* ---------------------------------------------------------------------
@@ -3880,18 +5025,26 @@ function registerGlobalUX(SFUX) {
                 const currentPath = normalizedPath(window.location.href);
                 const topItems = Array.from(nav.querySelectorAll(':scope > ul > li'));
 
+                for (const currentLink of nav.querySelectorAll('.sfgu-current-link')) {
+                    currentLink.classList.remove('sfgu-current-link');
+                }
+
                 for (const item of topItems) {
                     item.classList.remove('sfgu-current');
 
                     const links = Array.from(item.querySelectorAll('a[href]'));
-                    const exactMatch = links.some(link => {
+                    const exactLink = links.find(link => {
                         const href = link.getAttribute('href') || '';
                         if (!href || href === '#' || href.startsWith('javascript:')) return false;
                         return normalizedPath(link.href) === currentPath;
                     });
 
-                    if (exactMatch) {
+                    if (exactLink) {
                         item.classList.add('sfgu-current');
+                        const submenuItem = exactLink.closest('li');
+                        if (submenuItem && submenuItem !== item) {
+                            submenuItem.classList.add('sfgu-current-link');
+                        }
                         return;
                     }
                 }
@@ -4097,6 +5250,87 @@ function registerGlobalUX(SFUX) {
                 );
             }
 
+            function installNavigationPressFeedback(nav) {
+                let pressedItem = null;
+                let releaseTimer = 0;
+
+                const clearPressed = () => {
+                    if (releaseTimer) {
+                        window.clearTimeout(releaseTimer);
+                        releaseTimer = 0;
+                    }
+
+                    if (pressedItem) {
+                        pressedItem.classList.remove('sfgu-pressed');
+                        pressedItem = null;
+                    }
+                };
+
+                const pressTarget = event => {
+                    const link = event.target.closest?.('a[href]');
+                    if (!link || !nav.contains(link)) return;
+
+                    const item = link.closest('li');
+                    if (!item || !nav.contains(item)) return;
+
+                    clearPressed();
+                    pressedItem = item;
+                    item.classList.add('sfgu-pressed');
+                };
+
+                const scheduleRelease = delay => {
+                    if (releaseTimer) {
+                        window.clearTimeout(releaseTimer);
+                    }
+                    releaseTimer = window.setTimeout(clearPressed, delay);
+                };
+
+                // Safari can follow a link before CSS :active becomes visibly painted.
+                // Apply the row state as soon as contact begins instead.
+                ctx.on(nav, 'pointerdown', pressTarget, {
+                    passive: true,
+                    capture: true
+                });
+                ctx.on(nav, 'touchstart', pressTarget, {
+                    passive: true,
+                    capture: true
+                });
+
+                ctx.on(nav, 'pointercancel', clearPressed, {
+                    passive: true,
+                    capture: true
+                });
+                ctx.on(nav, 'touchcancel', clearPressed, {
+                    passive: true,
+                    capture: true
+                });
+
+                // Clear stale feedback when a gesture does not unload this page.
+                ctx.on(nav, 'pointerup', () => scheduleRelease(600), {
+                    passive: true,
+                    capture: true
+                });
+                ctx.on(nav, 'touchend', () => scheduleRelease(600), {
+                    passive: true,
+                    capture: true
+                });
+
+                // Category labels remain on-page, so clear their pressed state shortly
+                // after the submenu action. Navigating links clear naturally on unload.
+                ctx.on(nav, 'click', event => {
+                    if (!pressedItem) return;
+
+                    const link = event.target.closest?.('a[href]');
+                    const href = link?.getAttribute('href')?.trim() || '';
+
+                    if (!href || href === '#' || href.startsWith('javascript:')) {
+                        scheduleRelease(140);
+                    }
+                }, true);
+
+                ctx.on(window, 'pageshow', clearPressed);
+            }
+
             function closeMobileMenu(nav) {
                 nav.classList.remove(MOBILE_OPEN_CLASS);
                 getOwnedMenuButton(nav)?.setAttribute('aria-expanded', 'false');
@@ -4126,6 +5360,7 @@ function registerGlobalUX(SFUX) {
                 addSubmenuControls(nav);
                 markCurrentSection(nav);
                 prepareMenuButton(nav);
+                installNavigationPressFeedback(nav);
 
                 ctx.on(document, 'keydown', event => {
                     if (
@@ -4208,12 +5443,19 @@ function registerGlobalUX(SFUX) {
              * integration should prefer explicit lifecycle hooks when available.
              * --------------------------------------------------------------------- */
             function start() {
-                /*
-                 * Styles and the anti-flash marker are installed at document-start,
-                 * before StarFury paints the native Advisor/Star Dock on normal loads.
-                 */
                 injectStyles();
                 document.documentElement?.classList.add(CONTEXT_PREP_CLASS);
+
+                // Schedule navigation/HUD/dock before independent toast setup.
+                ctx.find('#cssmenu', prepareEarlyNavigationShell);
+                ctx.ready(() => ctx.timeout(() => {
+                    ctx.find('#cssmenu', initializeNavigation);
+                    ctx.find('#statbar', initializeStatHud);
+                    ctx.find('#advisor-dock', initializeContextRow);
+                }, 20));
+
+                SFUX.safeRun('global:toast-styles', injectToastStyles);
+                SFUX.safeRun('global:toasts', initializeMessageToasts);
 
                 // Safety valve: never leave the native context invisible if a page is
                 // unusually slow, omits the expected markup, or another script fails.
@@ -4222,13 +5464,6 @@ function registerGlobalUX(SFUX) {
                         CONTEXT_PREP_CLASS
                     );
                 }, 2200);
-
-                ctx.find('#cssmenu', prepareEarlyNavigationShell);
-                ctx.ready(() => ctx.timeout(() => {
-                    ctx.find('#cssmenu', initializeNavigation);
-                    ctx.find('#statbar', initializeStatHud);
-                    ctx.find('#advisor-dock', initializeContextRow);
-                }, 20));
             }
 
             return { init() { return start(); }, destroy: ctx.destroy };
@@ -4236,7 +5471,7 @@ function registerGlobalUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.4.20 | Research Optimizer module. */
+/* StarFury UX Suite 2.5.10-beta.1 | Research Optimizer module. */
 function registerResearchOptimizer(SFUX) {
     SFUX.register({
         id: 'research', phase: 'ready',
@@ -4704,9 +5939,23 @@ function registerResearchOptimizer(SFUX) {
                         vertical-align: middle;
                     }
 
+                    .sfro-tech-name-with-info {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 5px;
+                        max-width: 100%;
+                        vertical-align: middle;
+                    }
+
+                    .sfro-tech-name-text {
+                        min-width: 0;
+                    }
+
                     .sfro-info-icon {
-                        display: inline-block;
-                        margin-left: 6px;
+                        display: inline-flex;
+                        align-items: center;
+                        flex: 0 0 auto;
+                        margin: 0;
                         opacity: 0.68;
                         vertical-align: middle;
                         border: 0 !important;
@@ -5183,6 +6432,24 @@ function registerResearchOptimizer(SFUX) {
                             color: rgba(255,255,255,0.64) !important;
                         }
 
+                        .sfro-tech-table tr.sfro-tech-row
+                            > td.sfro-summary-cell {
+                            display: block !important;
+                        }
+
+                        .sfro-tech-table tr.sfro-tech-row
+                            .sfro-tech-name-with-info {
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 5px;
+                            max-width: 100%;
+                        }
+
+                        .sfro-tech-table tr.sfro-tech-row
+                            .sfro-info-icon {
+                            margin: 0 !important;
+                        }
+
                         .sfro-tech-table tr.sfro-tech-row > td:nth-child(4) {
                             grid-area: rp;
                             align-self: start;
@@ -5416,11 +6683,19 @@ function registerResearchOptimizer(SFUX) {
 
                         .sfro-section-header-inner {
                             grid-template-columns: 1fr;
+                            justify-items: center;
                             gap: 3px;
                         }
 
+                        .sfro-section-name {
+                            width: 100%;
+                            text-align: center;
+                        }
+
                         .sfro-section-meta {
-                            text-align: left;
+                            width: 100%;
+                            justify-self: center;
+                            text-align: center;
                         }
 
                         .sfro-active-card-top {
@@ -5633,80 +6908,15 @@ function registerResearchOptimizer(SFUX) {
                 return names;
             }
 
-            function isCounterIntelligenceSection(section) {
-                return /^Counter Intelligence\b/i.test(normalizeText(section.name));
-            }
-
-            function getTechByName(section, techName) {
-                return section.techs.find(tech => tech.name === techName) || null;
-            }
-
-            function getCounterIntelligenceProgress(section) {
-                if (!isCounterIntelligenceSection(section)) return null;
-
-                const counterCombat = getTechByName(section, 'Counter Combat');
-                const reinforcedI = getTechByName(section, 'Reinforced Intelligence I');
-                const reinforcedII = getTechByName(section, 'Reinforced Intelligence II');
-
-                /*
-                 * Counter Intelligence is modeled as one path worth 1.0 total:
-                 *
-                 *   Counter Combat                = 1.0 / 1
-                 *   Reinforced Intelligence I     = 0.5 / 1
-                 *   Reinforced Intelligence II    = 1.0 / 1
-                 *
-                 * RI II requires RI I, so the Reinforced branch reaches half-progress
-                 * after RI I and full progress only after RI II.
-                 */
-                if (counterCombat?.completed || reinforcedII?.completed) return 1;
-                if (reinforcedI?.completed) return 0.5;
-                return 0;
-            }
-
-            function formatCounterIntelligenceProgress(progress) {
-                if (progress === 0.5) return '0.5/1';
-                if (progress >= 1) return '1/1';
-                return '0/1';
-            }
-
-            function getCounterIntelligenceTerminalState(section) {
-                if (!isCounterIntelligenceSection(section)) return null;
-
-                const counterCombat = getTechByName(section, 'Counter Combat');
-                const reinforcedI = getTechByName(section, 'Reinforced Intelligence I');
-                const reinforcedII = getTechByName(section, 'Reinforced Intelligence II');
-
-                /*
-                 * Counter Intelligence is the one known oddball:
-                 * [Limit: 1], but Reinforced Intelligence II requires I.
-                 *
-                 * Working model, explicitly treated as an inference:
-                 *   - Counter Combat is one complete path.
-                 *   - Reinforced Intelligence I -> II is the other complete path.
-                 *
-                 * Do not treat RI I alone as "Max Reached" merely because the header
-                 * says Limit: 1.
-                 */
-                if (counterCombat?.completed || reinforcedII?.completed) {
-                    return {
-                        terminal: true,
-                        kind: 'max',
-                        desktop: '✓ Max Reached',
-                        mobile: '✓ Max Reached',
-                        title:
-                            'Counter Intelligence has reached one complete research path. ' +
-                            'Counter Combat completes the category directly; Reinforced Intelligence reaches half-progress at RI I and completes at RI II. ' +
-                            'The branch interpretation remains an informed inference from the Limit: 1 label and RI II prerequisite.'
-                    };
-                }
-
-                // RI I by itself is progress down the Reinforced path, not completion.
-                if (reinforcedI?.completed) {
-                    return { terminal: false, kind: 'open', counterBranch: 'reinforced' };
-                }
-
-                return { terminal: false, kind: 'open', counterBranch: null };
-            }
+            /*
+             * Limited research sections are driven only by StarFury's native
+             * [Limit: #] header and the actual number of completed rows.
+             *
+             * Do not infer race-specific path semantics from technology names.
+             * If the server says [Limit: 1], one completed technology consumes
+             * that selection. If the header has no limit, this enhancer does not
+             * invent one.
+             */
 
             function classifySectionState(section) {
                 const hasRows = section.techCount > 0;
@@ -5731,12 +6941,6 @@ function registerResearchOptimizer(SFUX) {
                         mobile: '✓ Complete',
                         title: 'Every technology in this section is researched.'
                     };
-                }
-
-                const counterState = getCounterIntelligenceTerminalState(section);
-                // INFERRED MECHANIC: RI I is half a path; the generic selection count must not override it.
-                if (counterState) {
-                    return counterState;
                 }
 
                 const limitReached =
@@ -5770,10 +6974,6 @@ function registerResearchOptimizer(SFUX) {
                             'This category has reached the maximum research available on the selected path. ' +
                             'Remaining listed technologies are mutually exclusive alternatives.'
                     };
-                }
-
-                if (counterState) {
-                    return counterState;
                 }
 
                 return { terminal: false, kind: 'open' };
@@ -5884,74 +7084,9 @@ function registerResearchOptimizer(SFUX) {
                 );
             }
 
-            function calculateCounterIntelligenceRange(section, researchRate) {
-                const counterCombat = getTechByName(section, 'Counter Combat');
-                const reinforcedI = getTechByName(section, 'Reinforced Intelligence I');
-                const reinforcedII = getTechByName(section, 'Reinforced Intelligence II');
-
-                if (!counterCombat || !reinforcedI || !reinforcedII) return null;
-                if (counterCombat.completed || reinforcedII.completed) return null;
-
-                const routeForNames = names => {
-                    const route = [];
-
-                    for (const name of names) {
-                        const tech = getTechByName(section, name);
-                        if (!tech) return null;
-                        if (tech.completed) continue;
-                        if (tech.blocked || tech.remainingRp <= 0) return null;
-                        route.push(tech);
-                    }
-
-                    return route;
-                };
-
-                const committedNames = new Set(
-                    section.techs
-                        .filter(tech => !tech.completed && (tech.active || tech.queued))
-                        .map(tech => tech.name)
-                );
-
-                let routes = [];
-
-                if (
-                    reinforcedI.completed ||
-                    committedNames.has('Reinforced Intelligence I') ||
-                    committedNames.has('Reinforced Intelligence II')
-                ) {
-                    const reinforcedRoute = routeForNames([
-                        'Reinforced Intelligence I',
-                        'Reinforced Intelligence II'
-                    ]);
-                    if (reinforcedRoute) routes = [reinforcedRoute];
-                } else if (committedNames.has('Counter Combat')) {
-                    const combatRoute = routeForNames(['Counter Combat']);
-                    if (combatRoute) routes = [combatRoute];
-                } else {
-                    const combatRoute = routeForNames(['Counter Combat']);
-                    const reinforcedRoute = routeForNames([
-                        'Reinforced Intelligence I',
-                        'Reinforced Intelligence II'
-                    ]);
-
-                    routes = [combatRoute, reinforcedRoute].filter(Boolean);
-                }
-
-                return summarizeRoutes(
-                    routes,
-                    researchRate,
-                    'Counter Intelligence is modeled as a unique one-path category: Counter Combat, or Reinforced Intelligence I → II. ' +
-                    'This is an informed inference from the Limit: 1 label and the RI II prerequisite, not an explicit StarFury rules statement. ' +
-                    'Tick ranges sum each research item’s individually rounded ETA.'
-                );
-            }
-
             function calculateLimitedSectionRange(section, researchRate) {
                 if (section.limit === null || section.state?.terminal) return null;
-
-                return isCounterIntelligenceSection(section)
-                    ? calculateCounterIntelligenceRange(section, researchRate)
-                    : calculateGenericLimitedRange(section, researchRate);
+                return calculateGenericLimitedRange(section, researchRate);
             }
 
             function formatNumericRange(minValue, maxValue) {
@@ -5982,10 +7117,7 @@ function registerResearchOptimizer(SFUX) {
                 for (const tech of section.techs) {
                     if (tech.completed) continue;
 
-                    if (
-                        tech.blocked ||
-                        isCounterIntelligenceSection(section)
-                    ) {
+                    if (tech.blocked) {
                         setTerminalActionStatus(
                             tech,
                             'Path Closed',
@@ -6065,6 +7197,7 @@ function registerResearchOptimizer(SFUX) {
                 const techName = normalizeText(cells[1].textContent);
                 if (!techName) return;
 
+                const techCell = cells[1];
                 const infoCell = cells[2];
                 const infoLink = infoCell.querySelector('a[rel*="modal"]');
                 if (!infoLink) return;
@@ -6079,10 +7212,19 @@ function registerResearchOptimizer(SFUX) {
                 summarySpan.textContent = summary;
                 summarySpan.title = summary;
 
+                const nameGroup = ctx.element('span');
+                nameGroup.className = 'sfro-tech-name-with-info';
+
+                const nameSpan = ctx.element('span');
+                nameSpan.className = 'sfro-tech-name-text';
+                nameSpan.textContent = techName;
+
                 infoLink.classList.add('sfro-info-icon');
                 infoLink.title = `Full details: ${techName}`;
 
-                infoCell.replaceChildren(summarySpan, infoLink);
+                nameGroup.append(nameSpan, infoLink);
+                techCell.replaceChildren(nameGroup);
+                infoCell.replaceChildren(summarySpan);
                 row.dataset.sfroSummaryDone = '1';
             }
 
@@ -6335,13 +7477,8 @@ function registerResearchOptimizer(SFUX) {
                             const progress = ctx.element('span');
                             progress.className = 'sfro-section-meta-label';
 
-                            if (isCounterIntelligenceSection(section)) {
-                                const counterProgress = getCounterIntelligenceProgress(section);
-                                progress.textContent =
-                                    `Selected ${formatCounterIntelligenceProgress(counterProgress)}`;
-                            } else {
-                                progress.textContent = `Selected ${section.completedCount}/${section.limit}`;
-                            }
+                            progress.textContent =
+                                `Selected ${section.completedCount}/${section.limit}`;
 
                             desktopMeta.appendChild(progress);
 
@@ -6409,14 +7546,9 @@ function registerResearchOptimizer(SFUX) {
                         const pieces = [];
 
                         if (section.limit !== null) {
-                            if (isCounterIntelligenceSection(section)) {
-                                const counterProgress = getCounterIntelligenceProgress(section);
-                                pieces.push(
-                                    `${formatCounterIntelligenceProgress(counterProgress)} selected`
-                                );
-                            } else {
-                                pieces.push(`${section.completedCount}/${section.limit} selected`);
-                            }
+                            pieces.push(
+                                `${section.completedCount}/${section.limit} selected`
+                            );
 
                             if (section.range) {
                                 pieces.push(
@@ -6943,13 +8075,24 @@ function registerResearchOptimizer(SFUX) {
                 const activeResearch = getActiveResearch();
 
                 for (const table of document.querySelectorAll('.noticeBody table.basictable')) {
-                    optimizeTechTree(table, researchRate, activeResearch);
+                    SFUX.safeRun(
+                        'research:tree',
+                        () => optimizeTechTree(table, researchRate, activeResearch)
+                    );
                 }
 
-                handleZeroResearchState(researchRate, activeResearch);
-
-                optimizeActiveResearch(researchRate, activeResearch);
-                optimizeQueue(researchRate, activeResearch);
+                SFUX.safeRun(
+                    'research:zero-state',
+                    () => handleZeroResearchState(researchRate, activeResearch)
+                );
+                SFUX.safeRun(
+                    'research:active',
+                    () => optimizeActiveResearch(researchRate, activeResearch)
+                );
+                SFUX.safeRun(
+                    'research:queue',
+                    () => optimizeQueue(researchRate, activeResearch)
+                );
             }
 
 
@@ -6958,7 +8101,7 @@ function registerResearchOptimizer(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.4.20 | Buildings UX module. */
+/* StarFury UX Suite 2.5.10-beta.1 | Buildings UX module. */
 function registerBuildingsUX(SFUX) {
     SFUX.register({
         id: 'buildings', phase: 'ready',
@@ -7023,7 +8166,15 @@ function registerBuildingsUX(SFUX) {
 
 
 
-            const configureNonNegativeIntegerInput = input => SFUX.ui.number(ctx, input, { blankZero: true, step: 1 });
+            const configureNonNegativeIntegerInput = input => SFUX.ui.number(
+                ctx,
+                input,
+                {
+                    blankZero: true,
+                    step: 1,
+                    spinner: false
+                }
+            );
 
             const parseNumber = SFUX.format.number;
 
@@ -7296,6 +8447,29 @@ function registerBuildingsUX(SFUX) {
                     table.buildings.sf-buildings-enhanced .sf-max-cell,
                     table.buildings.sf-buildings-enhanced .sf-construct-cell {
             text-align: center;
+                    }
+
+                    /*
+                     * Building quantities are entered directly. The tiny browser/custom
+                     * increment arrows add visual noise and are poor touch targets, so
+                     * keep the numeric keyboard/validation while presenting a plain field.
+                     */
+                    table.buildings.sf-buildings-enhanced input.buildingsInput[type="number"],
+                    table.buildingsRaze.sf-raze-enhanced input.buildingsInput[type="number"] {
+            appearance: textfield;
+            -moz-appearance: textfield;
+                    }
+
+                    table.buildings.sf-buildings-enhanced
+                        input.buildingsInput[type="number"]::-webkit-inner-spin-button,
+                    table.buildings.sf-buildings-enhanced
+                        input.buildingsInput[type="number"]::-webkit-outer-spin-button,
+                    table.buildingsRaze.sf-raze-enhanced
+                        input.buildingsInput[type="number"]::-webkit-inner-spin-button,
+                    table.buildingsRaze.sf-raze-enhanced
+                        input.buildingsInput[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
                     }
 
                     /*
@@ -7908,10 +9082,10 @@ function registerBuildingsUX(SFUX) {
 
             table.buildings.sf-buildings-enhanced .sf-construct-cell .buildingsInput {
                 width: 72px !important;
-                min-height: 36px;
+                min-height: 40px;
                 margin: 0 auto !important;
                 box-sizing: border-box;
-                font-size: 14px !important;
+                font-size: 16px !important;
                 text-align: center;
             }
 
@@ -8297,9 +9471,9 @@ function registerBuildingsUX(SFUX) {
 
             table.buildingsRaze.sf-raze-enhanced .buildingsInput {
                 width: 72px !important;
-                min-height: 36px;
+                min-height: 40px;
                 margin: 0 auto !important;
-                font-size: 14px !important;
+                font-size: 16px !important;
             }
 
             .sf-raze-mobile-summary {
@@ -10087,9 +11261,9 @@ function registerBuildingsUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.4.20 | Ship Power Routing module. */
+/* StarFury UX Suite 2.5.10-beta.1 | Ship Power Routing module. */
 
-/* StarFury UX Suite 2.4.20 | Rewards UX module. */
+/* StarFury UX Suite 2.5.10-beta.1 | Rewards UX module. */
 function registerRewardsUX(SFUX) {
     'use strict';
 
@@ -10349,33 +11523,22 @@ function registerRewardsUX(SFUX) {
                     color: rgba(255,255,255,.36);
                 }
 
-                body.sfux-rewards-page .sfux-reward-action a {
-                    display: inline-flex;
+                /*
+                 * Redeem uses the same shared primary-action language as Submit.
+                 * Rewards owns only placement/sizing; global .button-primary owns
+                 * color, border, hover, focus, active and disabled states.
+                 */
+                body.sfux-rewards-page .sfux-reward-action
+                    .sfux-reward-redeem {
+                    display: inline-flex !important;
                     align-items: center;
                     justify-content: center;
-                    min-height: 28px;
-                    padding: 4px 10px;
-                    border: 1px solid rgba(255,255,255,.14);
-                    border-radius: 2px;
-                    background: rgba(255,255,255,.025);
-                    color: rgba(255,255,255,.80) !important;
-                    font-size: 11px;
-                    font-weight: 700;
-                    letter-spacing: 0;
-                    line-height: 1;
+                    min-height: 34px;
+                    margin: 0 !important;
+                    padding: 0 14px !important;
+                    box-sizing: border-box;
                     text-decoration: none !important;
-                    text-transform: none;
-                    transition:
-                        color var(--sfux-transition-fast),
-                        background-color var(--sfux-transition-fast),
-                        border-color var(--sfux-transition-fast);
-                }
-
-                body.sfux-rewards-page .sfux-reward-action a:hover,
-                body.sfux-rewards-page .sfux-reward-action a:focus {
-                    border-color: rgba(56,191,232,.60);
-                    background: rgba(56,191,232,.075);
-                    color: #fff !important;
+                    touch-action: manipulation;
                 }
 
                 body.sfux-rewards-page .sfux-rewards-note {
@@ -10387,22 +11550,53 @@ function registerRewardsUX(SFUX) {
                 }
 
                 @media (max-width: 800px) {
+                    /*
+                     * Compact mobile ledger. Keep the useful economics visible,
+                     * but avoid turning the desktop table into three-row cards.
+                     */
                     body.sfux-rewards-page .sfux-rewards-summary {
-                        align-items: flex-start;
-                        flex-direction: column;
-                        gap: 5px;
+                        display: grid;
+                        grid-template-columns: 1fr;
+                        gap: 6px;
+                        margin: 7px 10px 8px;
+                        padding: 7px 9px 8px;
+                    }
+
+                    body.sfux-rewards-page .sfux-rewards-summary-title {
+                        font-size: 11px;
                     }
 
                     body.sfux-rewards-page .sfux-rewards-summary-values {
-                        justify-content: flex-start;
+                        display: grid;
+                        grid-template-columns: repeat(2, minmax(0, 1fr));
+                        justify-content: stretch;
                         width: 100%;
-                        gap: 8px 14px;
+                        gap: 5px 12px;
+                    }
+
+                    body.sfux-rewards-page .sfux-rewards-summary-metric {
+                        display: flex;
+                        align-items: baseline;
+                        justify-content: space-between;
+                        gap: 6px;
+                        min-width: 0;
+                    }
+
+                    body.sfux-rewards-page .sfux-rewards-summary-label,
+                    body.sfux-rewards-page .sfux-rewards-summary-unit {
+                        font-size: 11px;
+                    }
+
+                    body.sfux-rewards-page .sfux-rewards-summary-number,
+                    body.sfux-rewards-page
+                        .sfux-rewards-summary-number--available {
+                        font-size: 13px;
                     }
 
                     .sectionTitle.sf-rewards-section-title {
                         display: flex;
-                        padding: 8px 8px !important;
-                        gap: 8px;
+                        padding: 7px 9px !important;
+                        gap: 7px;
                     }
 
                     .sf-rewards-section-name {
@@ -10410,7 +11604,7 @@ function registerRewardsUX(SFUX) {
                     }
 
                     .sf-rewards-section-meta {
-                        font-size: 11px;
+                        font-size: 12px;
                     }
 
                     body.sfux-rewards-page table.sfux-rewards-table,
@@ -10425,57 +11619,123 @@ function registerRewardsUX(SFUX) {
                         display: none;
                     }
 
+                    body.sfux-rewards-page table.sfux-rewards-table tbody {
+                        padding: 0 10px 2px;
+                        box-sizing: border-box;
+                    }
+
                     body.sfux-rewards-page table.sfux-rewards-table tr {
                         display: grid;
-                        grid-template-columns: 1fr 1fr;
+                        grid-template-columns:
+                            minmax(0, 1fr)
+                            minmax(112px, .72fr);
+                        grid-template-areas:
+                            "reward action"
+                            "amount max";
                         gap: 0;
-                        margin-bottom: 10px;
+                        margin-bottom: 8px;
                         border: 1px solid rgba(79,137,162,.24);
                         background: rgba(18,21,23,.94);
                     }
 
                     body.sfux-rewards-page table.sfux-rewards-table td {
                         min-width: 0;
-                        border-right: 1px solid rgba(255,255,255,.055);
-                        border-bottom: 1px solid rgba(255,255,255,.055);
+                        padding: 8px 10px;
+                        border-right: 0;
+                        border-bottom: 0;
+                        background: transparent;
                         text-align: left;
                     }
 
                     body.sfux-rewards-page table.sfux-rewards-table td::before {
                         display: block;
-                        margin-bottom: 3px;
+                        margin-bottom: 2px;
                         color: rgba(255,255,255,.40);
-                        font-size: 9px;
+                        font-size: 12px;
                         font-weight: 800;
                         letter-spacing: .04em;
+                        line-height: 1.1;
                         text-transform: uppercase;
                     }
 
-                    body.sfux-rewards-page table.sfux-rewards-table td:nth-child(1) {
-                        grid-column: 1 / -1;
+                    body.sfux-rewards-page .sfux-reward-name {
+                        grid-area: reward;
+                        display: flex !important;
+                        align-items: center;
+                        padding-right: 6px !important;
+                        color: #fff;
+                        font-size: 14px;
+                        font-weight: 700;
+                        line-height: 1.2;
                     }
-                    body.sfux-rewards-page table.sfux-rewards-table td:nth-child(1)::before {
-                        content: "Reward";
+
+                    body.sfux-rewards-page .sfux-reward-name::before {
+                        display: none !important;
+                        content: none !important;
                     }
-                    body.sfux-rewards-page table.sfux-rewards-table td:nth-child(2)::before {
+
+                    body.sfux-rewards-page .sfux-reward-action {
+                        grid-area: action;
+                        display: flex !important;
+                        align-items: center;
+                        justify-content: flex-end;
+                        padding-left: 6px !important;
+                        text-align: right;
+                    }
+
+                    body.sfux-rewards-page .sfux-reward-action::before {
+                        display: none !important;
+                        content: none !important;
+                    }
+
+                    body.sfux-rewards-page .sfux-reward-action
+                        .sfux-reward-redeem {
+                        min-width: 78px;
+                        min-height: 40px;
+                        height: 40px;
+                        padding: 0 12px !important;
+                    }
+
+                    body.sfux-rewards-page .sfux-reward-amount {
+                        grid-area: amount;
+                        padding-top: 7px !important;
+                        border-top: 1px solid rgba(255,255,255,.075);
+                        background: rgba(0,0,0,.11);
+                        font-size: 14px;
+                    }
+
+                    body.sfux-rewards-page .sfux-reward-amount::before {
                         content: "Per Redemption";
                     }
-                    body.sfux-rewards-page table.sfux-rewards-table td:nth-child(3)::before {
+
+                    body.sfux-rewards-page .sfux-reward-max-cell {
+                        grid-area: max;
+                        padding-top: 7px !important;
+                        border-top: 1px solid rgba(255,255,255,.075);
+                        border-left: 1px solid rgba(255,255,255,.10);
+                        background: rgba(0,0,0,.11);
+                        text-align: right;
+                    }
+
+                    body.sfux-rewards-page .sfux-reward-max-cell::before {
                         content: "Max Value";
-                    }
-                    body.sfux-rewards-page table.sfux-rewards-table td:nth-child(4) {
-                        grid-column: 1 / -1;
-                        text-align: center;
-                    }
-                    body.sfux-rewards-page table.sfux-rewards-table td:nth-child(4)::before {
-                        content: "";
+                        text-align: right;
                     }
 
                     body.sfux-rewards-page .sfux-reward-max {
-                        justify-content: flex-start;
+                        justify-content: flex-end;
+                        text-align: right;
+                    }
+
+                    body.sfux-rewards-page .sfux-reward-max-total {
+                        font-size: 14px;
+                        text-align: right;
                     }
 
                     body.sfux-rewards-page .sfux-rewards-note {
+                        margin: 6px 10px 2px;
+                        font-size: 11px;
+                        line-height: 1.35;
                         text-align: left;
                     }
                 }
@@ -10633,6 +11893,11 @@ function registerRewardsUX(SFUX) {
                     'a[href*="reward.php"][href*="action=redeem"]'
                 );
                 if (redeemLink) {
+                    redeemLink.classList.add(
+                        'button',
+                        'button-primary',
+                        'sfux-reward-redeem'
+                    );
                     redeemLink.title =
                         `Redeem ${formatInteger(amount)} ${rewardName} for ${formatInteger(cost)} points`;
                 }
@@ -10755,7 +12020,7 @@ function registerRewardsUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.4.20 | Attack Room command layout and fleet accounting. */
+/* StarFury UX Suite 2.5.10-beta.1 | Attack Room command layout and fleet accounting. */
 function registerAttackUX(SFUX) {
     'use strict';
 
@@ -10763,7 +12028,7 @@ function registerAttackUX(SFUX) {
         id: 'attack',
         phase: 'ready',
         matches(path) {
-            return path === '/attack.php';
+            return path === '/attack.php' || path === '/bossbattle.php';
         },
         create(ctx) {
             const STYLE_ID = 'sfux-attack-style';
@@ -10812,10 +12077,35 @@ function registerAttackUX(SFUX) {
                 return `${formatInteger(stats.current)} / ${formatInteger(stats.maximum)}`;
             }
 
-            function getRoleKey(row) {
-                return Object.keys(ROLE_CONFIG).find(className =>
-                    row.classList.contains(className)
-                ) || null;
+            function getRoleKey(row, fallbackRoleClass = null) {
+                const explicitRole = Object.keys(ROLE_CONFIG).find(className =>
+                    row.classList.contains(className) ||
+                    Boolean(row.querySelector(`.${className}`))
+                );
+
+                if (explicitRole) return explicitRole;
+
+                const isSelectableShipRow = Boolean(
+                    row.querySelector(
+                        'input[name="shipid[]"][type="checkbox"]'
+                    )
+                );
+
+                return isSelectableShipRow ? fallbackRoleClass : null;
+            }
+
+            function getBossBattleRoleClass(shipTable) {
+                if (SFUX.path !== '/bossbattle.php') return null;
+
+                const battleBox = shipTable.closest('.contentbox');
+                const heading = String(
+                    battleBox?.querySelector('.boxheadertext')?.textContent || ''
+                ).toLowerCase();
+
+                if (heading.includes('leech')) return 'Leecherbg';
+                if (heading.includes('damage')) return 'Attackbg';
+
+                return null;
             }
 
             function findShipTable() {
@@ -11228,6 +12518,17 @@ function registerAttackUX(SFUX) {
                         margin-top: 2px !important;
                     }
 
+                    @media (max-width: ${SFUX.responsive.mobile}px) {
+                        body.sfux-attack-page
+                        table.sfux-attack-table
+                        .sfux-attack-hull-column,
+                        body.sfux-attack-page
+                        table.sfux-attack-table
+                        .sfux-attack-shield-column {
+                            display: none !important;
+                        }
+                    }
+
                     @media (max-width: 820px) {
                         body.sfux-attack-page .sfux-attack-command-grid {
                             grid-template-columns: 1fr;
@@ -11394,7 +12695,10 @@ function registerAttackUX(SFUX) {
             function enhanceFleetTable(shipTable) {
                 shipTable.classList.add('sfux-attack-table');
 
-                const roleRows = Array.from(shipTable.rows).filter(row => getRoleKey(row));
+                const fallbackRoleClass = getBossBattleRoleClass(shipTable);
+                const roleRows = Array.from(shipTable.rows).filter(row =>
+                    getRoleKey(row, fallbackRoleClass)
+                );
                 if (!roleRows.length) return;
 
                 const headerRow = Array.from(shipTable.rows).find(row =>
@@ -11402,6 +12706,13 @@ function registerAttackUX(SFUX) {
                 );
 
                 if (!headerRow || headerRow.cells.length < 8) return;
+
+                headerRow.cells[2]?.classList.add(
+                    'sfux-attack-hull-column'
+                );
+                headerRow.cells[3]?.classList.add(
+                    'sfux-attack-shield-column'
+                );
 
                 const hpHeader = ctx.element('td');
                 hpHeader.className = 'tableheader';
@@ -11417,9 +12728,24 @@ function registerAttackUX(SFUX) {
                 const groupMap = new Map();
 
                 for (const row of roleRows) {
-                    const roleClass = getRoleKey(row);
+                    const roleClass = getRoleKey(row, fallbackRoleClass);
                     const config = ROLE_CONFIG[roleClass];
                     if (!config || row.cells.length < 8) continue;
+
+                    /*
+                     * attack.php already puts Attackbg / Defencebg / Leecherbg on
+                     * the ship row. Boss Battle may put it only on one cell.
+                     * Normalize the role onto the row so both pages share the same
+                     * native fleet background treatment.
+                     */
+                    row.classList.add(roleClass);
+
+                    row.cells[2]?.classList.add(
+                        'sfux-attack-hull-column'
+                    );
+                    row.cells[3]?.classList.add(
+                        'sfux-attack-shield-column'
+                    );
 
                     const hull = parsePair(row.cells[2].textContent);
                     const shield = parsePair(row.cells[3].textContent);
@@ -11643,6 +12969,45 @@ function registerAttackUX(SFUX) {
                 const grandRow = makeSummaryRow(grand, true);
                 tbody.insertBefore(grandRow, lastSummaryRow?.nextSibling || null);
 
+                const mobileFleetMedia =
+                    typeof window !== 'undefined' &&
+                    typeof window.matchMedia === 'function'
+                        ? window.matchMedia(
+                            `(max-width: ${SFUX.responsive.mobile}px)`
+                        )
+                        : null;
+
+                const syncFleetColumnSpans = () => {
+                    const isMobile = Boolean(mobileFleetMedia?.matches);
+
+                    shipTable
+                        .querySelectorAll('.sfux-attack-group-header > td')
+                        .forEach(cell => {
+                            cell.colSpan = isMobile
+                                ? totalColumns - 2
+                                : totalColumns;
+                        });
+
+                    shipTable
+                        .querySelectorAll(
+                            '.sfux-attack-subtotal > td:first-child, ' +
+                            '.sfux-attack-grand-total > td:first-child'
+                        )
+                        .forEach(cell => {
+                            cell.colSpan = isMobile ? 2 : 4;
+                        });
+                };
+
+                syncFleetColumnSpans();
+
+                if (mobileFleetMedia) {
+                    ctx.on(
+                        mobileFleetMedia,
+                        'change',
+                        syncFleetColumnSpans
+                    );
+                }
+
                 const totalAttack = document.getElementById('total_att');
                 const totalDamage = document.getElementById('total_dmg');
                 const nativePoints = totalAttack?.closest('p');
@@ -11683,9 +13048,15 @@ function registerAttackUX(SFUX) {
                     }
                 }
 
-                const launchButton = document.querySelector(
-                    'form[action*="attackc.php"] input[type="submit"][value="Attack" i]'
-                );
+                const fleetForm = shipTable.closest('form');
+                const launchButton =
+                    fleetForm?.querySelector(
+                        'input[type="submit"].button-primary, button[type="submit"].button-primary'
+                    ) ||
+                    document.querySelector(
+                        'form[action*="attackc.php"] input[type="submit"][value="Attack" i]'
+                    );
+
                 launchButton?.classList.add('sfux-attack-launch-button');
 
                 const syncSelection = () => {
@@ -11747,13 +13118,1237 @@ function registerAttackUX(SFUX) {
 
                 document.body.classList.add('sfux-attack-page');
                 injectStyles();
-                enhanceCommandArea(shipTable);
-                enhanceFleetTable(shipTable);
+
+                if (SFUX.path === '/attack.php') {
+                    SFUX.safeRun(
+                        'attack:command',
+                        () => enhanceCommandArea(shipTable)
+                    );
+                }
+
+                SFUX.safeRun(
+                    'attack:fleet',
+                    () => enhanceFleetTable(shipTable)
+                );
             }
 
             return {
                 init() {
                     return SFUX.safeRun('attack:page', main);
+                },
+                destroy: ctx.destroy
+            };
+        }
+    });
+}
+
+
+/* StarFury UX Suite 2.5.10-beta.1 | Raid roster density, mercenary selection, and payout accounting. */
+function registerRaidUX(SFUX) {
+    'use strict';
+
+    SFUX.register({
+        id: 'raid',
+        phase: 'ready',
+        matches(path) {
+            return path === '/raid.php';
+        },
+        create(ctx) {
+            const STYLE_ID = 'sfux-raid-style';
+            const PAYOUT_MIN = 6;
+            const PAYOUT_MAX = 20;
+            const PAYOUT_TARGET = 100;
+
+            const ROLE_LABELS = {
+                '0': 'Leader',
+                '1': 'Attack',
+                '2': 'Defence',
+                '3': 'Intel',
+                '4': 'Support Attack',
+                '5': 'Support Defence',
+                '6': 'Support Intel',
+                '7': 'Leecher'
+            };
+
+            function injectStyles() {
+                ctx.style(STYLE_ID, `
+                    body.sfux-raid-page .sfux-raid-roster-wrap {
+                        overflow: visible;
+                    }
+
+                    body.sfux-raid-page table.sfux-raid-roster {
+                        width: 100%;
+                        table-layout: auto;
+                        border-collapse: collapse;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    tr.sfux-raid-roster-head td {
+                        padding: 7px 9px;
+                        color: rgba(255,255,255,.62);
+                        background: #1d2022;
+                        border-color: rgba(255,255,255,.09);
+                        font-size: 10px;
+                        font-weight: 800;
+                        letter-spacing: .035em;
+                        text-align: left;
+                        text-transform: uppercase;
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    tr.sfux-raid-roster-head
+                    td.sfux-raid-role-cell,
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    tr.sfux-raid-roster-head
+                    td.sfux-raid-payout-cell,
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    tr.sfux-raid-roster-head
+                    td.sfux-raid-status-cell,
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    tr.sfux-raid-roster-head
+                    td.sfux-raid-action-cell {
+                        text-align: center !important;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    tr.sfux-raid-member td {
+                        box-sizing: border-box;
+                        padding: 7px 9px;
+                        vertical-align: middle;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    tr.sfux-raid-member p {
+                        margin: 0;
+                        line-height: 1.25;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-repeat-label {
+                        display: none !important;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-role-cell {
+                        width: 1% !important;
+                        min-width: 0;
+                        text-align: center !important;
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-role-cell > img {
+                        display: block;
+                        width: 34px !important;
+                        height: 34px !important;
+                        margin: 0 auto;
+                        object-fit: contain;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-empire-cell {
+                        width: auto !important;
+                        min-width: 0;
+                        font-weight: 700;
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-empire-cell p {
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-fleet-cell {
+                        width: auto !important;
+                        min-width: 0;
+                        color: rgba(255,255,255,.82);
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-fleet-cell p {
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-fleet-cell p + p {
+                        margin-top: 2px;
+                        color: rgba(255,255,255,.58);
+                        font-size: 10px;
+                        font-variant-numeric: tabular-nums;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-payout-cell {
+                        width: 1% !important;
+                        min-width: 0;
+                        text-align: center !important;
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-payout-cell input.inputBox {
+                        box-sizing: border-box;
+                        width: 42px !important;
+                        min-width: 42px !important;
+                        height: 30px;
+                        margin: 0 2px 0 0 !important;
+                        padding: 4px 5px !important;
+                        text-align: center;
+                        font-size: 13px;
+                        font-weight: 800;
+                        font-variant-numeric: tabular-nums;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-payout-cell input.sfux-raid-payout--low {
+                        border-color: rgba(228,197,111,.82) !important;
+                        box-shadow: inset 0 0 0 1px rgba(228,197,111,.16);
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-payout-cell input.sfux-raid-payout--high {
+                        border-color: rgba(212,93,93,.92) !important;
+                        box-shadow: inset 0 0 0 1px rgba(212,93,93,.20);
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-status-cell {
+                        width: 1% !important;
+                        min-width: 0;
+                        text-align: center !important;
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-action-cell {
+                        width: 1% !important;
+                        min-width: 0;
+                        text-align: center !important;
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    .sfux-raid-action-cell img {
+                        width: 24px !important;
+                        height: 24px !important;
+                        object-fit: contain;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-roster
+                    tr.sfux-raid-empty-slot td {
+                        padding: 7px 10px !important;
+                        color: rgba(255,255,255,.36);
+                        background: rgba(15,18,20,.72);
+                        font-size: 10px;
+                        font-weight: 800;
+                        letter-spacing: .045em;
+                        text-align: center;
+                        text-transform: uppercase;
+                    }
+
+                    body.sfux-raid-page table.sfux-raid-merc-table {
+                        width: 100%;
+                        table-layout: auto;
+                        border-collapse: collapse;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-merc-table td {
+                        box-sizing: border-box;
+                        padding: 6px 8px;
+                        vertical-align: middle;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-merc-table .sfux-raid-merc-role {
+                        width: 1% !important;
+                        min-width: 48px;
+                        text-align: center;
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-merc-table .sfux-raid-merc-role img {
+                        display: block;
+                        width: 36px !important;
+                        height: 36px !important;
+                        margin: 0 auto;
+                        object-fit: contain;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-merc-table .sfux-raid-merc-loadout {
+                        width: auto !important;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-merc-table .sfux-raid-merc-payout {
+                        width: 1% !important;
+                        min-width: 66px;
+                        font-weight: 800;
+                        text-align: center;
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-merc-table .sfux-raid-merc-action {
+                        width: 1% !important;
+                        min-width: 96px;
+                        text-align: center;
+                        white-space: nowrap;
+                    }
+
+                    body.sfux-raid-page
+                    table.sfux-raid-merc-table .sfux-raid-merc-action a {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        min-height: 32px;
+                        padding: 0 10px;
+                        border: 1px solid rgba(37,174,218,.45);
+                        background: rgba(20,126,165,.16);
+                    }
+
+                    body.sfux-raid-page .sfux-raid-payout-summary {
+                        display: grid;
+                        grid-template-columns: repeat(3, minmax(0, 1fr));
+                        gap: 1px;
+                        max-width: 520px;
+                        margin: 14px auto 10px;
+                        border: 1px solid rgba(255,255,255,.10);
+                        background: rgba(10,13,15,.76);
+                    }
+
+                    body.sfux-raid-page .sfux-raid-payout-metric {
+                        display: grid;
+                        gap: 3px;
+                        min-width: 0;
+                        padding: 9px 12px;
+                        text-align: center;
+                    }
+
+                    body.sfux-raid-page
+                    .sfux-raid-payout-metric + .sfux-raid-payout-metric {
+                        border-left: 1px solid rgba(255,255,255,.08);
+                    }
+
+                    body.sfux-raid-page .sfux-raid-payout-label {
+                        color: rgba(255,255,255,.42);
+                        font-size: 9px;
+                        font-weight: 800;
+                        letter-spacing: .055em;
+                        line-height: 1;
+                        text-transform: uppercase;
+                    }
+
+                    body.sfux-raid-page .sfux-raid-payout-value {
+                        color: rgba(255,255,255,.94);
+                        font-size: 16px;
+                        font-weight: 800;
+                        font-variant-numeric: tabular-nums;
+                        line-height: 1.1;
+                    }
+
+                    body.sfux-raid-page
+                    .sfux-raid-payout-summary[data-state="under"]
+                    .sfux-raid-payout-value--remaining {
+                        color: var(--sfux-warning);
+                    }
+
+                    body.sfux-raid-page
+                    .sfux-raid-payout-summary[data-state="exact"] {
+                        border-color: rgba(121,207,145,.42);
+                    }
+
+                    body.sfux-raid-page
+                    .sfux-raid-payout-summary[data-state="exact"]
+                    .sfux-raid-payout-value--allocated,
+                    body.sfux-raid-page
+                    .sfux-raid-payout-summary[data-state="exact"]
+                    .sfux-raid-payout-value--remaining {
+                        color: var(--sfux-success);
+                    }
+
+                    body.sfux-raid-page
+                    .sfux-raid-payout-summary[data-state="over"] {
+                        border-color: rgba(212,93,93,.54);
+                    }
+
+                    body.sfux-raid-page
+                    .sfux-raid-payout-summary[data-state="over"]
+                    .sfux-raid-payout-value--allocated,
+                    body.sfux-raid-page
+                    .sfux-raid-payout-summary[data-state="over"]
+                    .sfux-raid-payout-value--remaining {
+                        color: var(--sfux-danger);
+                    }
+
+                    body.sfux-raid-page .sfux-raid-payout-detail {
+                        grid-column: 1 / -1;
+                        padding: 7px 10px;
+                        border-top: 1px solid rgba(255,255,255,.08);
+                        color: rgba(255,255,255,.48);
+                        font-size: 10px;
+                        line-height: 1.25;
+                        text-align: center;
+                    }
+
+                    @media (max-width: ${SFUX.responsive.mobile}px) {
+                        body.sfux-raid-page .sfux-raid-roster-wrap {
+                            overflow: visible !important;
+                        }
+
+                        body.sfux-raid-page table.sfux-raid-roster,
+                        body.sfux-raid-page table.sfux-raid-roster tbody {
+                            display: block;
+                            width: 100%;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        tr.sfux-raid-roster-head {
+                            display: none;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        tr.sfux-raid-member {
+                            display: grid;
+                            grid-template-columns:
+                                44px
+                                minmax(0, 1fr)
+                                minmax(68px, auto)
+                                34px;
+                            grid-template-areas:
+                                "role empire payout action"
+                                "role fleet status action";
+                            align-items: center;
+                            min-height: 68px;
+                            margin-bottom: 5px;
+                            border: 1px solid rgba(255,255,255,.10);
+                            background: rgba(24,27,29,.96);
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster.sfux-raid-roster--no-actions
+                        tr.sfux-raid-member {
+                            grid-template-columns:
+                                44px
+                                minmax(0, 1fr)
+                                minmax(68px, auto);
+                            grid-template-areas:
+                                "role empire payout"
+                                "role fleet status";
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        tr.sfux-raid-member td {
+                            display: block;
+                            width: auto !important;
+                            min-width: 0;
+                            padding: 5px 7px;
+                            border: 0;
+                            text-align: left;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-role-cell {
+                            grid-area: role;
+                            align-self: stretch;
+                            display: grid !important;
+                            place-items: center;
+                            padding: 4px !important;
+                            border-right: 1px solid rgba(255,255,255,.07) !important;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-role-cell > img {
+                            width: 34px !important;
+                            height: 34px !important;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-empire-cell {
+                            grid-area: empire;
+                            align-self: end;
+                            padding-bottom: 1px;
+                            font-size: 12px;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-fleet-cell {
+                            grid-area: fleet;
+                            align-self: start;
+                            padding-top: 1px;
+                            color: rgba(255,255,255,.62);
+                            font-size: 10px;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-fleet-cell p + p {
+                            font-size: 9px;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-payout-cell {
+                            grid-area: payout;
+                            align-self: end;
+                            text-align: center;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-status-cell {
+                            grid-area: status;
+                            align-self: start;
+                            color: rgba(255,255,255,.58);
+                            font-size: 10px;
+                            text-align: center;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-action-cell {
+                            grid-area: action;
+                            align-self: stretch;
+                            display: grid !important;
+                            place-items: center;
+                            padding: 4px !important;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-action-cell a {
+                            display: grid;
+                            place-items: center;
+                            width: 34px;
+                            height: 44px;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        .sfux-raid-payout-cell input.inputBox {
+                            width: 48px !important;
+                            height: 36px;
+                            font-size: 16px;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        tr.sfux-raid-empty-slot {
+                            display: block;
+                            width: 100%;
+                            margin-bottom: 5px;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-roster
+                        tr.sfux-raid-empty-slot td {
+                            display: block;
+                            width: 100% !important;
+                            min-height: 0;
+                            padding: 8px 10px !important;
+                        }
+
+                        body.sfux-raid-page table.sfux-raid-merc-table,
+                        body.sfux-raid-page table.sfux-raid-merc-table tbody {
+                            display: block;
+                            width: 100%;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-merc-table tr:first-child {
+                            display: none;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-merc-table tr.sfux-raid-merc-row {
+                            display: grid;
+                            grid-template-columns: 44px minmax(0, 1fr) 58px auto;
+                            grid-template-areas: "role loadout payout action";
+                            align-items: center;
+                            min-height: 54px;
+                            margin-bottom: 5px;
+                            border: 1px solid rgba(255,255,255,.10);
+                            background: rgba(24,27,29,.96);
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-merc-table tr.sfux-raid-merc-row td {
+                            display: block;
+                            width: auto !important;
+                            min-width: 0;
+                            padding: 6px;
+                            border: 0;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-merc-table .sfux-raid-merc-role {
+                            grid-area: role;
+                            align-self: stretch;
+                            display: grid !important;
+                            place-items: center;
+                            border-right: 1px solid rgba(255,255,255,.07) !important;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-merc-table .sfux-raid-merc-role img {
+                            width: 32px !important;
+                            height: 32px !important;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-merc-table .sfux-raid-merc-loadout {
+                            grid-area: loadout;
+                            font-size: 11px;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-merc-table .sfux-raid-merc-payout {
+                            grid-area: payout;
+                            text-align: center;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-merc-table .sfux-raid-merc-action {
+                            grid-area: action;
+                            padding-right: 8px !important;
+                        }
+
+                        body.sfux-raid-page
+                        table.sfux-raid-merc-table .sfux-raid-merc-action a {
+                            min-height: 40px;
+                            padding: 0 9px;
+                        }
+
+                        body.sfux-raid-page .sfux-raid-payout-summary {
+                            max-width: none;
+                            margin: 10px 0 8px;
+                        }
+
+                        body.sfux-raid-page .sfux-raid-payout-metric {
+                            padding: 8px 5px;
+                        }
+
+                        body.sfux-raid-page .sfux-raid-payout-label {
+                            font-size: 8px;
+                        }
+
+                        body.sfux-raid-page .sfux-raid-payout-value {
+                            font-size: 14px;
+                        }
+
+                        body.sfux-raid-page .sfux-raid-payout-detail {
+                            font-size: 9px;
+                        }
+                    }
+                `);
+            }
+
+            function findNoticeTable(titleText) {
+                const title = Array.from(
+                    document.querySelectorAll('.sectionTitle')
+                ).find(node =>
+                    String(node.textContent || '')
+                        .trim()
+                        .toLowerCase() === titleText.toLowerCase()
+                );
+
+                if (!title) return null;
+
+                let node = title.nextElementSibling;
+                while (node) {
+                    if (node.classList?.contains('sectionTitle')) break;
+                    if (node.classList?.contains('noticeBody')) {
+                        return node.querySelector('table.basictable');
+                    }
+                    node = node.nextElementSibling;
+                }
+
+                return null;
+            }
+
+            function parsePercent(value) {
+                const number = Number.parseFloat(String(value ?? '').trim());
+                return Number.isFinite(number) ? number : 0;
+            }
+
+            function formatPercent(value) {
+                const number = Number(value);
+                if (!Number.isFinite(number)) return '0%';
+
+                const rounded = Math.round(number * 10) / 10;
+                return `${Number.isInteger(rounded)
+                    ? rounded.toFixed(0)
+                    : rounded.toFixed(1)}%`;
+            }
+
+            function tagRepeatedLabel(cell) {
+                const paragraphs = Array.from(cell?.children || [])
+                    .filter(child => child.tagName === 'P');
+
+                for (const paragraph of paragraphs) {
+                    if (paragraph.querySelector('.bold')) {
+                        paragraph.classList.add('sfux-raid-repeat-label');
+                    }
+                }
+            }
+
+            function roleLabelFromImage(image) {
+                const src = String(image?.getAttribute('src') || '');
+                const match = src.match(/\/raid\/icons\/(\d+)\./i);
+                return match ? ROLE_LABELS[match[1]] || 'Raid role' : 'Raid role';
+            }
+
+            function makeHeaderRow(hasActionColumn = true) {
+                const row = ctx.element('tr');
+                row.className = 'sfux-raid-roster-head';
+
+                const columns = [
+                    ['Role', 'sfux-raid-role-cell'],
+                    ['Empire', 'sfux-raid-empire-cell'],
+                    ['Fleet', 'sfux-raid-fleet-cell'],
+                    ['Payout', 'sfux-raid-payout-cell'],
+                    ['Status', 'sfux-raid-status-cell']
+                ];
+
+                if (hasActionColumn) {
+                    columns.push(['', 'sfux-raid-action-cell']);
+                }
+
+                for (const [label, className] of columns) {
+                    const cell = ctx.element('td');
+                    cell.className = `tableheader ${className}`;
+                    cell.textContent = label;
+                    row.appendChild(cell);
+                }
+
+                return row;
+            }
+
+            function syncRosterColumnGrid(tables) {
+                const activeTables = tables.filter(table =>
+                    table?.classList.contains('sfux-raid-roster')
+                );
+                if (!activeTables.length) return;
+
+                const hasActionColumn = activeTables.some(table =>
+                    Boolean(table.querySelector('.sfux-raid-action-cell'))
+                );
+
+                const columnSelectors = [
+                    '.sfux-raid-role-cell',
+                    '.sfux-raid-empire-cell',
+                    '.sfux-raid-fleet-cell',
+                    '.sfux-raid-payout-cell',
+                    '.sfux-raid-status-cell'
+                ];
+
+                if (hasActionColumn) {
+                    columnSelectors.push('.sfux-raid-action-cell');
+                }
+
+                const ensureColGroup = table => {
+                    let colgroup = table.querySelector(
+                        ':scope > colgroup.sfux-raid-roster-columns'
+                    );
+                    if (!colgroup) {
+                        colgroup = ctx.element('colgroup');
+                        colgroup.className = 'sfux-raid-roster-columns';
+                        for (let i = 0; i < columnSelectors.length; i += 1) {
+                            colgroup.appendChild(ctx.element('col'));
+                        }
+                        table.insertBefore(colgroup, table.firstChild);
+                    }
+                    return colgroup;
+                };
+
+                const colGroups = activeTables.map(ensureColGroup);
+
+                const mobileMedia =
+                    typeof window !== 'undefined' &&
+                    typeof window.matchMedia === 'function'
+                        ? window.matchMedia(
+                            `(max-width: ${SFUX.responsive.mobile}px)`
+                        )
+                        : null;
+
+                const measureIntrinsicWidth = cells => {
+                    if (!cells.length) return 0;
+
+                    const previous = cells.map(cell => ({
+                        cell,
+                        width: cell.style.width,
+                        minWidth: cell.style.minWidth,
+                        maxWidth: cell.style.maxWidth
+                    }));
+
+                    for (const { cell } of previous) {
+                        cell.style.width = '1px';
+                        cell.style.minWidth = '0';
+                        cell.style.maxWidth = '1px';
+                    }
+
+                    const width = Math.ceil(Math.max(
+                        ...cells.map(cell => cell.scrollWidth)
+                    ));
+
+                    for (const state of previous) {
+                        state.cell.style.width = state.width;
+                        state.cell.style.minWidth = state.minWidth;
+                        state.cell.style.maxWidth = state.maxWidth;
+                    }
+
+                    return width;
+                };
+
+                const applyGrid = () => {
+                    const isMobile = Boolean(mobileMedia?.matches);
+
+                    for (const table of activeTables) {
+                        table.style.removeProperty('table-layout');
+                    }
+                    for (const colgroup of colGroups) {
+                        for (const col of colgroup.children) {
+                            col.style.removeProperty('width');
+                        }
+                    }
+
+                    if (isMobile) return;
+
+                    const measured = columnSelectors.map(selector => {
+                        const cells = activeTables.flatMap(table =>
+                            Array.from(table.querySelectorAll(selector))
+                        );
+                        return measureIntrinsicWidth(cells);
+                    });
+
+                    const available = Math.floor(Math.min(
+                        ...activeTables.map(table => table.clientWidth)
+                    ));
+
+                    /*
+                     * Intrinsic width alone is visually too tight. Add a small
+                     * comfort gutter to each measured track, then let Empire
+                     * absorb remaining desktop space. Leaders have an action
+                     * column; ordinary raid participants do not.
+                     *
+                     * Role | Empire | Fleet | Payout | Status | [Remove]
+                     */
+                    const comfortGutter = hasActionColumn
+                        ? [8, 14, 20, 14, 18, 8]
+                        : [8, 14, 20, 14, 18];
+
+                    const comfortable = measured.map(
+                        (width, index) => width + comfortGutter[index]
+                    );
+
+                    const fixedIndexes = hasActionColumn
+                        ? [0, 2, 3, 4, 5]
+                        : [0, 2, 3, 4];
+                    const fixedWidth = fixedIndexes.reduce(
+                        (sum, index) => sum + comfortable[index],
+                        0
+                    );
+
+                    const empireWidth = Math.max(
+                        comfortable[1],
+                        available - fixedWidth
+                    );
+
+                    const widths = [...comfortable];
+                    widths[1] = empireWidth;
+
+                    for (const table of activeTables) {
+                        table.style.tableLayout = 'fixed';
+                    }
+
+                    for (const colgroup of colGroups) {
+                        Array.from(colgroup.children).forEach((col, index) => {
+                            col.style.width = `${widths[index]}px`;
+                        });
+                    }
+                };
+
+                requestAnimationFrame(applyGrid);
+
+                if (mobileMedia) {
+                    ctx.on(mobileMedia, 'change', () => {
+                        requestAnimationFrame(applyGrid);
+                    });
+                }
+            }
+
+            function enhanceRosterTable(table, showHeader = false) {
+                if (!table || table.classList.contains('sfux-raid-roster')) {
+                    return [];
+                }
+
+                const allRows = Array.from(table.rows).filter(
+                    row => row.cells.length === 5 || row.cells.length === 6
+                );
+
+                const rows = allRows.filter(row => {
+                    const payoutCell = row.cells[3];
+                    return Boolean(
+                        payoutCell.querySelector('input.inputBox') ||
+                        /%/.test(payoutCell.textContent || '')
+                    );
+                });
+
+                const emptyRows = allRows.filter(row => {
+                    if (rows.includes(row)) return false;
+                    const emptyMarkers = row.querySelectorAll('.disabledLink');
+                    return emptyMarkers.length >= 4 &&
+                        Array.from(emptyMarkers).every(marker =>
+                            String(marker.textContent || '')
+                                .trim()
+                                .toUpperCase() === 'EMPTY'
+                        );
+                });
+
+                if (!rows.length && !emptyRows.length) return [];
+
+                table.classList.add('sfux-raid-roster');
+                table.closest('.responsive-table-container')
+                    ?.classList.add('sfux-raid-roster-wrap');
+
+                const hasActionColumn = rows.some(
+                    row => row.cells.length === 6
+                );
+
+                table.classList.toggle(
+                    'sfux-raid-roster--no-actions',
+                    !hasActionColumn
+                );
+
+                const body = table.tBodies[0] || table;
+                if (showHeader) {
+                    body.insertBefore(
+                        makeHeaderRow(hasActionColumn),
+                        body.firstChild
+                    );
+                }
+
+                for (const row of rows) {
+                    row.classList.add('sfux-raid-member');
+
+                    const [
+                        roleCell,
+                        empireCell,
+                        fleetCell,
+                        payoutCell,
+                        statusCell,
+                        actionCell = null
+                    ] = Array.from(row.cells);
+
+                    roleCell.classList.add('sfux-raid-role-cell');
+                    empireCell.classList.add('sfux-raid-empire-cell');
+                    fleetCell.classList.add('sfux-raid-fleet-cell');
+                    payoutCell.classList.add('sfux-raid-payout-cell');
+                    statusCell.classList.add('sfux-raid-status-cell');
+                    actionCell?.classList.add('sfux-raid-action-cell');
+
+                    for (const cell of row.cells) {
+                        cell.removeAttribute('width');
+                    }
+
+                    tagRepeatedLabel(empireCell);
+                    tagRepeatedLabel(fleetCell);
+                    tagRepeatedLabel(payoutCell);
+                    tagRepeatedLabel(statusCell);
+
+                    const roleImage = roleCell.querySelector('img');
+                    if (roleImage) {
+                        const roleLabel = roleLabelFromImage(roleImage);
+                        roleImage.alt = roleLabel;
+                        roleImage.title ||= roleLabel;
+                    }
+                }
+
+                for (const row of emptyRows) {
+                    row.className = 'sfux-raid-empty-slot';
+                    const cells = Array.from(row.cells);
+                    const first = cells[0];
+                    if (!first) continue;
+
+                    first.colSpan = hasActionColumn ? 6 : 5;
+                    first.removeAttribute('width');
+                    first.textContent = 'Empty raid slot';
+                    for (const cell of cells.slice(1)) cell.remove();
+                }
+
+                return rows;
+            }
+
+            function enhanceMercenaryTable() {
+                const query = new URLSearchParams(window.location.search);
+                if (!query.has('addmerc')) return false;
+
+                const title = Array.from(
+                    document.querySelectorAll('.boxheadertext')
+                ).find(node =>
+                    String(node.textContent || '')
+                        .trim()
+                        .toLowerCase() === 'add raid mercenary'
+                );
+
+                const box = title?.closest('.contentbox');
+                const table = box?.querySelector('table.basictable');
+                if (!table || table.classList.contains('sfux-raid-merc-table')) {
+                    return Boolean(table);
+                }
+
+                table.classList.add('sfux-raid-merc-table');
+                table.closest('.responsive-table-container')
+                    ?.classList.add('sfux-raid-roster-wrap');
+
+                const headerRow = table.rows[0];
+                if (headerRow) {
+                    for (const cell of headerRow.cells) {
+                        cell.removeAttribute('width');
+                    }
+                }
+
+                const rows = Array.from(table.rows).slice(1).filter(
+                    row => row.cells.length === 4
+                );
+
+                for (const row of rows) {
+                    row.classList.add('sfux-raid-merc-row');
+                    const [roleCell, loadoutCell, payoutCell, actionCell] =
+                        Array.from(row.cells);
+
+                    roleCell.classList.add('sfux-raid-merc-role');
+                    loadoutCell.classList.add('sfux-raid-merc-loadout');
+                    payoutCell.classList.add('sfux-raid-merc-payout');
+                    actionCell.classList.add('sfux-raid-merc-action');
+
+                    for (const cell of row.cells) cell.removeAttribute('width');
+
+                    const roleImage = roleCell.querySelector('img');
+                    if (roleImage) {
+                        const roleLabel = roleLabelFromImage(roleImage);
+                        roleImage.alt = roleLabel;
+                        roleImage.title ||= roleLabel;
+                    }
+                }
+
+                return rows.length > 0;
+            }
+
+            function buildPayoutSummary(rows) {
+                const finalizeButton = Array.from(
+                    document.querySelectorAll(
+                        'input[type="submit"], button[type="submit"]'
+                    )
+                ).find(button =>
+                    String(button.value || button.textContent || '')
+                        .trim()
+                        .toLowerCase() === 'finalize percentages'
+                );
+
+                if (!finalizeButton) return;
+
+                const host =
+                    finalizeButton.closest('.center') ||
+                    finalizeButton.parentElement;
+                if (!host) return;
+
+                const summary = ctx.element('div');
+                summary.className = 'sfux-raid-payout-summary';
+                summary.setAttribute('role', 'status');
+                summary.setAttribute('aria-live', 'polite');
+
+                function makeMetric(label, modifier = '') {
+                    const metric = ctx.element('div');
+                    metric.className = 'sfux-raid-payout-metric';
+
+                    const metricLabel = ctx.element('span');
+                    metricLabel.className = 'sfux-raid-payout-label';
+                    metricLabel.textContent = label;
+
+                    const metricValue = ctx.element('span');
+                    metricValue.className =
+                        `sfux-raid-payout-value ${modifier}`.trim();
+
+                    metric.append(metricLabel, metricValue);
+                    summary.appendChild(metric);
+
+                    return metricValue;
+                }
+
+                const allocatedValue = makeMetric(
+                    'Allocated',
+                    'sfux-raid-payout-value--allocated'
+                );
+                const remainingValue = makeMetric(
+                    'Remaining',
+                    'sfux-raid-payout-value--remaining'
+                );
+                const memberValue = makeMetric('Members');
+
+                const detail = ctx.element('div');
+                detail.className = 'sfux-raid-payout-detail';
+                summary.appendChild(detail);
+
+                host.parentElement?.insertBefore(summary, host);
+
+                const editableInputs = rows
+                    .map(row =>
+                        row.querySelector(
+                            '.sfux-raid-payout-cell input.inputBox'
+                        )
+                    )
+                    .filter(Boolean);
+
+                function fixedPercentForRow(row) {
+                    const cell = row.querySelector('.sfux-raid-payout-cell');
+                    if (!cell || cell.querySelector('input.inputBox')) return 0;
+
+                    const match = String(cell.textContent || '')
+                        .match(/(-?\d+(?:\.\d+)?)\s*%/);
+
+                    return match ? parsePercent(match[1]) : 0;
+                }
+
+                const fixedTotal = rows.reduce(
+                    (sum, row) => sum + fixedPercentForRow(row),
+                    0
+                );
+
+                function updateInputRange(input) {
+                    const value = parsePercent(input.value);
+
+                    input.classList.remove(
+                        'sfux-raid-payout--low',
+                        'sfux-raid-payout--high'
+                    );
+                    input.removeAttribute('aria-invalid');
+
+                    if (value < PAYOUT_MIN) {
+                        input.classList.add('sfux-raid-payout--low');
+                        input.setAttribute('aria-invalid', 'true');
+                        input.title =
+                            `Payout is below the ${PAYOUT_MIN}% per-empire minimum.`;
+                    } else if (value > PAYOUT_MAX) {
+                        input.classList.add('sfux-raid-payout--high');
+                        input.setAttribute('aria-invalid', 'true');
+                        input.title =
+                            `Payout exceeds the ${PAYOUT_MAX}% per-empire maximum.`;
+                    } else {
+                        input.title =
+                            `Per-empire payout range: ${PAYOUT_MIN}%–${PAYOUT_MAX}%.`;
+                    }
+                }
+
+                function updateSummary() {
+                    let editableTotal = 0;
+
+                    for (const input of editableInputs) {
+                        updateInputRange(input);
+                        editableTotal += parsePercent(input.value);
+                    }
+
+                    const allocated = fixedTotal + editableTotal;
+                    const remaining = PAYOUT_TARGET - allocated;
+
+                    summary.dataset.state =
+                        allocated > PAYOUT_TARGET
+                            ? 'over'
+                            : allocated === PAYOUT_TARGET
+                                ? 'exact'
+                                : 'under';
+
+                    allocatedValue.textContent =
+                        `${formatPercent(allocated)} / ${PAYOUT_TARGET}%`;
+
+                    remainingValue.textContent =
+                        remaining < 0
+                            ? `${formatPercent(Math.abs(remaining))} over`
+                            : formatPercent(remaining);
+
+                    memberValue.textContent = String(rows.length);
+
+                    detail.textContent =
+                        `${formatPercent(fixedTotal)} fixed + ` +
+                        `${formatPercent(editableTotal)} editable · ` +
+                        `player payouts ${PAYOUT_MIN}%–${PAYOUT_MAX}% each`;
+                }
+
+                for (const input of editableInputs) {
+                    ctx.on(input, 'input', updateSummary);
+                    ctx.on(input, 'change', updateSummary);
+                }
+
+                updateSummary();
+            }
+
+            function main() {
+                document.body.classList.add('sfux-raid-page');
+                injectStyles();
+
+                if (enhanceMercenaryTable()) return;
+
+                const fleetOne = findNoticeTable('Raid Fleet One');
+                const fleetTwo = findNoticeTable('Raid Fleet Two');
+
+                let headerShown = false;
+                const rows = [];
+
+                for (const table of [fleetOne, fleetTwo]) {
+                    const enhanced = enhanceRosterTable(table, !headerShown);
+                    if (enhanced.length) {
+                        rows.push(...enhanced);
+                        headerShown = true;
+                    }
+                }
+
+                if (!rows.length) return;
+
+                syncRosterColumnGrid([
+                    fleetOne,
+                    fleetTwo
+                ]);
+
+                buildPayoutSummary(rows);
+            }
+
+            return {
+                init() {
+                    return SFUX.safeRun('raid:page', main);
                 },
                 destroy: ctx.destroy
             };
@@ -11801,7 +14396,7 @@ function registerShipPowerRouting(SFUX) {
             // ---------------------------------------------------------------------
             const STYLE_ID = 'sfux-ship-power-routing-style';
             const PROFILE_KEY = 'sfuxShipPowerProfilesV1';
-            const SHIP_NAME_CACHE_KEY = 'sfuxShipNamesV1';
+            const SHIP_NAME_CACHE_KEY = SFUX.storage.keys.shipMetadata;
             // Client-side request/cache budgets, not game rules.
             const NAME_CACHE_MAX = 400;
             const NAME_CACHE_RETAIN = 350;
@@ -11818,19 +14413,44 @@ function registerShipPowerRouting(SFUX) {
                 return String(shipNameCache[shipId]?.name || '').trim();
             }
 
-            function rememberShipName(shipId, name) {
+            function cachedShipMode(shipId) {
+                if (!shipId) return '';
+
+                const key = String(shipNameCache[shipId]?.mode || '')
+                    .trim()
+                    .toLowerCase();
+
+                return key === 'fixed'
+                    ? 'Fixed'
+                    : key === 'flexible'
+                        ? 'Flexible'
+                        : '';
+            }
+
+            function rememberShipMetadata(shipId, { name = '', mode = '' } = {}) {
                 const cleanId = String(shipId || '').trim();
                 const cleanName = String(name || '').replace(/\s+/g, ' ').trim();
 
-                if (!cleanId || !cleanName) return;
+                const modeKey = String(mode || '').trim().toLowerCase();
+                const cleanMode = modeKey === 'fixed'
+                    ? 'Fixed'
+                    : modeKey === 'flexible'
+                        ? 'Flexible'
+                        : '';
 
-                if (shipNameCache[cleanId]?.name === cleanName) {
-                    shipNameCache[cleanId].seenAt = Date.now();
-                    return;
-                }
+                if (!cleanId || (!cleanName && !cleanMode)) return;
+
+                const existing = (
+                    shipNameCache[cleanId] &&
+                    typeof shipNameCache[cleanId] === 'object'
+                )
+                    ? shipNameCache[cleanId]
+                    : {};
 
                 shipNameCache[cleanId] = {
-                    name: cleanName,
+                    ...existing,
+                    ...(cleanName ? { name: cleanName } : {}),
+                    ...(cleanMode ? { mode: cleanMode } : {}),
                     seenAt: Date.now()
                 };
 
@@ -11846,6 +14466,14 @@ function registerShipPowerRouting(SFUX) {
                 SFUX.storage.set(SHIP_NAME_CACHE_KEY, shipNameCache);
             }
 
+            function rememberShipName(shipId, name) {
+                rememberShipMetadata(shipId, { name });
+            }
+
+            function rememberShipMode(shipId, mode) {
+                rememberShipMetadata(shipId, { mode });
+            }
+
             function shipNameFromDocument(doc) {
                 const form = Array.from(doc.forms || []).find(candidate => {
                     const action = candidate.getAttribute('action') || '';
@@ -11856,12 +14484,44 @@ function registerShipPowerRouting(SFUX) {
                 return String(input?.value || '').replace(/\s+/g, ' ').trim();
             }
 
+            function shipModeFromDocument(doc) {
+                const rows = Array.from(
+                    doc.querySelectorAll('.shipviewtable tr')
+                );
+
+                for (const row of rows) {
+                    const cells = Array.from(row.cells || []);
+                    if (cells.length < 2) continue;
+
+                    const label = String(cells[0].textContent || '')
+                        .replace(/\s+/g, ' ')
+                        .trim()
+                        .toLowerCase();
+
+                    if (label !== 'modification') continue;
+
+                    const mode = String(cells[1].textContent || '')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+
+                    return /^fixed$/i.test(mode)
+                        ? 'Fixed'
+                        : /^flexible$/i.test(mode)
+                            ? 'Flexible'
+                            : '';
+                }
+
+                return '';
+            }
+
             function rememberCurrentViewShipName() {
                 const shipId = getShipId();
                 if (!shipId) return;
 
                 const name = shipNameFromDocument(document);
-                if (name) rememberShipName(shipId, name);
+                const mode = shipModeFromDocument(document);
+
+                rememberShipMetadata(shipId, { name, mode });
             }
 
             const DEFAULT_PROFILES = {
@@ -12097,6 +14757,19 @@ function registerShipPowerRouting(SFUX) {
                         box-sizing: border-box;
                         margin: 0 !important;
                         padding: 0 12px !important;
+                    }
+
+                    @media (max-width: ${SFUX.responsive.mobile}px) {
+                        .sfux-rename-row .inputBox,
+                        .sfux-rename-row .button-primary {
+                            height: 40px !important;
+                            min-height: 40px !important;
+                        }
+
+                        .sfux-rename-row .button-primary {
+                            min-width: 78px;
+                            padding: 0 12px !important;
+                        }
                     }
 
                     /* -------------------------------------------------------------
@@ -14496,6 +17169,50 @@ function registerShipPowerRouting(SFUX) {
                         white-space: nowrap;
                     }
 
+                    .sfux-dock-bulk-row-meta--repair {
+                        display: grid;
+                        grid-template-columns:
+                            minmax(112px, 1.35fr)
+                            minmax(64px, .72fr)
+                            minmax(64px, .72fr);
+                        gap: 8px;
+                        min-width: 270px;
+                        white-space: normal;
+                    }
+
+                    .sfux-dock-bulk-time {
+                        display: grid;
+                        gap: 2px;
+                        min-width: 0;
+                    }
+
+                    .sfux-dock-bulk-time-label {
+                        color: rgba(255,255,255,.42);
+                        font-size: 9px;
+                        font-weight: 800;
+                        line-height: 1;
+                        letter-spacing: .05em;
+                        text-transform: uppercase;
+                    }
+
+                    .sfux-dock-bulk-time-value {
+                        overflow: hidden;
+                        color: rgba(255,255,255,.78);
+                        font-size: 12px;
+                        font-weight: 800;
+                        line-height: 1.2;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
+
+                    .sfux-dock-bulk-time--repair .sfux-dock-bulk-time-value {
+                        color: rgba(255,215,126,.92);
+                    }
+
+                    .sfux-dock-bulk-time--total .sfux-dock-bulk-time-value {
+                        color: rgba(255,255,255,.94);
+                    }
+
                     .sfux-dock-bulk-row-state {
                         display: none;
                         color: rgba(255,255,255,.52);
@@ -14595,30 +17312,114 @@ function registerShipPowerRouting(SFUX) {
                     }
 
                     @media (max-width: 720px) {
-                        .sfux-dock-bulk-dialog {
-                            max-height: calc(100vh - 16px);
+                        .sfux-dock-bulk-overlay {
+                            align-items: flex-end;
+                            padding: 0;
+                            -webkit-backdrop-filter: none;
+                            backdrop-filter: none;
                         }
 
-                        .sfux-dock-bulk-overlay {
+                        .sfux-dock-bulk-dialog {
+                            width: 100%;
+                            max-height: min(92vh, calc(100vh - 8px));
+                            border-right: 0;
+                            border-bottom: 0;
+                            border-left: 0;
+                        }
+
+                        .sfux-dock-bulk-dialog-head {
+                            padding: 10px 12px;
+                        }
+
+                        .sfux-dock-bulk-dialog-title {
+                            font-size: 15px;
+                        }
+
+                        .sfux-dock-bulk-dialog-close {
+                            width: 36px;
+                            height: 36px;
+                        }
+
+                        .sfux-dock-bulk-dialog-body {
                             padding: 8px;
                         }
 
+                        .sfux-dock-bulk-note {
+                            margin-bottom: 8px;
+                            padding: 7px 8px;
+                            font-size: 10px;
+                        }
+
+                        .sfux-dock-bulk-list {
+                            gap: 4px;
+                        }
+
                         .sfux-dock-bulk-row {
-                            grid-template-columns: 20px minmax(0, 1fr);
+                            grid-template-columns: 24px minmax(0, 1fr);
+                            grid-template-rows: auto auto;
+                            column-gap: 8px;
+                            row-gap: 5px;
+                            min-height: 62px;
+                            padding: 9px 10px;
+                            text-align: left;
+                        }
+
+                        .sfux-dock-bulk-row input[type="checkbox"] {
+                            grid-row: 1 / span 2;
+                            align-self: center;
+                            width: 18px;
+                            height: 18px;
+                        }
+
+                        .sfux-dock-bulk-row-name {
+                            grid-column: 2;
+                            justify-self: stretch;
+                            font-size: 12px;
+                            text-align: left;
                         }
 
                         .sfux-dock-bulk-row-meta,
                         .sfux-dock-bulk-row-state {
                             grid-column: 2;
-                            justify-self: start;
+                            justify-self: stretch;
+                            text-align: left;
+                        }
+
+                        .sfux-dock-bulk-row-meta--repair {
+                            grid-template-columns:
+                                minmax(0, 1.35fr)
+                                minmax(52px, .72fr)
+                                minmax(52px, .72fr);
+                            gap: 4px;
+                            min-width: 0;
+                            width: 100%;
+                        }
+
+                        .sfux-dock-bulk-time-label {
+                            font-size: 9px;
+                        }
+
+                        .sfux-dock-bulk-time-value {
+                            font-size: 12px;
+                            line-height: 1.2;
                         }
 
                         .sfux-dock-bulk-dialog-foot {
-                            flex-wrap: wrap;
+                            display: grid;
+                            grid-template-columns: minmax(0, .85fr) minmax(0, 1.5fr);
+                            gap: 8px;
+                            padding: 8px;
                         }
 
                         .sfux-dock-bulk-summary {
-                            flex-basis: 100%;
+                            grid-column: 1 / -1;
+                            min-height: 16px;
+                            text-align: center;
+                        }
+
+                        .sfux-dock-bulk-dialog-foot button {
+                            min-height: 44px;
+                            margin: 0 !important;
                         }
                     }
 
@@ -16572,31 +19373,29 @@ function registerShipPowerRouting(SFUX) {
                         }
 
                         /*
-                         * Repair is a primary touch action. Expand only repairable
-                         * frames to a 44px target while keeping the visible HP bar thin.
+                         * Repair remains a generous touch action without changing
+                         * card geometry. The visible/layout frame stays 19px like
+                         * every other integrity bar; an invisible generated hit
+                         * area extends beyond it and clicks still resolve to frame.
                          */
                         .sfux-dock-integrity--repairable .sfux-dock-integrity-frame {
                             position: relative;
-                            height: 44px;
+                            height: 19px;
+                            overflow: visible;
                         }
 
-                        .sfux-dock-integrity--repairable .sfux-dock-integrity-track {
+                        .sfux-dock-integrity--repairable
+                        .sfux-dock-integrity-frame::before {
+                            content: "";
                             position: absolute;
+                            z-index: 4;
+                            top: 50%;
                             left: 0;
                             right: 0;
-                            top: 50%;
-                            height: 19px;
+                            height: 44px;
                             transform: translateY(-50%);
-                        }
-
-                        .sfux-dock-integrity--repairable .sfux-dock-integrity-text,
-                        .sfux-dock-integrity--repairable .sfux-dock-integrity-action {
-                            top: 50%;
-                            bottom: auto;
-                            height: 19px;
-                            transform: translateY(-50%);
-                            padding-top: 3px;
-                            box-sizing: border-box;
+                            background: transparent;
+                            pointer-events: auto;
                         }
 
                         .sfux-dock-integrity--repairable .sfux-dock-integrity-repair-cue {
@@ -17706,13 +20505,18 @@ function registerShipPowerRouting(SFUX) {
                 const nativeSubmit = Array.from(form.querySelectorAll('input[type="submit"]'))
                     .find(input => normalizeText(input.value).includes('modify power'));
 
-                if (!weaponsInput || !engineInput || !sensorsInput || !nativeTable) return;
+                if (
+                    !weaponsInput ||
+                    !engineInput ||
+                    !sensorsInput ||
+                    !nativeTable ||
+                    !nativeSubmit
+                ) {
+                    return;
+                }
                 if ([weaponsInput, engineInput, sensorsInput].some(field => field.matches(':disabled') || field.readOnly)) return;
 
                 injectStyles();
-
-                nativeTable.classList.add('sfux-power-native-hidden');
-                if (nativeSubmit) nativeSubmit.classList.add('sfux-power-native-hidden');
 
                 const profiles = loadProfiles();
                 let current = readDisplayedDistribution(form);
@@ -17832,6 +20636,11 @@ function registerShipPowerRouting(SFUX) {
 
                 form.insertBefore(router, nativeTable);
                 refresh();
+
+                // Hide native controls only after the replacement exists and has
+                // initialized successfully. Failure leaves the native form usable.
+                nativeTable.classList.add('sfux-power-native-hidden');
+                nativeSubmit.classList.add('sfux-power-native-hidden');
                 hideNativePowerDistributionTable();
             }
 
@@ -18015,6 +20824,7 @@ function registerShipPowerRouting(SFUX) {
                 let mode = '';
                 if (imageCell.querySelector('.fixedIcon')) mode = 'Fixed';
                 if (imageCell.querySelector('.flexIcon')) mode = 'Flexible';
+                if (shipId && mode) rememberShipMode(shipId, mode);
 
                 let shipName = '';
                 if (shipId) {
@@ -18070,6 +20880,27 @@ function registerShipPowerRouting(SFUX) {
                 // Example: W 100%, W 25% E 75%, S 100%. Zero-value channels are omitted.
                 item.textContent = `${label} ${value}%`;
                 return item;
+            }
+
+            function dockStatusRemainingTicks(statusText) {
+                const raw = String(statusText || '').replace(/\s+/g, ' ').trim();
+                if (!raw) return null;
+
+                const normalized = normalizeText(raw);
+                const isTimedState =
+                    normalized.includes('return') ||
+                    normalized.includes('build') ||
+                    normalized.includes('repair') ||
+                    normalized.includes('upgrad') ||
+                    normalized.includes('disabled');
+
+                if (!isTimedState) return null;
+
+                const match =
+                    raw.match(/\(\s*-?(\d+)\s*(?:ticks?|t)?\s*\)/i) ||
+                    raw.match(/[-–—]?\s*(\d+)\s*(?:ticks?|t)\b/i);
+
+                return match ? Number(match[1]) : null;
             }
 
             function compactDockStatusLabel(statusText) {
@@ -18627,7 +21458,8 @@ function registerShipPowerRouting(SFUX) {
 
                 for (const action of actions) {
                     const row = ctx.element('label');
-                    row.className = 'sfux-dock-bulk-row';
+                    row.className =
+                        `sfux-dock-bulk-row sfux-dock-bulk-row--${kind}`;
 
                     const checkbox = ctx.element('input');
                     checkbox.type = 'checkbox';
@@ -18642,9 +21474,64 @@ function registerShipPowerRouting(SFUX) {
                     metaText.className = 'sfux-dock-bulk-row-meta';
 
                     if (kind === 'repair' && Number.isFinite(action.ticks)) {
-                        metaText.textContent = `${action.ticks}T`;
+                        metaText.classList.add(
+                            'sfux-dock-bulk-row-meta--repair'
+                        );
+
+                        const currentTicks =
+                            dockStatusRemainingTicks(action.status);
+                        const repairTicks = Number(action.ticks);
+                        const totalTicks =
+                            (Number.isFinite(currentTicks)
+                                ? currentTicks
+                                : 0) + repairTicks;
+
+                        const timingItems = [
+                            {
+                                label: 'Status',
+                                value:
+                                    compactDockStatusLabel(action.status) ||
+                                    'Available',
+                                className: 'sfux-dock-bulk-time--status'
+                            },
+                            {
+                                label: 'Repair',
+                                value: `${
+                                    Number.isFinite(currentTicks) &&
+                                    currentTicks > 0
+                                        ? '+'
+                                        : ''
+                                }${repairTicks}T`,
+                                className: 'sfux-dock-bulk-time--repair'
+                            },
+                            {
+                                label: 'Total',
+                                value: `${totalTicks}T`,
+                                className: 'sfux-dock-bulk-time--total'
+                            }
+                        ];
+
+                        for (const item of timingItems) {
+                            const metric = ctx.element('span');
+                            metric.className =
+                                `sfux-dock-bulk-time ${item.className}`;
+
+                            const metricLabel = ctx.element('span');
+                            metricLabel.className =
+                                'sfux-dock-bulk-time-label';
+                            metricLabel.textContent = item.label;
+
+                            const metricValue = ctx.element('span');
+                            metricValue.className =
+                                'sfux-dock-bulk-time-value';
+                            metricValue.textContent = item.value;
+
+                            metric.append(metricLabel, metricValue);
+                            metaText.appendChild(metric);
+                        }
                     } else if (action.status) {
-                        metaText.textContent = compactDockStatusLabel(action.status);
+                        metaText.textContent =
+                            compactDockStatusLabel(action.status);
                     } else {
                         metaText.textContent = '';
                     }
@@ -19462,20 +22349,24 @@ function registerShipPowerRouting(SFUX) {
                 return true;
             }
 
-            async function fetchShipNameFromViewPage(link) {
+            async function fetchShipMetadataFromViewPage(link) {
                 try {
                     const response = await ctx.fetch(link.href, {
                         method: 'GET',
                         credentials: 'same-origin'
                     });
 
-                    if (!response.ok) return '';
+                    if (!response.ok) return { name: '', mode: '' };
 
                     const html = await response.text();
                     const doc = new DOMParser().parseFromString(html, 'text/html');
-                    return shipNameFromDocument(doc);
+
+                    return {
+                        name: shipNameFromDocument(doc),
+                        mode: shipModeFromDocument(doc)
+                    };
                 } catch (error) {
-                    return '';
+                    return { name: '', mode: '' };
                 }
             }
 
@@ -19510,16 +22401,16 @@ function registerShipPowerRouting(SFUX) {
                     if (lookupsUsed >= lookupBudget) continue;
                     lookupsUsed += 1;
 
-                    const name = await fetchShipNameFromViewPage(link);
+                    const metadata = await fetchShipMetadataFromViewPage(link);
                     if (!ctx.alive) return;
 
-                    if (name) {
-                        rememberShipName(shipId, name);
+                    if (metadata.name || metadata.mode) {
+                        rememberShipMetadata(shipId, metadata);
+                    }
 
-                        if (link.isConnected) {
-                            link.textContent = name;
-                            link.classList.remove('sfux-dock-ship-name--fallback');
-                        }
+                    if (metadata.name && link.isConnected) {
+                        link.textContent = metadata.name;
+                        link.classList.remove('sfux-dock-ship-name--fallback');
                     }
 
                     await new Promise(resolve => ctx.timeout(resolve, NAME_LOOKUP_DELAY_MS));
@@ -19607,7 +22498,7 @@ function registerShipPowerRouting(SFUX) {
                 if (!isStarDockOverviewPage()) return;
 
                 injectStyles();
-                enhanceCadetTraining();
+                SFUX.safeRun('military:stardock:cadets', enhanceCadetTraining);
 
                 const contentBox = Array.from(
                     document.querySelectorAll('#content .contentbox')
@@ -19621,7 +22512,10 @@ function registerShipPowerRouting(SFUX) {
                 }
 
                 contentBox.classList.add('sfux-stardock-overview');
-                syncDockCardStarfield(contentBox);
+                SFUX.safeRun(
+                    'military:stardock:starfield',
+                    () => syncDockCardStarfield(contentBox)
+                );
 
                 const containers = Array.from(
                     contentBox.querySelectorAll('.categoryContainer')
@@ -19632,6 +22526,7 @@ function registerShipPowerRouting(SFUX) {
                 let totalCapacity = 0;
 
                 for (const container of containers) {
+                    SFUX.safeRun('military:stardock:category', () => {
                     const sectionTitle = container.querySelector(':scope > .sectionTitle');
 
                     // Preserve StarFury's native Comms semantic state before rebuilding
@@ -19724,7 +22619,10 @@ function registerShipPowerRouting(SFUX) {
                         table.classList.add('sfux-dock-table');
 
                         for (const row of Array.from(table.rows || [])) {
-                            enhanceDockRow(row);
+                            SFUX.safeRun(
+                                'military:stardock:row',
+                                () => enhanceDockRow(row)
+                            );
                         }
 
                         const attentionRows = Array.from(
@@ -19796,6 +22694,7 @@ function registerShipPowerRouting(SFUX) {
                         title: parsed.title,
                         current: parsed.current,
                         maximum: parsed.maximum
+                    });
                     });
                 }
 
@@ -20756,8 +23655,14 @@ function registerShipPowerRouting(SFUX) {
 
                 if (isShipConstructionPage()) {
                     injectStyles();
-                    enhanceCadetTraining();
-                    enhanceShipConstruction();
+                    SFUX.safeRun(
+                        'military:construction:cadets',
+                        enhanceCadetTraining
+                    );
+                    SFUX.safeRun(
+                        'military:construction:dashboard',
+                        enhanceShipConstruction
+                    );
                     return;
                 }
 
@@ -20777,6 +23682,7 @@ registerResearchOptimizer(SFUX);
 registerBuildingsUX(SFUX);
 registerRewardsUX(SFUX);
 registerAttackUX(SFUX);
+registerRaidUX(SFUX);
 registerShipPowerRouting(SFUX);
 SFUX.boot();
 })();
