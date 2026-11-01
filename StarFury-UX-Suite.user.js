@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury UX Suite
 // @namespace    starfuryx.com
-// @version      2.4.34
+// @version      2.5.0
 // @author       Zathman
 // @license      MIT
 // @homepageURL  https://github.com/Katorthoma/star-fury-scripts
@@ -21,10 +21,10 @@
 
 (() => {
 'use strict';
-/* StarFury UX Suite 2.4.34 | Shared runtime. No globals are published by the bundle. */
+/* StarFury UX Suite 2.5.0 | Shared runtime. No globals are published by the bundle. */
 function createSFUX() {
     'use strict';
-    const SFUX = { version: '2.4.34', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
+    const SFUX = { version: '2.5.0', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
     // UI ASSUMPTION: dense building columns and nine navigation items need earlier stacking.
     SFUX.responsive = Object.freeze({ mobile: 640, navigation: 768, buildings: 800, phone: 430, narrowHeader: 460, tinyHud: 360 });
     SFUX.page = new URL(window.location.href);
@@ -553,7 +553,7 @@ html body input[type="button"].button-primary:not(.sf-raze-submit):disabled {
     return SFUX;
 }
 
-/* StarFury UX Suite 2.4.34 | Global UX module. */
+/* StarFury UX Suite 2.5.0 | Global UX module. */
 function registerGlobalUX(SFUX) {
     SFUX.register({
         id: 'global', phase: 'early',
@@ -688,6 +688,16 @@ function registerGlobalUX(SFUX) {
             const DOCK_CLICKABLE_CLASS = 'sfgu-dock-ship-clickable';
             const DOCK_COUNTDOWN_CLASS = 'sfgu-dock-status-countdown';
             const DOCK_STATUS_REPLACED_CLASS = 'sfgu-status-countdown-replaced';
+
+            const TOAST_STYLE_ID = 'sfgu-toast-styles';
+            const TOAST_HOST_ID = 'sfgu-toast-host';
+            const TOAST_CLASS = 'sfgu-toast';
+            const TOAST_NOTICE_CLASS = 'sfgu-toast--notice';
+            const TOAST_WARN_CLASS = 'sfgu-toast--warn';
+            const TOAST_ERROR_CLASS = 'sfgu-toast--error';
+
+            const toastTimerQueue = [];
+            let activeToastTimer = null;
 
             /*
              * Native compact-dock ship avatars use a shared ~77 x 84 frame.
@@ -1145,27 +1155,46 @@ function registerGlobalUX(SFUX) {
                             transform: translateY(-6px) rotate(-45deg) !important;
                         }
 
-                        /* Critical bug fix: a closed menu occupies zero vertical space.
-                           Native menu classes cannot leave a tall invisible box behind. */
+                        /*
+                         * Mobile navigation is an overlay, not an accordion in page
+                         * flow. The 48px menu bar keeps its normal document position;
+                         * the expanded list floats directly beneath it so opening the
+                         * menu never pushes the HUD or page content downward.
+                         */
                         #cssmenu.${NAV_CLASS} > ul {
                             display: none !important;
-                            position: static !important;
+                            position: absolute !important;
+                            z-index: 1100 !important;
+                            top: 48px !important;
+                            right: 0 !important;
+                            left: 0 !important;
                             width: 100% !important;
                             height: 0 !important;
                             min-height: 0 !important;
-                            max-height: none !important;
+                            max-height: 0 !important;
                             margin: 0 !important;
                             padding: 0 !important;
                             overflow: hidden !important;
                             border: 0 !important;
                             background: #151515 !important;
+                            box-shadow: 0 16px 28px rgba(0,0,0,0.42) !important;
                         }
 
                         #cssmenu.${NAV_CLASS}.${MOBILE_OPEN_CLASS} > ul {
                             display: block !important;
                             height: auto !important;
-                            overflow: visible !important;
+                            max-height: calc(100dvh - 112px) !important;
+                            overflow-x: hidden !important;
+                            overflow-y: auto !important;
+                            overscroll-behavior: contain !important;
+                            -webkit-overflow-scrolling: touch !important;
                             border-top: 1px solid rgba(255,255,255,0.06) !important;
+                        }
+
+                        @supports not (height: 100dvh) {
+                            #cssmenu.${NAV_CLASS}.${MOBILE_OPEN_CLASS} > ul {
+                                max-height: calc(100vh - 112px) !important;
+                            }
                         }
 
                         #cssmenu.${NAV_CLASS} > ul > li {
@@ -1462,6 +1491,9 @@ function registerGlobalUX(SFUX) {
                         font: inherit !important;
                         line-height: 1 !important;
                         cursor: pointer !important;
+                        touch-action: manipulation !important;
+                        -webkit-tap-highlight-color:
+                            rgba(var(--sfux-info-rgb), 0.10) !important;
                     }
 
                     #advisor-dock.${CONTEXT_ROW_CLASS}
@@ -2115,6 +2147,40 @@ function registerGlobalUX(SFUX) {
                             line-height: 1 !important;
                             text-align: center !important;
                             transform: translateY(-1px) !important;
+                        }
+
+                        /*
+                         * Mobile treats the entire "Advisor + Star Dock" bar as the
+                         * expand/collapse control. Keep one real button for clean
+                         * keyboard/screen-reader semantics; only its mobile geometry
+                         * changes. The icon stays at the right edge as the affordance.
+                         */
+                        #advisor-dock.${CONTEXT_ROW_CLASS}
+                            > .sfgu-context-header .sfgu-context-toggle {
+                            z-index: 2 !important;
+                            top: 0 !important;
+                            right: 0 !important;
+                            left: 0 !important;
+                            width: 100% !important;
+                            min-width: 100% !important;
+                            height: 28px !important;
+                            min-height: 28px !important;
+                            justify-content: flex-end !important;
+                            padding: 0 8px !important;
+                            border-left: 0 !important;
+                            background: transparent !important;
+                        }
+
+                        #advisor-dock.${CONTEXT_ROW_CLASS}
+                            > .sfgu-context-header .sfgu-context-toggle:hover {
+                            background: rgba(255,255,255,0.035) !important;
+                        }
+
+                        #advisor-dock.${CONTEXT_ROW_CLASS}
+                            > .sfgu-context-header .sfgu-context-mobile-label {
+                            position: relative !important;
+                            z-index: 1 !important;
+                            pointer-events: none !important;
                         }
 
                         #advisor-dock.${CONTEXT_ROW_CLASS} > .advisor-container,
@@ -3678,10 +3744,8 @@ function registerGlobalUX(SFUX) {
                         icon.classList.toggle('fa-expand', collapsed);
 
                         if (!collapsed) {
-                            ctx.raf(() => {
-                                ensureDockStarfield(contextRow);
-                                layoutMinimapShips(contextRow);
-                            });
+                            ensureDockStarfield(contextRow);
+                            layoutMinimapShips(contextRow);
                         }
                     });
                 }
@@ -3868,6 +3932,681 @@ function registerGlobalUX(SFUX) {
                 }
 
                 return true;
+            }
+
+            /* ---------------------------------------------------------------------
+             * MODULE: GLOBAL NOTICES / TOASTS
+             * StarFury emits transient server feedback as:
+             *   .msgBoxBase.msgBoxNotice
+             *   .msgBoxBase.msgBoxWarn
+             *   .msgBoxBase.msgBoxErr
+             *
+             * These bars are inserted between the context row and page content,
+             * causing layout shift. Global UX removes them from document flow at
+             * paint time, then moves the native message node into a fixed toast
+             * host. Native message text/links remain authoritative.
+             * --------------------------------------------------------------------- */
+            function injectToastStyles() {
+                ctx.style(TOAST_STYLE_ID, `
+                    /*
+                     * Immediate fallback before JS relocates a native msgBoxBase.
+                     * Because Global UX runs early, this prevents server-rendered
+                     * alerts from ever reserving height in the page layout.
+                     */
+                    .msgBoxBase:not(.${TOAST_CLASS}) {
+                        position: fixed !important;
+                        z-index: 450 !important;
+                        top: calc(12px + env(safe-area-inset-top, 0px)) !important;
+                        right: 12px !important;
+                        width: min(420px, calc(100vw - 24px)) !important;
+                        min-height: 0 !important;
+                        margin: 0 !important;
+                        border-radius: 6px !important;
+                        background-color: #17191c !important;
+                        background-image: none !important;
+                        box-shadow: 0 10px 28px rgba(0,0,0,.48) !important;
+                    }
+
+                    #${TOAST_HOST_ID} {
+                        position: fixed;
+                        z-index: 450;
+                        top: calc(12px + env(safe-area-inset-top, 0px));
+                        right: 12px;
+                        display: grid;
+                        gap: 8px;
+                        width: min(420px, calc(100vw - 24px));
+                        max-width: calc(100vw - 24px);
+                        pointer-events: none;
+                    }
+
+                    #${TOAST_HOST_ID},
+                    #${TOAST_HOST_ID} * {
+                        box-sizing: border-box;
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_CLASS} {
+                        position: relative !important;
+                        inset: auto !important;
+                        display: grid !important;
+                        grid-template-columns: 22px minmax(0, 1fr) 32px;
+                        align-items: start;
+                        gap: 11px;
+                        width: 100% !important;
+                        min-height: 50px !important;
+                        margin: 0 !important;
+                        padding: 11px 9px 11px 12px !important;
+                        overflow: hidden;
+                        border: 1px solid var(--sfgu-toast-border) !important;
+                        border-left-width: 3px !important;
+                        border-radius: 6px;
+                        background-color: #17191c !important;
+                        background-image: none !important;
+                        color: rgba(255,255,255,.96) !important;
+                        box-shadow:
+                            0 10px 28px rgba(0,0,0,.48),
+                            inset 0 1px 0 rgba(255,255,255,.04);
+                        line-height: 1.35 !important;
+                        text-align: left !important;
+                        pointer-events: auto;
+                        opacity: 1;
+                        transform: translateY(0);
+                        transition:
+                            opacity 140ms ease,
+                            transform 140ms ease;
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_CLASS}::before {
+                        content: "";
+                        display: block;
+                        align-self: center;
+                        width: 18px;
+                        height: 18px;
+                        margin-top: 0;
+                        background-position: center;
+                        background-repeat: no-repeat;
+                        background-size: contain;
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_NOTICE_CLASS} {
+                        --sfgu-toast-border: rgba(38,173,224,.86);
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_NOTICE_CLASS}::before {
+                        background-image: url("/images/icons/msgbox/notice.png");
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_WARN_CLASS} {
+                        --sfgu-toast-border: rgba(245,139,73,.96);
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_WARN_CLASS}::before {
+                        background-image: url("/images/icons/msgbox/warn.png");
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_ERROR_CLASS} {
+                        --sfgu-toast-border: rgba(224,72,72,.96);
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_ERROR_CLASS}::before {
+                        background-image: url("/images/icons/msgbox/err.png");
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_CLASS}.sfgu-toast--fallback {
+                        --sfgu-toast-border: rgba(255,255,255,.28);
+                    }
+
+                    .sfgu-toast-content {
+                        min-width: 0;
+                        align-self: center;
+                        font-size: 14px;
+                        font-weight: 600;
+                        line-height: 1.4;
+                        overflow-wrap: anywhere;
+                    }
+
+                    .sfgu-toast-content a {
+                        color: #fff !important;
+                        text-decoration: underline;
+                        text-underline-offset: 2px;
+                    }
+
+                    .sfgu-toast-dismiss {
+                        appearance: none;
+                        -webkit-appearance: none;
+                        display: grid;
+                        place-items: center;
+                        width: 32px;
+                        height: 32px;
+                        margin: -3px -2px 0 0;
+                        padding: 0;
+                        border: 1px solid transparent;
+                        border-radius: 5px;
+                        background: transparent;
+                        color: rgba(255,255,255,.58);
+                        font: 700 18px/1 Arial, sans-serif;
+                        cursor: pointer;
+                        touch-action: manipulation;
+                    }
+
+                    .sfgu-toast-dismiss:hover {
+                        border-color: rgba(255,255,255,.14);
+                        background: rgba(255,255,255,.055);
+                        color: rgba(255,255,255,.92);
+                    }
+
+                    .sfgu-toast-dismiss:focus-visible {
+                        outline: 2px solid rgba(255,255,255,.9);
+                        outline-offset: 2px;
+                    }
+
+                    .sfgu-toast-progress {
+                        position: absolute;
+                        z-index: 3;
+                        right: 0;
+                        bottom: 0;
+                        left: 0;
+                        height: 2px;
+                        overflow: hidden;
+                        border-radius: 0 0 5px 5px;
+                        background: rgba(255,255,255,.055);
+                        pointer-events: none;
+                    }
+
+                    .sfgu-toast-progress::after {
+                        content: "";
+                        position: absolute;
+                        inset: 0;
+                        background: var(--sfgu-toast-border);
+                        transform: scaleX(var(--sfgu-toast-progress, 1));
+                        transform-origin: left center;
+                        will-change: transform;
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_CLASS}.sfgu-toast--waiting
+                    .sfgu-toast-progress::after {
+                        opacity: .34;
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_CLASS}.sfgu-toast--timing
+                    .sfgu-toast-progress::after {
+                        opacity: .92;
+                    }
+
+                    #${TOAST_HOST_ID} .${TOAST_CLASS}.sfgu-toast--leaving {
+                        opacity: 0;
+                        transform: translateY(9px);
+                        pointer-events: none;
+                    }
+
+                    @media (max-width: ${SFUX.responsive.mobile}px) {
+                        #${TOAST_HOST_ID} {
+                            right: 8px;
+                            left: 8px;
+                            width: auto;
+                            max-width: none;
+                            gap: 6px;
+                        }
+
+                        .msgBoxBase:not(.${TOAST_CLASS}) {
+                            top: calc(8px + env(safe-area-inset-top, 0px)) !important;
+                            right: 8px !important;
+                            left: 8px !important;
+                            width: auto !important;
+                        }
+
+                        #${TOAST_HOST_ID} .${TOAST_CLASS} {
+                            grid-template-columns: 20px minmax(0, 1fr) 40px;
+                            min-height: 54px !important;
+                            padding: 10px 8px 10px 10px !important;
+                        }
+
+                        .sfgu-toast-content {
+                            font-size: 14px;
+                            line-height: 1.4;
+                        }
+
+                        .sfgu-toast-dismiss {
+                            width: 40px;
+                            height: 40px;
+                            margin-top: -3px;
+                        }
+                    }
+
+                    @media (prefers-reduced-motion: reduce) {
+                        #${TOAST_HOST_ID} .${TOAST_CLASS} {
+                            transition: none;
+                        }
+
+                        .sfgu-toast-progress::after {
+                            will-change: auto;
+                        }
+                    }
+                `);
+            }
+
+            function ensureToastHost() {
+                let host = document.getElementById(TOAST_HOST_ID);
+                if (host) return host;
+
+                const parent = document.body || document.documentElement;
+                if (!parent) return null;
+
+                host = ctx.element('div');
+                host.id = TOAST_HOST_ID;
+                host.setAttribute('aria-label', 'Notifications');
+                parent.appendChild(host);
+                syncToastHostPosition();
+                return host;
+            }
+
+            function mobileToastAnchorBottom() {
+                const statbar = document.querySelector('#statbar');
+                if (!(statbar instanceof HTMLElement)) return 0;
+
+                const style = getComputedStyle(statbar);
+                if (
+                    style.display === 'none' ||
+                    style.visibility === 'hidden'
+                ) {
+                    return 0;
+                }
+
+                const rect = statbar.getBoundingClientRect();
+
+                if (rect.bottom > 0 && rect.top < window.innerHeight) {
+                    return rect.bottom;
+                }
+
+                return 0;
+            }
+
+            function syncToastHostPosition() {
+                const host = document.getElementById(TOAST_HOST_ID);
+                if (!host) return;
+
+                const isMobile = Boolean(
+                    window.matchMedia?.(
+                        `(max-width: ${SFUX.responsive.mobile}px)`
+                    )?.matches
+                );
+
+                /*
+                 * Desktop toasts use a stable viewport anchor. Chasing the full
+                 * StarFury header/nav/stat geometry made notifications appear
+                 * arbitrarily far down otherwise short pages.
+                 *
+                 * Mobile is different: a nearly full-width toast can obscure
+                 * the compact HUD, so it sits immediately below the visible
+                 * stat bar while that bar is onscreen.
+                 */
+                if (!isMobile) {
+                    host.style.top = '12px';
+                    return;
+                }
+
+                const anchorBottom = mobileToastAnchorBottom();
+                host.style.top = `${Math.max(
+                    8,
+                    Math.ceil(anchorBottom > 0 ? anchorBottom + 8 : 8)
+                )}px`;
+            }
+
+            function observeToastHostPosition() {
+                let frame = null;
+
+                const requestSync = () => {
+                    if (frame !== null) return;
+
+                    frame = requestAnimationFrame(() => {
+                        frame = null;
+                        syncToastHostPosition();
+                    });
+                };
+
+                ctx.on(window, 'scroll', requestSync, {
+                    passive: true
+                });
+                ctx.on(window, 'resize', requestSync, {
+                    passive: true
+                });
+
+                const statbar = document.querySelector('#statbar');
+                if (statbar) {
+                    const statObserver = ctx.observer(requestSync);
+                    statObserver.observe(statbar, {
+                        attributes: true,
+                        childList: true,
+                        subtree: true
+                    });
+                }
+
+                requestSync();
+            }
+
+            function toastSeverity(message) {
+                if (message.classList.contains('msgBoxErr')) {
+                    return {
+                        className: TOAST_ERROR_CLASS,
+                        role: 'alert',
+                        live: 'assertive',
+                        timeout: 0
+                    };
+                }
+
+                if (message.classList.contains('msgBoxWarn')) {
+                    return {
+                        className: TOAST_WARN_CLASS,
+                        role: 'alert',
+                        live: 'assertive',
+                        timeout: 0
+                    };
+                }
+
+                if (message.classList.contains('msgBoxNotice')) {
+                    return {
+                        className: TOAST_NOTICE_CLASS,
+                        role: 'status',
+                        live: 'polite',
+                        timeout: 8000
+                    };
+                }
+
+                /*
+                 * Unknown msgBoxBase subtypes should not silently disappear.
+                 * Treat them conservatively like warnings until their semantics
+                 * are known.
+                 */
+                return {
+                    className: 'sfgu-toast--fallback',
+                    role: 'status',
+                    live: 'polite',
+                    timeout: 0
+                };
+            }
+
+            function dismissToast(toast) {
+                if (
+                    !toast ||
+                    !toast.isConnected ||
+                    toast.dataset.sfguToastLeaving === 'true'
+                ) {
+                    return;
+                }
+
+                toast.dataset.sfguToastLeaving = 'true';
+                releaseToastTimer(toast);
+                toast.classList.add('sfgu-toast--leaving');
+
+                const remove = () => toast.remove();
+
+                if (
+                    window.matchMedia?.('(prefers-reduced-motion: reduce)')
+                        ?.matches
+                ) {
+                    remove();
+                    return;
+                }
+
+                ctx.timeout(remove, 160);
+            }
+
+            function clearActiveToastTimer() {
+                if (!activeToastTimer) return;
+
+                if (activeToastTimer.timeout !== null) {
+                    clearTimeout(activeToastTimer.timeout);
+                }
+
+                if (activeToastTimer.frame !== null) {
+                    cancelAnimationFrame(activeToastTimer.frame);
+                }
+
+                activeToastTimer.toast?.classList.remove(
+                    'sfgu-toast--timing'
+                );
+
+                activeToastTimer = null;
+            }
+
+            function removeToastFromTimerQueue(toast) {
+                for (let index = toastTimerQueue.length - 1; index >= 0; index--) {
+                    if (toastTimerQueue[index].toast === toast) {
+                        toastTimerQueue.splice(index, 1);
+                    }
+                }
+            }
+
+            function updateActiveToastProgress() {
+                if (!activeToastTimer) return;
+
+                const now = performance.now();
+                const elapsed = now - activeToastTimer.startedAt;
+                const remaining = Math.max(
+                    0,
+                    activeToastTimer.remaining - elapsed
+                );
+                const ratio = activeToastTimer.duration > 0
+                    ? remaining / activeToastTimer.duration
+                    : 0;
+
+                activeToastTimer.toast.style.setProperty(
+                    '--sfgu-toast-progress',
+                    String(Math.max(0, Math.min(1, ratio)))
+                );
+
+                if (remaining > 0) {
+                    activeToastTimer.frame = requestAnimationFrame(
+                        updateActiveToastProgress
+                    );
+                } else {
+                    activeToastTimer.frame = null;
+                }
+            }
+
+            function startActiveToastTimer() {
+                if (!activeToastTimer) return;
+
+                const state = activeToastTimer;
+                state.toast.classList.remove('sfgu-toast--waiting');
+                state.toast.classList.add('sfgu-toast--timing');
+                state.startedAt = performance.now();
+
+                state.timeout = setTimeout(() => {
+                    state.timeout = null;
+                    state.toast.style.setProperty(
+                        '--sfgu-toast-progress',
+                        '0'
+                    );
+                    dismissToast(state.toast);
+                }, state.remaining);
+
+                state.frame = requestAnimationFrame(
+                    updateActiveToastProgress
+                );
+            }
+
+            function startNextToastTimer() {
+                if (activeToastTimer) return;
+
+                while (toastTimerQueue.length) {
+                    const next = toastTimerQueue.shift();
+
+                    if (!next.toast?.isConnected) {
+                        continue;
+                    }
+
+                    activeToastTimer = {
+                        ...next,
+                        remaining: next.duration,
+                        startedAt: 0,
+                        timeout: null,
+                        frame: null
+                    };
+
+                    startActiveToastTimer();
+                    return;
+                }
+            }
+
+            function pauseToastTimer(toast) {
+                if (activeToastTimer?.toast !== toast) return;
+
+                const elapsed =
+                    performance.now() - activeToastTimer.startedAt;
+
+                activeToastTimer.remaining = Math.max(
+                    0,
+                    activeToastTimer.remaining - elapsed
+                );
+
+                if (activeToastTimer.timeout !== null) {
+                    clearTimeout(activeToastTimer.timeout);
+                    activeToastTimer.timeout = null;
+                }
+
+                if (activeToastTimer.frame !== null) {
+                    cancelAnimationFrame(activeToastTimer.frame);
+                    activeToastTimer.frame = null;
+                }
+            }
+
+            function resumeToastTimer(toast) {
+                if (activeToastTimer?.toast !== toast) return;
+
+                if (
+                    toast.matches(':hover') ||
+                    toast.contains(document.activeElement)
+                ) {
+                    return;
+                }
+
+                startActiveToastTimer();
+            }
+
+            function releaseToastTimer(toast) {
+                removeToastFromTimerQueue(toast);
+
+                if (activeToastTimer?.toast !== toast) {
+                    return false;
+                }
+
+                clearActiveToastTimer();
+
+                /*
+                 * Let the outgoing toast finish its short downward dismissal
+                 * before the next countdown begins.
+                 */
+                ctx.timeout(startNextToastTimer, 180);
+                return true;
+            }
+
+            function enqueueToastDismiss(toast, duration) {
+                if (!Number.isFinite(duration) || duration <= 0) return;
+
+                toast.classList.add('sfgu-toast--waiting');
+                toast.style.setProperty('--sfgu-toast-progress', '1');
+
+                toastTimerQueue.push({
+                    toast,
+                    duration
+                });
+
+                ctx.on(toast, 'mouseenter', () => pauseToastTimer(toast));
+                ctx.on(toast, 'mouseleave', () => resumeToastTimer(toast));
+                ctx.on(toast, 'focusin', () => pauseToastTimer(toast));
+                ctx.on(
+                    toast,
+                    'focusout',
+                    () => ctx.timeout(() => resumeToastTimer(toast), 0)
+                );
+
+                startNextToastTimer();
+            }
+
+            function upgradeMessageToToast(message) {
+                if (
+                    !(message instanceof HTMLElement) ||
+                    !message.classList.contains('msgBoxBase') ||
+                    message.dataset.sfguToast === 'true'
+                ) {
+                    return;
+                }
+
+                const host = ensureToastHost();
+                if (!host) return;
+
+                message.dataset.sfguToast = 'true';
+
+                const severity = toastSeverity(message);
+                const duration = severity.timeout;
+
+                message.classList.add(TOAST_CLASS, severity.className);
+                message.setAttribute('role', severity.role);
+                message.setAttribute('aria-live', severity.live);
+                message.setAttribute('aria-atomic', 'true');
+
+                const content = ctx.element('div');
+                content.className = 'sfgu-toast-content';
+
+                while (message.firstChild) {
+                    content.appendChild(message.firstChild);
+                }
+
+                const dismiss = ctx.element('button');
+                dismiss.type = 'button';
+                dismiss.className = 'sfgu-toast-dismiss';
+                dismiss.setAttribute('aria-label', 'Dismiss notification');
+                dismiss.textContent = '×';
+
+                message.append(content, dismiss);
+
+                if (duration > 0) {
+                    const progress = ctx.element('div');
+                    progress.className = 'sfgu-toast-progress';
+                    progress.setAttribute('aria-hidden', 'true');
+                    message.appendChild(progress);
+                }
+
+                host.appendChild(message);
+
+                ctx.on(dismiss, 'click', () => dismissToast(message));
+
+                enqueueToastDismiss(message, duration);
+            }
+
+            function initializeMessageToasts() {
+                injectToastStyles();
+
+                const scan = root => {
+                    if (!(root instanceof Element)) return;
+
+                    if (root.matches?.('.msgBoxBase')) {
+                        upgradeMessageToToast(root);
+                    }
+
+                    for (const message of root.querySelectorAll?.(
+                        '.msgBoxBase'
+                    ) || []) {
+                        upgradeMessageToToast(message);
+                    }
+                };
+
+                scan(document.documentElement);
+
+                const observer = ctx.observer(records => {
+                    for (const record of records) {
+                        for (const node of record.addedNodes) {
+                            scan(node);
+                        }
+                    }
+                });
+
+                observer.observe(document.documentElement, {
+                    childList: true,
+                    subtree: true
+                });
+
+                observeToastHostPosition();
             }
 
             /* ---------------------------------------------------------------------
@@ -4213,6 +4952,8 @@ function registerGlobalUX(SFUX) {
                  * before StarFury paints the native Advisor/Star Dock on normal loads.
                  */
                 injectStyles();
+                injectToastStyles();
+                initializeMessageToasts();
                 document.documentElement?.classList.add(CONTEXT_PREP_CLASS);
 
                 // Safety valve: never leave the native context invisible if a page is
@@ -4236,7 +4977,7 @@ function registerGlobalUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.4.34 | Research Optimizer module. */
+/* StarFury UX Suite 2.5.0 | Research Optimizer module. */
 function registerResearchOptimizer(SFUX) {
     SFUX.register({
         id: 'research', phase: 'ready',
@@ -4704,9 +5445,23 @@ function registerResearchOptimizer(SFUX) {
                         vertical-align: middle;
                     }
 
+                    .sfro-tech-name-with-info {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 5px;
+                        max-width: 100%;
+                        vertical-align: middle;
+                    }
+
+                    .sfro-tech-name-text {
+                        min-width: 0;
+                    }
+
                     .sfro-info-icon {
-                        display: inline-block;
-                        margin-left: 6px;
+                        display: inline-flex;
+                        align-items: center;
+                        flex: 0 0 auto;
+                        margin: 0;
                         opacity: 0.68;
                         vertical-align: middle;
                         border: 0 !important;
@@ -5183,6 +5938,24 @@ function registerResearchOptimizer(SFUX) {
                             color: rgba(255,255,255,0.64) !important;
                         }
 
+                        .sfro-tech-table tr.sfro-tech-row
+                            > td.sfro-summary-cell {
+                            display: block !important;
+                        }
+
+                        .sfro-tech-table tr.sfro-tech-row
+                            .sfro-tech-name-with-info {
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 5px;
+                            max-width: 100%;
+                        }
+
+                        .sfro-tech-table tr.sfro-tech-row
+                            .sfro-info-icon {
+                            margin: 0 !important;
+                        }
+
                         .sfro-tech-table tr.sfro-tech-row > td:nth-child(4) {
                             grid-area: rp;
                             align-self: start;
@@ -5416,11 +6189,19 @@ function registerResearchOptimizer(SFUX) {
 
                         .sfro-section-header-inner {
                             grid-template-columns: 1fr;
+                            justify-items: center;
                             gap: 3px;
                         }
 
+                        .sfro-section-name {
+                            width: 100%;
+                            text-align: center;
+                        }
+
                         .sfro-section-meta {
-                            text-align: left;
+                            width: 100%;
+                            justify-self: center;
+                            text-align: center;
                         }
 
                         .sfro-active-card-top {
@@ -5633,80 +6414,15 @@ function registerResearchOptimizer(SFUX) {
                 return names;
             }
 
-            function isCounterIntelligenceSection(section) {
-                return /^Counter Intelligence\b/i.test(normalizeText(section.name));
-            }
-
-            function getTechByName(section, techName) {
-                return section.techs.find(tech => tech.name === techName) || null;
-            }
-
-            function getCounterIntelligenceProgress(section) {
-                if (!isCounterIntelligenceSection(section)) return null;
-
-                const counterCombat = getTechByName(section, 'Counter Combat');
-                const reinforcedI = getTechByName(section, 'Reinforced Intelligence I');
-                const reinforcedII = getTechByName(section, 'Reinforced Intelligence II');
-
-                /*
-                 * Counter Intelligence is modeled as one path worth 1.0 total:
-                 *
-                 *   Counter Combat                = 1.0 / 1
-                 *   Reinforced Intelligence I     = 0.5 / 1
-                 *   Reinforced Intelligence II    = 1.0 / 1
-                 *
-                 * RI II requires RI I, so the Reinforced branch reaches half-progress
-                 * after RI I and full progress only after RI II.
-                 */
-                if (counterCombat?.completed || reinforcedII?.completed) return 1;
-                if (reinforcedI?.completed) return 0.5;
-                return 0;
-            }
-
-            function formatCounterIntelligenceProgress(progress) {
-                if (progress === 0.5) return '0.5/1';
-                if (progress >= 1) return '1/1';
-                return '0/1';
-            }
-
-            function getCounterIntelligenceTerminalState(section) {
-                if (!isCounterIntelligenceSection(section)) return null;
-
-                const counterCombat = getTechByName(section, 'Counter Combat');
-                const reinforcedI = getTechByName(section, 'Reinforced Intelligence I');
-                const reinforcedII = getTechByName(section, 'Reinforced Intelligence II');
-
-                /*
-                 * Counter Intelligence is the one known oddball:
-                 * [Limit: 1], but Reinforced Intelligence II requires I.
-                 *
-                 * Working model, explicitly treated as an inference:
-                 *   - Counter Combat is one complete path.
-                 *   - Reinforced Intelligence I -> II is the other complete path.
-                 *
-                 * Do not treat RI I alone as "Max Reached" merely because the header
-                 * says Limit: 1.
-                 */
-                if (counterCombat?.completed || reinforcedII?.completed) {
-                    return {
-                        terminal: true,
-                        kind: 'max',
-                        desktop: '✓ Max Reached',
-                        mobile: '✓ Max Reached',
-                        title:
-                            'Counter Intelligence has reached one complete research path. ' +
-                            'Counter Combat completes the category directly; Reinforced Intelligence reaches half-progress at RI I and completes at RI II. ' +
-                            'The branch interpretation remains an informed inference from the Limit: 1 label and RI II prerequisite.'
-                    };
-                }
-
-                // RI I by itself is progress down the Reinforced path, not completion.
-                if (reinforcedI?.completed) {
-                    return { terminal: false, kind: 'open', counterBranch: 'reinforced' };
-                }
-
-                return { terminal: false, kind: 'open', counterBranch: null };
-            }
+            /*
+             * Limited research sections are driven only by StarFury's native
+             * [Limit: #] header and the actual number of completed rows.
+             *
+             * Do not infer race-specific path semantics from technology names.
+             * If the server says [Limit: 1], one completed technology consumes
+             * that selection. If the header has no limit, this enhancer does not
+             * invent one.
+             */
 
             function classifySectionState(section) {
                 const hasRows = section.techCount > 0;
@@ -5731,12 +6447,6 @@ function registerResearchOptimizer(SFUX) {
                         mobile: '✓ Complete',
                         title: 'Every technology in this section is researched.'
                     };
-                }
-
-                const counterState = getCounterIntelligenceTerminalState(section);
-                // INFERRED MECHANIC: RI I is half a path; the generic selection count must not override it.
-                if (counterState) {
-                    return counterState;
                 }
 
                 const limitReached =
@@ -5770,10 +6480,6 @@ function registerResearchOptimizer(SFUX) {
                             'This category has reached the maximum research available on the selected path. ' +
                             'Remaining listed technologies are mutually exclusive alternatives.'
                     };
-                }
-
-                if (counterState) {
-                    return counterState;
                 }
 
                 return { terminal: false, kind: 'open' };
@@ -5884,74 +6590,9 @@ function registerResearchOptimizer(SFUX) {
                 );
             }
 
-            function calculateCounterIntelligenceRange(section, researchRate) {
-                const counterCombat = getTechByName(section, 'Counter Combat');
-                const reinforcedI = getTechByName(section, 'Reinforced Intelligence I');
-                const reinforcedII = getTechByName(section, 'Reinforced Intelligence II');
-
-                if (!counterCombat || !reinforcedI || !reinforcedII) return null;
-                if (counterCombat.completed || reinforcedII.completed) return null;
-
-                const routeForNames = names => {
-                    const route = [];
-
-                    for (const name of names) {
-                        const tech = getTechByName(section, name);
-                        if (!tech) return null;
-                        if (tech.completed) continue;
-                        if (tech.blocked || tech.remainingRp <= 0) return null;
-                        route.push(tech);
-                    }
-
-                    return route;
-                };
-
-                const committedNames = new Set(
-                    section.techs
-                        .filter(tech => !tech.completed && (tech.active || tech.queued))
-                        .map(tech => tech.name)
-                );
-
-                let routes = [];
-
-                if (
-                    reinforcedI.completed ||
-                    committedNames.has('Reinforced Intelligence I') ||
-                    committedNames.has('Reinforced Intelligence II')
-                ) {
-                    const reinforcedRoute = routeForNames([
-                        'Reinforced Intelligence I',
-                        'Reinforced Intelligence II'
-                    ]);
-                    if (reinforcedRoute) routes = [reinforcedRoute];
-                } else if (committedNames.has('Counter Combat')) {
-                    const combatRoute = routeForNames(['Counter Combat']);
-                    if (combatRoute) routes = [combatRoute];
-                } else {
-                    const combatRoute = routeForNames(['Counter Combat']);
-                    const reinforcedRoute = routeForNames([
-                        'Reinforced Intelligence I',
-                        'Reinforced Intelligence II'
-                    ]);
-
-                    routes = [combatRoute, reinforcedRoute].filter(Boolean);
-                }
-
-                return summarizeRoutes(
-                    routes,
-                    researchRate,
-                    'Counter Intelligence is modeled as a unique one-path category: Counter Combat, or Reinforced Intelligence I → II. ' +
-                    'This is an informed inference from the Limit: 1 label and the RI II prerequisite, not an explicit StarFury rules statement. ' +
-                    'Tick ranges sum each research item’s individually rounded ETA.'
-                );
-            }
-
             function calculateLimitedSectionRange(section, researchRate) {
                 if (section.limit === null || section.state?.terminal) return null;
-
-                return isCounterIntelligenceSection(section)
-                    ? calculateCounterIntelligenceRange(section, researchRate)
-                    : calculateGenericLimitedRange(section, researchRate);
+                return calculateGenericLimitedRange(section, researchRate);
             }
 
             function formatNumericRange(minValue, maxValue) {
@@ -5982,10 +6623,7 @@ function registerResearchOptimizer(SFUX) {
                 for (const tech of section.techs) {
                     if (tech.completed) continue;
 
-                    if (
-                        tech.blocked ||
-                        isCounterIntelligenceSection(section)
-                    ) {
+                    if (tech.blocked) {
                         setTerminalActionStatus(
                             tech,
                             'Path Closed',
@@ -6065,6 +6703,7 @@ function registerResearchOptimizer(SFUX) {
                 const techName = normalizeText(cells[1].textContent);
                 if (!techName) return;
 
+                const techCell = cells[1];
                 const infoCell = cells[2];
                 const infoLink = infoCell.querySelector('a[rel*="modal"]');
                 if (!infoLink) return;
@@ -6079,10 +6718,19 @@ function registerResearchOptimizer(SFUX) {
                 summarySpan.textContent = summary;
                 summarySpan.title = summary;
 
+                const nameGroup = ctx.element('span');
+                nameGroup.className = 'sfro-tech-name-with-info';
+
+                const nameSpan = ctx.element('span');
+                nameSpan.className = 'sfro-tech-name-text';
+                nameSpan.textContent = techName;
+
                 infoLink.classList.add('sfro-info-icon');
                 infoLink.title = `Full details: ${techName}`;
 
-                infoCell.replaceChildren(summarySpan, infoLink);
+                nameGroup.append(nameSpan, infoLink);
+                techCell.replaceChildren(nameGroup);
+                infoCell.replaceChildren(summarySpan);
                 row.dataset.sfroSummaryDone = '1';
             }
 
@@ -6335,13 +6983,8 @@ function registerResearchOptimizer(SFUX) {
                             const progress = ctx.element('span');
                             progress.className = 'sfro-section-meta-label';
 
-                            if (isCounterIntelligenceSection(section)) {
-                                const counterProgress = getCounterIntelligenceProgress(section);
-                                progress.textContent =
-                                    `Selected ${formatCounterIntelligenceProgress(counterProgress)}`;
-                            } else {
-                                progress.textContent = `Selected ${section.completedCount}/${section.limit}`;
-                            }
+                            progress.textContent =
+                                `Selected ${section.completedCount}/${section.limit}`;
 
                             desktopMeta.appendChild(progress);
 
@@ -6409,14 +7052,9 @@ function registerResearchOptimizer(SFUX) {
                         const pieces = [];
 
                         if (section.limit !== null) {
-                            if (isCounterIntelligenceSection(section)) {
-                                const counterProgress = getCounterIntelligenceProgress(section);
-                                pieces.push(
-                                    `${formatCounterIntelligenceProgress(counterProgress)} selected`
-                                );
-                            } else {
-                                pieces.push(`${section.completedCount}/${section.limit} selected`);
-                            }
+                            pieces.push(
+                                `${section.completedCount}/${section.limit} selected`
+                            );
 
                             if (section.range) {
                                 pieces.push(
@@ -6958,7 +7596,7 @@ function registerResearchOptimizer(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.4.34 | Buildings UX module. */
+/* StarFury UX Suite 2.5.0 | Buildings UX module. */
 function registerBuildingsUX(SFUX) {
     SFUX.register({
         id: 'buildings', phase: 'ready',
@@ -7023,7 +7661,15 @@ function registerBuildingsUX(SFUX) {
 
 
 
-            const configureNonNegativeIntegerInput = input => SFUX.ui.number(ctx, input, { blankZero: true, step: 1 });
+            const configureNonNegativeIntegerInput = input => SFUX.ui.number(
+                ctx,
+                input,
+                {
+                    blankZero: true,
+                    step: 1,
+                    spinner: false
+                }
+            );
 
             const parseNumber = SFUX.format.number;
 
@@ -7296,6 +7942,29 @@ function registerBuildingsUX(SFUX) {
                     table.buildings.sf-buildings-enhanced .sf-max-cell,
                     table.buildings.sf-buildings-enhanced .sf-construct-cell {
             text-align: center;
+                    }
+
+                    /*
+                     * Building quantities are entered directly. The tiny browser/custom
+                     * increment arrows add visual noise and are poor touch targets, so
+                     * keep the numeric keyboard/validation while presenting a plain field.
+                     */
+                    table.buildings.sf-buildings-enhanced input.buildingsInput[type="number"],
+                    table.buildingsRaze.sf-raze-enhanced input.buildingsInput[type="number"] {
+            appearance: textfield;
+            -moz-appearance: textfield;
+                    }
+
+                    table.buildings.sf-buildings-enhanced
+                        input.buildingsInput[type="number"]::-webkit-inner-spin-button,
+                    table.buildings.sf-buildings-enhanced
+                        input.buildingsInput[type="number"]::-webkit-outer-spin-button,
+                    table.buildingsRaze.sf-raze-enhanced
+                        input.buildingsInput[type="number"]::-webkit-inner-spin-button,
+                    table.buildingsRaze.sf-raze-enhanced
+                        input.buildingsInput[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
                     }
 
                     /*
@@ -7908,10 +8577,10 @@ function registerBuildingsUX(SFUX) {
 
             table.buildings.sf-buildings-enhanced .sf-construct-cell .buildingsInput {
                 width: 72px !important;
-                min-height: 36px;
+                min-height: 40px;
                 margin: 0 auto !important;
                 box-sizing: border-box;
-                font-size: 14px !important;
+                font-size: 16px !important;
                 text-align: center;
             }
 
@@ -8297,9 +8966,9 @@ function registerBuildingsUX(SFUX) {
 
             table.buildingsRaze.sf-raze-enhanced .buildingsInput {
                 width: 72px !important;
-                min-height: 36px;
+                min-height: 40px;
                 margin: 0 auto !important;
-                font-size: 14px !important;
+                font-size: 16px !important;
             }
 
             .sf-raze-mobile-summary {
@@ -10087,9 +10756,9 @@ function registerBuildingsUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.4.34 | Ship Power Routing module. */
+/* StarFury UX Suite 2.5.0 | Ship Power Routing module. */
 
-/* StarFury UX Suite 2.4.34 | Rewards UX module. */
+/* StarFury UX Suite 2.5.0 | Rewards UX module. */
 function registerRewardsUX(SFUX) {
     'use strict';
 
@@ -10349,33 +11018,22 @@ function registerRewardsUX(SFUX) {
                     color: rgba(255,255,255,.36);
                 }
 
-                body.sfux-rewards-page .sfux-reward-action a {
-                    display: inline-flex;
+                /*
+                 * Redeem uses the same shared primary-action language as Submit.
+                 * Rewards owns only placement/sizing; global .button-primary owns
+                 * color, border, hover, focus, active and disabled states.
+                 */
+                body.sfux-rewards-page .sfux-reward-action
+                    .sfux-reward-redeem {
+                    display: inline-flex !important;
                     align-items: center;
                     justify-content: center;
-                    min-height: 28px;
-                    padding: 4px 10px;
-                    border: 1px solid rgba(255,255,255,.14);
-                    border-radius: 2px;
-                    background: rgba(255,255,255,.025);
-                    color: rgba(255,255,255,.80) !important;
-                    font-size: 11px;
-                    font-weight: 700;
-                    letter-spacing: 0;
-                    line-height: 1;
+                    min-height: 34px;
+                    margin: 0 !important;
+                    padding: 0 14px !important;
+                    box-sizing: border-box;
                     text-decoration: none !important;
-                    text-transform: none;
-                    transition:
-                        color var(--sfux-transition-fast),
-                        background-color var(--sfux-transition-fast),
-                        border-color var(--sfux-transition-fast);
-                }
-
-                body.sfux-rewards-page .sfux-reward-action a:hover,
-                body.sfux-rewards-page .sfux-reward-action a:focus {
-                    border-color: rgba(56,191,232,.60);
-                    background: rgba(56,191,232,.075);
-                    color: #fff !important;
+                    touch-action: manipulation;
                 }
 
                 body.sfux-rewards-page .sfux-rewards-note {
@@ -10387,22 +11045,53 @@ function registerRewardsUX(SFUX) {
                 }
 
                 @media (max-width: 800px) {
+                    /*
+                     * Compact mobile ledger. Keep the useful economics visible,
+                     * but avoid turning the desktop table into three-row cards.
+                     */
                     body.sfux-rewards-page .sfux-rewards-summary {
-                        align-items: flex-start;
-                        flex-direction: column;
-                        gap: 5px;
+                        display: grid;
+                        grid-template-columns: 1fr;
+                        gap: 6px;
+                        margin: 7px 10px 8px;
+                        padding: 7px 9px 8px;
+                    }
+
+                    body.sfux-rewards-page .sfux-rewards-summary-title {
+                        font-size: 11px;
                     }
 
                     body.sfux-rewards-page .sfux-rewards-summary-values {
-                        justify-content: flex-start;
+                        display: grid;
+                        grid-template-columns: repeat(2, minmax(0, 1fr));
+                        justify-content: stretch;
                         width: 100%;
-                        gap: 8px 14px;
+                        gap: 5px 12px;
+                    }
+
+                    body.sfux-rewards-page .sfux-rewards-summary-metric {
+                        display: flex;
+                        align-items: baseline;
+                        justify-content: space-between;
+                        gap: 6px;
+                        min-width: 0;
+                    }
+
+                    body.sfux-rewards-page .sfux-rewards-summary-label,
+                    body.sfux-rewards-page .sfux-rewards-summary-unit {
+                        font-size: 11px;
+                    }
+
+                    body.sfux-rewards-page .sfux-rewards-summary-number,
+                    body.sfux-rewards-page
+                        .sfux-rewards-summary-number--available {
+                        font-size: 13px;
                     }
 
                     .sectionTitle.sf-rewards-section-title {
                         display: flex;
-                        padding: 8px 8px !important;
-                        gap: 8px;
+                        padding: 7px 9px !important;
+                        gap: 7px;
                     }
 
                     .sf-rewards-section-name {
@@ -10410,7 +11099,7 @@ function registerRewardsUX(SFUX) {
                     }
 
                     .sf-rewards-section-meta {
-                        font-size: 11px;
+                        font-size: 12px;
                     }
 
                     body.sfux-rewards-page table.sfux-rewards-table,
@@ -10425,57 +11114,123 @@ function registerRewardsUX(SFUX) {
                         display: none;
                     }
 
+                    body.sfux-rewards-page table.sfux-rewards-table tbody {
+                        padding: 0 10px 2px;
+                        box-sizing: border-box;
+                    }
+
                     body.sfux-rewards-page table.sfux-rewards-table tr {
                         display: grid;
-                        grid-template-columns: 1fr 1fr;
+                        grid-template-columns:
+                            minmax(0, 1fr)
+                            minmax(112px, .72fr);
+                        grid-template-areas:
+                            "reward action"
+                            "amount max";
                         gap: 0;
-                        margin-bottom: 10px;
+                        margin-bottom: 8px;
                         border: 1px solid rgba(79,137,162,.24);
                         background: rgba(18,21,23,.94);
                     }
 
                     body.sfux-rewards-page table.sfux-rewards-table td {
                         min-width: 0;
-                        border-right: 1px solid rgba(255,255,255,.055);
-                        border-bottom: 1px solid rgba(255,255,255,.055);
+                        padding: 8px 10px;
+                        border-right: 0;
+                        border-bottom: 0;
+                        background: transparent;
                         text-align: left;
                     }
 
                     body.sfux-rewards-page table.sfux-rewards-table td::before {
                         display: block;
-                        margin-bottom: 3px;
+                        margin-bottom: 2px;
                         color: rgba(255,255,255,.40);
-                        font-size: 9px;
+                        font-size: 12px;
                         font-weight: 800;
                         letter-spacing: .04em;
+                        line-height: 1.1;
                         text-transform: uppercase;
                     }
 
-                    body.sfux-rewards-page table.sfux-rewards-table td:nth-child(1) {
-                        grid-column: 1 / -1;
+                    body.sfux-rewards-page .sfux-reward-name {
+                        grid-area: reward;
+                        display: flex !important;
+                        align-items: center;
+                        padding-right: 6px !important;
+                        color: #fff;
+                        font-size: 14px;
+                        font-weight: 700;
+                        line-height: 1.2;
                     }
-                    body.sfux-rewards-page table.sfux-rewards-table td:nth-child(1)::before {
-                        content: "Reward";
+
+                    body.sfux-rewards-page .sfux-reward-name::before {
+                        display: none !important;
+                        content: none !important;
                     }
-                    body.sfux-rewards-page table.sfux-rewards-table td:nth-child(2)::before {
+
+                    body.sfux-rewards-page .sfux-reward-action {
+                        grid-area: action;
+                        display: flex !important;
+                        align-items: center;
+                        justify-content: flex-end;
+                        padding-left: 6px !important;
+                        text-align: right;
+                    }
+
+                    body.sfux-rewards-page .sfux-reward-action::before {
+                        display: none !important;
+                        content: none !important;
+                    }
+
+                    body.sfux-rewards-page .sfux-reward-action
+                        .sfux-reward-redeem {
+                        min-width: 78px;
+                        min-height: 40px;
+                        height: 40px;
+                        padding: 0 12px !important;
+                    }
+
+                    body.sfux-rewards-page .sfux-reward-amount {
+                        grid-area: amount;
+                        padding-top: 7px !important;
+                        border-top: 1px solid rgba(255,255,255,.075);
+                        background: rgba(0,0,0,.11);
+                        font-size: 14px;
+                    }
+
+                    body.sfux-rewards-page .sfux-reward-amount::before {
                         content: "Per Redemption";
                     }
-                    body.sfux-rewards-page table.sfux-rewards-table td:nth-child(3)::before {
+
+                    body.sfux-rewards-page .sfux-reward-max-cell {
+                        grid-area: max;
+                        padding-top: 7px !important;
+                        border-top: 1px solid rgba(255,255,255,.075);
+                        border-left: 1px solid rgba(255,255,255,.10);
+                        background: rgba(0,0,0,.11);
+                        text-align: right;
+                    }
+
+                    body.sfux-rewards-page .sfux-reward-max-cell::before {
                         content: "Max Value";
-                    }
-                    body.sfux-rewards-page table.sfux-rewards-table td:nth-child(4) {
-                        grid-column: 1 / -1;
-                        text-align: center;
-                    }
-                    body.sfux-rewards-page table.sfux-rewards-table td:nth-child(4)::before {
-                        content: "";
+                        text-align: right;
                     }
 
                     body.sfux-rewards-page .sfux-reward-max {
-                        justify-content: flex-start;
+                        justify-content: flex-end;
+                        text-align: right;
+                    }
+
+                    body.sfux-rewards-page .sfux-reward-max-total {
+                        font-size: 14px;
+                        text-align: right;
                     }
 
                     body.sfux-rewards-page .sfux-rewards-note {
+                        margin: 6px 10px 2px;
+                        font-size: 11px;
+                        line-height: 1.35;
                         text-align: left;
                     }
                 }
@@ -10633,6 +11388,11 @@ function registerRewardsUX(SFUX) {
                     'a[href*="reward.php"][href*="action=redeem"]'
                 );
                 if (redeemLink) {
+                    redeemLink.classList.add(
+                        'button',
+                        'button-primary',
+                        'sfux-reward-redeem'
+                    );
                     redeemLink.title =
                         `Redeem ${formatInteger(amount)} ${rewardName} for ${formatInteger(cost)} points`;
                 }
@@ -10755,7 +11515,7 @@ function registerRewardsUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.4.34 | Attack Room command layout and fleet accounting. */
+/* StarFury UX Suite 2.5.0 | Attack Room command layout and fleet accounting. */
 function registerAttackUX(SFUX) {
     'use strict';
 
@@ -11872,7 +12632,7 @@ function registerAttackUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.4.34 | Raid roster density, mercenary selection, and payout accounting. */
+/* StarFury UX Suite 2.5.0 | Raid roster density, mercenary selection, and payout accounting. */
 function registerRaidUX(SFUX) {
     'use strict';
 
@@ -13421,6 +14181,19 @@ function registerShipPowerRouting(SFUX) {
                         box-sizing: border-box;
                         margin: 0 !important;
                         padding: 0 12px !important;
+                    }
+
+                    @media (max-width: ${SFUX.responsive.mobile}px) {
+                        .sfux-rename-row .inputBox,
+                        .sfux-rename-row .button-primary {
+                            height: 40px !important;
+                            min-height: 40px !important;
+                        }
+
+                        .sfux-rename-row .button-primary {
+                            min-width: 78px;
+                            padding: 0 12px !important;
+                        }
                     }
 
                     /* -------------------------------------------------------------
