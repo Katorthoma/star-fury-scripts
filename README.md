@@ -8,7 +8,7 @@ The goal is straightforward: improve Star Fury's usability, information density,
 
 | Script | Current version | Purpose | Install |
 | --- | ---: | --- | --- |
-| **StarFury UX Suite** | 2.4.34 | Broad UI/UX improvements across research, buildings, Rewards, Star Dock, Attack Room, ship management, navigation, and mobile layouts | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-UX-Suite.user.js) |
+| **StarFury UX Suite** | 2.5.0 | Broad UI/UX improvements across research, buildings, Rewards, Star Dock, combat, raids, ship management, navigation, notifications, and mobile layouts | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-UX-Suite.user.js) |
 | **Alliance Intel Board** | 0.16.1 | Consolidates alliance scan posts into a tactical intelligence board with freshness, ship composition, sector data, war activity, and target helpers | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-Alliance-Intel-Board.user.js) |
 | **War Scoreboard** | 0.1.4 | Replaces the native alliance-war comparison table with a compact versus-style scoreboard for active and completed wars | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-War-Scoreboard.user.js) |
 | **Custom Race Portraits** | 1.2.2 | Replaces native race portraits with an embedded portrait set or locally stored custom images | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-Custom-Race-Portraits.user.js) |
@@ -21,23 +21,26 @@ The UX Suite combines the earlier Star Fury interface projects into one modular 
 
 It currently covers:
 
-- responsive navigation and empire-status HUD
-- unified Advisor + compact Star Dock with persistent open/closed state, improved alignment, and reduced page-load flashing
-- Research redesign with progress information, ETAs, queue presentation, completed/max-state handling, and compact research explanations
-- Buildings and Raze redesigns with production projections and economic summaries
-- Rewards redesign with point-balance summaries and per-reward maximum-value projections
-- standardized numeric inputs, higher-contrast primary buttons, and safer non-negative construction controls
+- responsive navigation and empire-status HUD, including overlay-style mobile navigation that does not push page content downward
+- unified Advisor + compact Star Dock with persistent open/closed state, improved alignment, reduced page-load flashing, and full-bar mobile expand/collapse controls
+- global notification toasts for Star Fury notice, warning, and error messages with severity-aware persistence, sequential timing, progress indication, manual dismissal, and navigation-safe layering
+- Research redesign with progress information, ETAs, queue presentation, completed/max-state handling, compact research explanations, responsive mobile layouts, and accessible technology information controls
+- native Research section-limit handling based on Star Fury's `[Limit: #]` data rather than inferred race-specific path rules
+- Buildings and Raze redesigns with production projections, economic summaries, simplified quantity inputs, non-negative validation, and mobile-safe form sizing
+- Rewards redesign with point-balance summaries, per-reward maximum-value projections, compact mobile reward cards, and standardized primary actions
+- standardized numeric inputs, higher-contrast primary buttons, shared action styling, and touch-friendly controls
 - CIC-style Star Dock overview with compact three-column desktop cards and a dedicated single-column mobile layout
 - Sheathed Integrity ship health display combining Hull + Shields into a single HP bar while retaining separate Hull and Shield percentages
 - standardized Star Dock telemetry for HP, Hull, Shields, Weapons/Engines/Sensors allocation, engine time, and operational status
 - responsive Star Dock role navigation with full desktop tabs and a compact mobile dock-category menu
-- state-aware Star Dock presentation with matched activity text/state rails, neutral Disabled treatment, and distinct Returning, Exploring, Raiding, Building, Upgrading, and Repairing states
+- state-aware Star Dock presentation with matched activity text/state rails, neutral Disabled treatment, and distinct Returning, Exploring, Raiding, Building, Upgrading, Repairing, and Defending states
 - responsive ship power controls that remain in-image on desktop and move to a touch-friendly card-level control on mobile
 - contextual repair controls and per-dock bulk Repair/Disable/Re-enable workflows that reuse Star Fury's native confirmed actions, including per-ship Status / Repair / Total timing and mobile-friendly touch layouts
 - ship power-routing helpers, presets, Leecher-specific controls, role transfer/swap helpers, and Fixed/Flexible handling
 - Attack Room and Boss Battle fleet-table redesigns with combined HP, role-grouped fleets, subtotals, fleet totals, live selected-force summaries, per-dock select/deselect controls, and mobile-optimized columns
-- mobile layouts designed separately where desktop tables do not translate cleanly
 - Raid workflow redesign with compact aligned fleet rosters, leader/non-leader layouts, live payout allocation and remaining-percentage summaries, optimized empty slots, and a streamlined Raid Mercenary selection view
+- mobile layouts designed separately where desktop tables do not translate cleanly
+- accessibility-oriented mobile typography, larger touch targets, and form sizing that avoids unnecessary browser focus zoom while preserving normal page zoom
 
 The suite is designed to reduce repetitive interaction and improve presentation while preserving native links, form controls, validation, calculations, and submission behavior.
 
@@ -94,7 +97,7 @@ The board supports:
 
 - configurable Alliance scan-thread URL, so a new round/season does not require editing the userscript
 - per-column visibility controls, with Empire always retained
-- hidden-emires management
+- hidden-empires management
 - content-fit mode for a compact centered board
 - optional flexible-width mode for very wide displays
 - a frozen Empire column during horizontal scrolling
