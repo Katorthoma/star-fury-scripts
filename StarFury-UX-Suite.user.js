@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury UX Suite
 // @namespace    starfuryx.com
-// @version      2.5.8
+// @version      2.5.9
 // @author       Zathman
 // @license      MIT
 // @homepageURL  https://github.com/Katorthoma/star-fury-scripts
@@ -21,10 +21,10 @@
 
 (() => {
 'use strict';
-/* StarFury UX Suite 2.5.8 | Shared runtime. No globals are published by the bundle. */
+/* StarFury UX Suite 2.5.9 | Shared runtime. No globals are published by the bundle. */
 function createSFUX() {
     'use strict';
-    const SFUX = { version: '2.5.8', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
+    const SFUX = { version: '2.5.9', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
     // UI ASSUMPTION: dense building columns and nine navigation items need earlier stacking.
     SFUX.responsive = Object.freeze({ mobile: 640, navigation: 768, buildings: 800, phone: 430, narrowHeader: 460, tinyHud: 360 });
     SFUX.page = new URL(window.location.href);
@@ -567,7 +567,7 @@ html body input[type="button"].button-primary:not(.sf-raze-submit):disabled {
     return SFUX;
 }
 
-/* StarFury UX Suite 2.5.8 | Global UX module. */
+/* StarFury UX Suite 2.5.9 | Global UX module. */
 function registerGlobalUX(SFUX) {
     SFUX.register({
         id: 'global', phase: 'early',
@@ -954,7 +954,8 @@ function registerGlobalUX(SFUX) {
 
                         #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:hover,
                         #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:focus-visible,
-                        #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:active {
+                        #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:active,
+                        #cssmenu.${NAV_CLASS} > ul > li > ul > li.sfgu-pressed > a {
                             color: #ffffff !important;
                             background: rgba(var(--sfux-info-rgb), 0.16) !important;
                             outline: none !important;
@@ -1270,7 +1271,8 @@ function registerGlobalUX(SFUX) {
                         }
 
                         #cssmenu.${NAV_CLASS} > ul > li > a:active,
-                        #cssmenu.${NAV_CLASS} > ul > li > a:focus-visible {
+                        #cssmenu.${NAV_CLASS} > ul > li > a:focus-visible,
+                        #cssmenu.${NAV_CLASS} > ul > li.sfgu-pressed > a {
                             color: #ffffff !important;
                             background: rgba(255,255,255,0.10) !important;
                             outline: none !important;
@@ -1399,9 +1401,11 @@ function registerGlobalUX(SFUX) {
                         }
 
                         #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:active,
-                        #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:focus-visible {
+                        #cssmenu.${NAV_CLASS} > ul > li > ul > li > a:focus-visible,
+                        #cssmenu.${NAV_CLASS} > ul > li > ul > li.sfgu-pressed > a {
                             color: #ffffff !important;
-                            background: rgba(var(--sfux-info-rgb), 0.12) !important;
+                            background: rgba(var(--sfux-info-rgb), 0.16) !important;
+                            box-shadow: inset 3px 0 0 rgba(var(--sfux-info-rgb), 0.9) !important;
                             outline: none !important;
                         }
 
@@ -5232,6 +5236,70 @@ function registerGlobalUX(SFUX) {
                 );
             }
 
+            function installNavigationPressFeedback(nav) {
+                let pressedItem = null;
+                let releaseTimer = 0;
+
+                const clearPressed = () => {
+                    if (releaseTimer) {
+                        window.clearTimeout(releaseTimer);
+                        releaseTimer = 0;
+                    }
+
+                    if (pressedItem) {
+                        pressedItem.classList.remove('sfgu-pressed');
+                        pressedItem = null;
+                    }
+                };
+
+                const pressTarget = event => {
+                    const link = event.target.closest?.('a[href]');
+                    if (!link || !nav.contains(link)) return;
+
+                    const item = link.closest('li');
+                    if (!item || !nav.contains(item)) return;
+
+                    clearPressed();
+                    pressedItem = item;
+                    item.classList.add('sfgu-pressed');
+                };
+
+                // Safari can follow a link before CSS :active becomes visibly painted.
+                // Apply the row state as soon as contact begins instead.
+                ctx.on(nav, 'pointerdown', pressTarget, {
+                    passive: true,
+                    capture: true
+                });
+                ctx.on(nav, 'touchstart', pressTarget, {
+                    passive: true,
+                    capture: true
+                });
+
+                ctx.on(nav, 'pointercancel', clearPressed, {
+                    passive: true,
+                    capture: true
+                });
+                ctx.on(nav, 'touchcancel', clearPressed, {
+                    passive: true,
+                    capture: true
+                });
+
+                // Category labels remain on-page, so clear their pressed state shortly
+                // after the submenu action. Navigating links clear naturally on unload.
+                ctx.on(nav, 'click', event => {
+                    if (!pressedItem) return;
+
+                    const link = event.target.closest?.('a[href]');
+                    const href = link?.getAttribute('href')?.trim() || '';
+
+                    if (!href || href === '#' || href.startsWith('javascript:')) {
+                        releaseTimer = window.setTimeout(clearPressed, 140);
+                    }
+                }, true);
+
+                ctx.on(window, 'pageshow', clearPressed);
+            }
+
             function closeMobileMenu(nav) {
                 nav.classList.remove(MOBILE_OPEN_CLASS);
                 getOwnedMenuButton(nav)?.setAttribute('aria-expanded', 'false');
@@ -5261,6 +5329,7 @@ function registerGlobalUX(SFUX) {
                 addSubmenuControls(nav);
                 markCurrentSection(nav);
                 prepareMenuButton(nav);
+                installNavigationPressFeedback(nav);
 
                 ctx.on(document, 'keydown', event => {
                     if (
@@ -5373,7 +5442,7 @@ function registerGlobalUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.5.8 | Research Optimizer module. */
+/* StarFury UX Suite 2.5.9 | Research Optimizer module. */
 function registerResearchOptimizer(SFUX) {
     SFUX.register({
         id: 'research', phase: 'ready',
@@ -7992,7 +8061,7 @@ function registerResearchOptimizer(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.5.8 | Buildings UX module. */
+/* StarFury UX Suite 2.5.9 | Buildings UX module. */
 function registerBuildingsUX(SFUX) {
     SFUX.register({
         id: 'buildings', phase: 'ready',
@@ -11152,9 +11221,9 @@ function registerBuildingsUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.5.8 | Ship Power Routing module. */
+/* StarFury UX Suite 2.5.9 | Ship Power Routing module. */
 
-/* StarFury UX Suite 2.5.8 | Rewards UX module. */
+/* StarFury UX Suite 2.5.9 | Rewards UX module. */
 function registerRewardsUX(SFUX) {
     'use strict';
 
@@ -11911,7 +11980,7 @@ function registerRewardsUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.5.8 | Attack Room command layout and fleet accounting. */
+/* StarFury UX Suite 2.5.9 | Attack Room command layout and fleet accounting. */
 function registerAttackUX(SFUX) {
     'use strict';
 
@@ -13028,7 +13097,7 @@ function registerAttackUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.5.8 | Raid roster density, mercenary selection, and payout accounting. */
+/* StarFury UX Suite 2.5.9 | Raid roster density, mercenary selection, and payout accounting. */
 function registerRaidUX(SFUX) {
     'use strict';
 
