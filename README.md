@@ -8,7 +8,7 @@ The goal is straightforward: improve Star Fury's usability, information density,
 
 | Script | Current version | Purpose | Install |
 | --- | ---: | --- | --- |
-| **StarFury UX Suite** | 2.5.9 | Broad UI/UX improvements across research, buildings, Rewards, Star Dock, combat, raids, ship management, navigation, notifications, and mobile layouts | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-UX-Suite.user.js) |
+| **StarFury UX Suite** | 2.5.10 | Broad UI/UX improvements across research, buildings, Rewards, Star Dock, combat, raids, ship management, navigation, notifications, and mobile layouts | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-UX-Suite.user.js) |
 | **Alliance Intel Board** | 0.16.1 | Consolidates alliance scan posts into a tactical intelligence board with freshness, ship composition, sector data, war activity, and target helpers | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-Alliance-Intel-Board.user.js) |
 | **War Scoreboard** | 0.1.4 | Replaces the native alliance-war comparison table with a compact versus-style scoreboard for active and completed wars | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-War-Scoreboard.user.js) |
 | **Custom Race Portraits** | 1.2.2 | Replaces native race portraits with an embedded portrait set or locally stored custom images | [Install](https://raw.githubusercontent.com/Katorthoma/star-fury-scripts/main/StarFury-Custom-Race-Portraits.user.js) |
@@ -24,7 +24,7 @@ It currently covers:
 - responsive navigation and empire-status HUD, including overlay-style mobile navigation that does not push page content downward, current-page highlighting, and consistent hover, focus, and touch feedback
 - unified Advisor + compact Star Dock with persistent open/closed state, improved alignment, reduced page-load flashing, full-bar mobile expand/collapse controls, and compact desktop ship tooltips showing name, operational status, Fixed/Flexible state, and Sheathed Integrity
 - global notification toasts for Star Fury notice, warning, and error messages with severity-aware persistence, sequential timing, progress indication, manual dismissal, and navigation-safe layering
-- Research redesign with progress information, ETAs, queue presentation, completed/max-state handling, compact research explanations, responsive mobile layouts, and accessible technology information controls
+- Research redesign with progress information, ETAs, coordinated Active Research and queue cards, compact metric summaries, completed/max-state handling, responsive mobile layouts, and accessible technology information controls
 - native Research section-limit handling based on Star Fury's `[Limit: #]` data rather than inferred race-specific path rules
 - Buildings and Raze redesigns with production projections, economic summaries, simplified quantity inputs, non-negative validation, and mobile-safe form sizing
 - Rewards redesign with point-balance summaries, per-reward maximum-value projections, compact mobile reward cards, and standardized primary actions
@@ -36,9 +36,9 @@ It currently covers:
 - state-aware Star Dock presentation with matched activity text/state rails, neutral Disabled treatment, and distinct Returning, Exploring, Raiding, Building, Upgrading, Repairing, and Defending states
 - responsive ship power controls that remain in-image on desktop and move to a touch-friendly card-level control on mobile
 - contextual repair controls and per-dock bulk Repair/Disable/Re-enable workflows that reuse Star Fury's native confirmed actions, including per-ship Status / Repair / Total timing and mobile-friendly touch layouts
-- ship power-routing helpers, presets, Leecher-specific controls, role transfer/swap helpers, and Fixed/Flexible handling
-- Attack Room and Boss Battle fleet-table redesigns with combined HP, role-grouped fleets, subtotals, fleet totals, live selected-force summaries, per-dock select/deselect controls, and mobile-optimized columns
-- Raid workflow redesign with compact aligned fleet rosters, leader/non-leader layouts, live payout allocation and remaining-percentage summaries, optimized empty slots, and a streamlined Raid Mercenary selection view
+- ship power-routing helpers, persistent custom presets, Leecher-specific controls, role transfer/swap helpers, and Fixed/Flexible handling, including Safari-mobile preset compatibility
+- Attack Room and Boss Battle fleet-table redesigns with combined HP, role-grouped fleets, dock subtotals, fleet totals, live selected-force summaries, per-dock select/deselect controls, and compact mobile ship, HP, combat, and selection layouts
+- Raid workflow redesign with compact aligned fleet rosters, readable mobile leader/non-leader layouts, live payout allocation and remaining-percentage summaries, optimized empty slots, and a streamlined Raid Mercenary selection view
 - mobile layouts designed separately where desktop tables do not translate cleanly
 - accessibility-oriented mobile typography, larger touch targets, and form sizing that avoids unnecessary browser focus zoom while preserving normal page zoom
 
