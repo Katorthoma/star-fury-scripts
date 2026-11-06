@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury UX Suite Beta
 // @namespace    starfuryx.com
-// @version      2.5.10-beta.2
+// @version      2.5.11-beta.1
 // @author       Zathman
 // @license      MIT
 // @homepageURL  https://github.com/Katorthoma/star-fury-scripts
@@ -21,10 +21,10 @@
 
 (() => {
 'use strict';
-/* StarFury UX Suite 2.5.10-beta.2 | Shared runtime. No globals are published by the bundle. */
+/* StarFury UX Suite 2.5.11-beta.1 | Shared runtime. No globals are published by the bundle. */
 function createSFUX() {
     'use strict';
-    const SFUX = { version: '2.5.10-beta.2', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
+    const SFUX = { version: '2.5.11-beta.1', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
     // UI ASSUMPTION: dense building columns and nine navigation items need earlier stacking.
     SFUX.responsive = Object.freeze({ mobile: 640, navigation: 768, buildings: 800, phone: 430, narrowHeader: 460, tinyHud: 360 });
     SFUX.page = new URL(window.location.href);
@@ -390,7 +390,8 @@ function createSFUX() {
     };
     SFUX.boot = () => {
         const core = createContext('core');
-        core.find('head', () => core.style('sfux-core-style', SFUX.css));
+        // Quick Login uses its own Shadow DOM and Star Fury's native background.
+        if (SFUX.path !== '/quicklogin.php') core.find('head', () => core.style('sfux-core-style', SFUX.css));
         for (const module of SFUX.modules.values()) if (module.phase === 'early') SFUX.start(module.id);
         core.ready(() => { for (const module of SFUX.modules.values()) if (module.phase !== 'early') SFUX.start(module.id); });
         // A bfcache document is suspended, not destroyed, and resumes with its listeners.
@@ -567,7 +568,7 @@ html body input[type="button"].button-primary:not(.sf-raze-submit):disabled {
     return SFUX;
 }
 
-/* StarFury UX Suite 2.5.10-beta.2 | Global UX module. */
+/* StarFury UX Suite 2.5.11-beta.1 | Global UX module. */
 function registerGlobalUX(SFUX) {
     SFUX.register({
         id: 'global', phase: 'early',
@@ -5471,7 +5472,7 @@ function registerGlobalUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.5.10-beta.2 | Research Optimizer module. */
+/* StarFury UX Suite 2.5.11-beta.1 | Research Optimizer module. */
 function registerResearchOptimizer(SFUX) {
     SFUX.register({
         id: 'research', phase: 'ready',
@@ -6040,31 +6041,38 @@ function registerResearchOptimizer(SFUX) {
                         white-space: nowrap !important;
                     }
 
-                    /* Active Research dashboard card */
+                    .sfro-active-heading {
+                        display: flex;
+                        align-items: center;
+                        flex-wrap: wrap;
+                        gap: 7px;
+                    }
+
+                    .sfro-active-heading .sfro-rp-rate {
+                        margin-left: 0;
+                        font-size: 12px !important;
+                    }
+
+                    /* Active Research mirrors the Research Queue card grammar. */
                     .sfro-active-card {
+                        display: grid;
+                        grid-template-columns: minmax(0,1fr) auto auto;
+                        grid-template-areas:
+                            "main metrics action"
+                            "progress progress progress";
+                        align-items: center;
+                        gap: 8px 10px;
                         margin: 0;
-                        padding: 12px 14px 13px;
-                        border: 1px solid rgba(var(--sfux-warning-rgb), 0.22);
-                        border-left: 3px solid rgba(var(--sfux-warning-rgb), 0.72);
-                        background: linear-gradient(
-                            180deg,
-                            rgba(78,66,38,0.22),
-                            rgba(38,34,27,0.18)
-                        );
+                        padding: 9px 11px 10px;
+                        border: 1px solid rgba(255,255,255,0.07);
+                        border-left: 3px solid rgba(var(--sfux-warning-rgb), .72);
+                        background: rgba(255,255,255,0.022);
                         box-shadow: inset 0 1px 0 rgba(255,255,255,0.025);
                     }
 
-                    .sfro-active-card-top {
-                        display: flex;
-                        align-items: center;
-                        justify-content: space-between;
-                        gap: 14px;
+                    .sfro-active-main {
+                        grid-area: main;
                         min-width: 0;
-                    }
-
-                    .sfro-active-card-title-wrap {
-                        min-width: 0;
-                        flex: 1 1 auto;
                     }
 
                     .sfro-active-card-title {
@@ -6086,26 +6094,13 @@ function registerResearchOptimizer(SFUX) {
                         text-overflow: ellipsis;
                     }
 
-                    .sfro-active-card-actions {
-                        display: flex;
-                        align-items: center;
-                        gap: 10px;
-                        flex: 0 0 auto;
-                    }
-
-                    .sfro-active-big-eta {
-                        display: inline-block;
-                        padding: 4px 8px;
-                        border: 1px solid rgba(var(--sfux-warning-rgb), 0.38);
-                        border-radius: 4px;
-                        background: rgba(var(--sfux-warning-rgb), 0.08);
-                        color: var(--sfux-warning);
-                        font-size: 13px;
-                        font-weight: 700;
-                        white-space: nowrap;
+                    .sfro-active-metrics {
+                        grid-area: metrics;
                     }
 
                     .sfro-active-cancel {
+                        grid-area: action;
+                        justify-self: end;
                         opacity: 0.46;
                         font-size: 12px !important;
                         transition: opacity 120ms ease;
@@ -6116,10 +6111,18 @@ function registerResearchOptimizer(SFUX) {
                         opacity: 1;
                     }
 
+                    .sfro-active-progress-row {
+                        grid-area: progress;
+                        display: grid;
+                        grid-template-columns: minmax(0,1fr) max-content;
+                        align-items: center;
+                        gap: 6px;
+                        margin-top: 1px;
+                    }
+
                     .sfro-active-progress {
                         position: relative;
                         height: 8px;
-                        margin-top: 11px;
                         overflow: hidden;
                         border: 1px solid rgba(255,255,255,0.08);
                         border-radius: 999px;
@@ -6136,27 +6139,15 @@ function registerResearchOptimizer(SFUX) {
                         );
                     }
 
-                    .sfro-active-meta {
-                        display: flex;
-                        align-items: center;
-                        flex-wrap: wrap;
-                        gap: 5px 14px;
-                        margin-top: 9px;
-                        color: rgba(255,255,255,0.67);
-                        font-size: 12.5px;
-                    }
-
-                    .sfro-active-meta strong {
-                        color: rgba(255,255,255,0.88);
-                        font-weight: 700;
-                    }
-
-                    .sfro-active-meta .sfro-active-percent {
+                    .sfro-active-progress-percent {
+                        min-width: 0;
                         color: var(--sfux-warning);
-                    }
-
-                    .sfro-active-rate {
-                        color: rgba(255,255,255,0.58);
+                        font-size: 13px;
+                        font-weight: 800;
+                        line-height: 1;
+                        text-align: right;
+                        font-variant-numeric: tabular-nums;
+                        white-space: nowrap;
                     }
 
                     /* Queue summary appended to the native section heading. */
@@ -6178,7 +6169,7 @@ function registerResearchOptimizer(SFUX) {
 
                     .sfro-queue-item {
                         display: grid;
-                        grid-template-columns: auto minmax(0,1fr) auto auto;
+                        grid-template-columns: minmax(0,1fr) auto auto;
                         align-items: center;
                         gap: 10px;
                         padding: 9px 11px;
@@ -6191,25 +6182,41 @@ function registerResearchOptimizer(SFUX) {
                         border-left-color: rgba(109,148,176,0.34);
                     }
 
-                    .sfro-queue-order {
-                        min-width: 36px;
-                        color: rgba(255,255,255,0.52);
-                        font-size: 11px;
-                        font-weight: 700;
-                        text-align: center;
-                        text-transform: uppercase;
-                        letter-spacing: .035em;
-                    }
-
-                    .sfro-queue-item:first-child .sfro-queue-order {
-                        color: var(--sfux-warning);
-                    }
-
                     .sfro-queue-main {
                         min-width: 0;
                     }
 
+                    .sfro-queue-head {
+                        display: flex;
+                        align-items: center;
+                        gap: 7px;
+                        min-width: 0;
+                    }
+
+                    .sfro-queue-order {
+                        flex: 0 0 auto;
+                        min-width: 0;
+                        padding: 2px 5px;
+                        border: 1px solid rgba(255,255,255,.10);
+                        border-radius: 3px;
+                        background: rgba(255,255,255,.035);
+                        color: rgba(255,255,255,0.52);
+                        font-size: 9.5px;
+                        font-weight: 800;
+                        line-height: 1.1;
+                        text-align: center;
+                        text-transform: uppercase;
+                        letter-spacing: .045em;
+                    }
+
+                    .sfro-queue-item:first-child .sfro-queue-order {
+                        border-color: rgba(var(--sfux-warning-rgb), .36);
+                        background: rgba(var(--sfux-warning-rgb), .075);
+                        color: var(--sfux-warning);
+                    }
+
                     .sfro-queue-tech {
+                        min-width: 0;
                         color: rgba(255,255,255,0.91);
                         font-size: 13.5px;
                         font-weight: 700;
@@ -6219,7 +6226,7 @@ function registerResearchOptimizer(SFUX) {
                     }
 
                     .sfro-queue-effect {
-                        margin-top: 2px;
+                        margin-top: 3px;
                         color: rgba(255,255,255,0.50);
                         font-size: 11.5px;
                         white-space: nowrap;
@@ -6229,26 +6236,40 @@ function registerResearchOptimizer(SFUX) {
 
                     .sfro-queue-metrics {
                         display: flex;
-                        align-items: center;
-                        gap: 7px;
+                        align-items: stretch;
+                        gap: 5px;
                         color: rgba(255,255,255,0.69);
-                        font-size: 12.5px;
-                        font-weight: 600;
                         white-space: nowrap;
                     }
 
-                    .sfro-queue-duration {
-                        padding: 2px 5px;
-                        border: 1px solid rgba(255,255,255,0.13);
-                        border-radius: 4px;
-                        background: rgba(255,255,255,0.045);
-                        color: rgba(255,255,255,0.79);
-                        font-weight: 700;
+                    .sfro-queue-metric {
+                        display: grid;
+                        gap: 1px;
+                        min-width: 62px;
+                        padding: 4px 6px;
+                        border: 1px solid rgba(255,255,255,.075);
+                        background: rgba(255,255,255,.025);
+                        text-align: center;
                     }
 
-                    .sfro-queue-complete {
-                        color: rgba(var(--sfux-warning-rgb), 0.88);
-                        font-weight: 700;
+                    .sfro-queue-metric-label {
+                        color: rgba(255,255,255,.48);
+                        font-size: 10.5px;
+                        font-weight: 800;
+                        line-height: 1;
+                        letter-spacing: .06em;
+                        text-transform: uppercase;
+                    }
+
+                    .sfro-queue-metric-value {
+                        color: rgba(255,255,255,.88);
+                        font-size: 12.5px;
+                        font-weight: 800;
+                        line-height: 1.15;
+                    }
+
+                    .sfro-queue-complete .sfro-queue-metric-value {
+                        color: rgba(var(--sfux-warning-rgb), 0.90);
                     }
 
                     .sfro-queue-remove {
@@ -6585,12 +6606,14 @@ function registerResearchOptimizer(SFUX) {
 
                         /* Active Research */
                         .sfro-active-card {
-                            padding: 11px 10px 12px;
-                        }
-
-                        .sfro-active-card-top {
-                            align-items: flex-start;
+                            grid-template-columns: minmax(0,1fr) auto;
+                            grid-template-areas:
+                                "main action"
+                                "metrics metrics"
+                                "progress progress";
+                            align-items: start;
                             gap: 8px;
+                            padding: 10px 9px;
                         }
 
                         .sfro-active-card-title {
@@ -6601,38 +6624,44 @@ function registerResearchOptimizer(SFUX) {
                         }
 
                         .sfro-active-card-effect {
-                            margin-top: 2px;
-                            font-size: 12px;
-                            line-height: 1.25;
+                            margin-top: 5px;
+                            font-size: 12.5px;
+                            line-height: 1.3;
                             white-space: normal;
                             overflow: visible;
                         }
 
-                        .sfro-active-progress {
-                            margin-top: 9px;
+                        .sfro-active-metrics {
+                            display: grid;
+                            grid-template-columns: repeat(3, minmax(0, 1fr));
+                            gap: 5px;
+                            width: 100%;
                         }
 
-                        .sfro-active-meta {
-                            display: grid;
-                            grid-template-columns: repeat(2, minmax(0, 1fr));
-                            gap: 5px 10px;
-                            margin-top: 8px;
-                            font-size: 12px;
+                        .sfro-active-metrics .sfro-queue-metric {
+                            min-width: 0;
+                            padding: 7px 5px;
+                        }
+
+                        .sfro-active-progress-row {
+                            gap: 6px;
+                            margin-top: 1px;
+                        }
+
+                        .sfro-active-progress-percent {
+                            min-width: 0;
+                            font-size: 13px;
                         }
 
                         /* Queue */
                         .sfro-queue-item {
-                            grid-template-columns: auto minmax(0, 1fr) auto;
+                            grid-template-columns: minmax(0, 1fr) auto;
                             grid-template-areas:
-                                "order main action"
-                                ". metrics metrics";
-                            gap: 5px 8px;
-                            padding: 9px 8px;
-                        }
-
-                        .sfro-queue-order {
-                            grid-area: order;
-                            min-width: 29px;
+                                "main action"
+                                "metrics metrics";
+                            align-items: start;
+                            gap: 8px 8px;
+                            padding: 10px 9px;
                         }
 
                         .sfro-queue-main {
@@ -6640,13 +6669,40 @@ function registerResearchOptimizer(SFUX) {
                             min-width: 0;
                         }
 
+                        .sfro-queue-head {
+                            align-items: baseline;
+                            gap: 6px;
+                        }
+
+                        .sfro-queue-order {
+                            padding: 3px 6px;
+                            font-size: 11px;
+                            line-height: 1.1;
+                        }
+
                         .sfro-queue-metrics {
                             grid-area: metrics;
-                            justify-self: end;
-                            flex-wrap: wrap;
-                            justify-content: flex-end;
-                            gap: 5px 6px;
-                            font-size: 12px;
+                            display: grid;
+                            grid-template-columns: repeat(3, minmax(0, 1fr));
+                            gap: 5px;
+                            width: 100%;
+                        }
+
+                        .sfro-queue-metric {
+                            min-width: 0;
+                            padding: 7px 5px;
+                        }
+
+                        .sfro-queue-metric-label {
+                            font-size: 11px;
+                            line-height: 1.1;
+                            letter-spacing: .045em;
+                        }
+
+                        .sfro-queue-metric-value {
+                            margin-top: 2px;
+                            font-size: 13px;
+                            line-height: 1.2;
                         }
 
                         .sfro-queue-item > :last-child {
@@ -6655,19 +6711,28 @@ function registerResearchOptimizer(SFUX) {
                         }
 
                         .sfro-queue-tech {
-                            font-size: 13px;
-                            line-height: 1.2;
+                            font-size: 14.5px;
+                            line-height: 1.22;
+                            white-space: normal;
+                            overflow: visible;
                         }
 
                         .sfro-queue-effect {
-                            font-size: 11px;
-                            line-height: 1.2;
+                            margin-top: 5px;
+                            color: rgba(255,255,255,.60);
+                            font-size: 12.5px;
+                            line-height: 1.3;
                             white-space: normal;
                             overflow: visible;
                         }
 
                         .sfro-queue-title-summary {
-                            font-size: 11.5px;
+                            display: block;
+                            margin: 4px 0 0;
+                            color: rgba(255,255,255,.64);
+                            font-size: 12px;
+                            line-height: 1.25;
+                            vertical-align: 0;
                         }
                     }
 
@@ -6698,26 +6763,11 @@ function registerResearchOptimizer(SFUX) {
                             text-align: center;
                         }
 
-                        .sfro-active-card-top {
-                            flex-direction: column;
-                            gap: 8px;
-                        }
-
-                        .sfro-active-card-actions {
-                            width: 100%;
-                            justify-content: space-between;
-                        }
-
-                        .sfro-active-meta {
-                            grid-template-columns: 1fr 1fr;
-                        }
-
                         .sfro-queue-item {
-                            grid-template-columns: auto minmax(0, 1fr);
+                            grid-template-columns: minmax(0, 1fr) auto;
                             grid-template-areas:
-                                "order main"
-                                ". metrics"
-                                ". action";
+                                "main action"
+                                "metrics metrics";
                         }
 
                         .sfro-queue-item > :last-child {
@@ -6739,8 +6789,9 @@ function registerResearchOptimizer(SFUX) {
 
                         .sfro-active-cancel,
                         .sfro-queue-remove {
-                            min-height: 28px;
-                            padding: 5px 7px;
+                            min-height: 32px;
+                            padding: 6px 8px;
+                            font-size: 12px !important;
                         }
                     }
                 `); }
@@ -7349,17 +7400,16 @@ function registerResearchOptimizer(SFUX) {
             function markResearchRate(researchRate) {
                 if (!researchRate) return;
 
-                const sectionTitle = [...document.querySelectorAll('.sectionTitle')]
-                    .find(el => /^Tech Tree$/i.test(normalizeText(el.textContent)));
-
+                const sectionTitle = findResearchSectionTitle(/Active Research/i);
                 if (!sectionTitle) return;
-                sectionTitle.classList.add('sfro-tech-title');
+
+                sectionTitle.classList.add('sfro-active-heading');
                 if (sectionTitle.querySelector('.sfro-rp-rate')) return;
 
                 const badge = ctx.element('span');
                 badge.className = 'sfro-rp-rate';
                 badge.textContent = `${researchRate.toLocaleString()} RP/tick`;
-                badge.title = 'All ETAs use the current Research Points per Tick shown by the Advisor.';
+                badge.title = 'Current Research Points per Tick. All research ETAs use this rate.';
                 sectionTitle.appendChild(badge);
             }
 
@@ -7837,43 +7887,72 @@ function registerResearchOptimizer(SFUX) {
                 const card = ctx.element('div');
                 card.className = 'sfro-active-card';
 
-                const top = ctx.element('div');
-                top.className = 'sfro-active-card-top';
-
-                const titleWrap = ctx.element('div');
-                titleWrap.className = 'sfro-active-card-title-wrap';
+                const main = ctx.element('div');
+                main.className = 'sfro-active-main';
 
                 const title = ctx.element('div');
                 title.className = 'sfro-active-card-title';
                 title.textContent = activeResearch.name;
-
-                titleWrap.appendChild(title);
+                main.appendChild(title);
 
                 if (effect) {
                     const effectLine = ctx.element('div');
                     effectLine.className = 'sfro-active-card-effect';
                     effectLine.textContent = effect;
                     effectLine.title = effect;
-                    titleWrap.appendChild(effectLine);
+                    main.appendChild(effectLine);
                 }
 
-                const actions = ctx.element('div');
-                actions.className = 'sfro-active-card-actions';
+                const metrics = ctx.element('div');
+                metrics.className = 'sfro-queue-metrics sfro-active-metrics';
 
-                const eta = ctx.element('span');
-                eta.className = 'sfro-active-big-eta';
-                eta.textContent = `≈${ticks} ticks left`;
-                eta.title = `${activeResearch.remaining.toLocaleString()} RP remaining ÷ ${researchRate.toLocaleString()} RP/tick = ${ticks} ticks`;
+                const createMetric = (labelText, valueText, extraClass = '') => {
+                    const metric = ctx.element('span');
+                    metric.className =
+                        `sfro-queue-metric${extraClass ? ` ${extraClass}` : ''}`;
 
-                actions.appendChild(eta);
+                    const label = ctx.element('span');
+                    label.className = 'sfro-queue-metric-label';
+                    label.textContent = labelText;
 
+                    const value = ctx.element('span');
+                    value.className = 'sfro-queue-metric-value';
+                    value.textContent = valueText;
+
+                    metric.append(label, value);
+                    return metric;
+                };
+
+                const rp = createMetric(
+                    'RP',
+                    `${activeResearch.achieved.toLocaleString()} / ${activeResearch.total.toLocaleString()}`
+                );
+
+                const remaining = createMetric(
+                    'Remaining',
+                    `${activeResearch.remaining.toLocaleString()} RP`
+                );
+
+                const eta = createMetric(
+                    'Ticks left',
+                    `≈${ticks} ticks`,
+                    'sfro-queue-complete'
+                );
+                eta.title =
+                    `${activeResearch.remaining.toLocaleString()} RP remaining ÷ ` +
+                    `${researchRate.toLocaleString()} RP/tick = ${ticks} ticks`;
+
+                metrics.append(rp, remaining, eta);
+
+                let action = ctx.element('span');
                 if (cancelLink) {
                     cancelLink.classList.add('sfro-active-cancel');
                     cancelLink.title = 'Cancel research and lose all current progress';
-                    actions.appendChild(cancelLink);
+                    action = cancelLink;
                 }
 
-                top.append(titleWrap, actions);
+                const progressRow = ctx.element('div');
+                progressRow.className = 'sfro-active-progress-row';
 
                 const progress = ctx.element('div');
                 progress.className = 'sfro-active-progress';
@@ -7884,26 +7963,12 @@ function registerResearchOptimizer(SFUX) {
                 fill.style.width = `${Math.max(0, Math.min(100, percentExact))}%`;
                 progress.appendChild(fill);
 
-                const meta = ctx.element('div');
-                meta.className = 'sfro-active-meta';
-
-                const progressText = ctx.element('span');
-                progressText.innerHTML =
-                    `<strong>${activeResearch.achieved.toLocaleString()}</strong> / ${activeResearch.total.toLocaleString()} RP`;
-
                 const percent = ctx.element('span');
-                percent.className = 'sfro-active-percent';
-                percent.innerHTML = `<strong>${percentExact.toFixed(1)}%</strong> complete`;
+                percent.className = 'sfro-active-progress-percent';
+                percent.textContent = `${percentExact.toFixed(1)}%`;
 
-                const remaining = ctx.element('span');
-                remaining.innerHTML = `<strong>${activeResearch.remaining.toLocaleString()}</strong> RP remaining`;
-
-                const rate = ctx.element('span');
-                rate.className = 'sfro-active-rate';
-                rate.textContent = `${researchRate.toLocaleString()} RP/tick`;
-
-                meta.append(progressText, percent, remaining, rate);
-                card.append(top, progress, meta);
+                progressRow.append(progress, percent);
+                card.append(main, metrics, action, progressRow);
 
                 table.replaceWith(card);
             }
@@ -8005,18 +8070,22 @@ function registerResearchOptimizer(SFUX) {
                     const row = ctx.element('div');
                     row.className = 'sfro-queue-item';
 
-                    const order = ctx.element('div');
-                    order.className = 'sfro-queue-order';
-                    order.textContent = index === 0 ? 'NEXT' : `#${item.order}`;
-
                     const main = ctx.element('div');
                     main.className = 'sfro-queue-main';
+
+                    const head = ctx.element('div');
+                    head.className = 'sfro-queue-head';
+
+                    const order = ctx.element('span');
+                    order.className = 'sfro-queue-order';
+                    order.textContent = index === 0 ? 'NEXT' : `#${item.order}`;
 
                     const tech = ctx.element('div');
                     tech.className = 'sfro-queue-tech';
                     tech.textContent = item.name;
 
-                    main.appendChild(tech);
+                    head.append(order, tech);
+                    main.appendChild(head);
 
                     const effect = TECH_SUMMARIES[item.name] || '';
                     if (effect) {
@@ -8030,17 +8099,40 @@ function registerResearchOptimizer(SFUX) {
                     const metrics = ctx.element('div');
                     metrics.className = 'sfro-queue-metrics';
 
-                    const rp = ctx.element('span');
-                    rp.textContent = `${item.points.toLocaleString()} RP`;
+                    const createMetric = (labelText, valueText, extraClass = '') => {
+                        const metric = ctx.element('span');
+                        metric.className = `sfro-queue-metric${extraClass ? ` ${extraClass}` : ''}`;
 
-                    const duration = ctx.element('span');
-                    duration.className = 'sfro-queue-duration';
-                    duration.textContent = `${durationTicks} ticks`;
+                        const label = ctx.element('span');
+                        label.className = 'sfro-queue-metric-label';
+                        label.textContent = labelText;
+
+                        const value = ctx.element('span');
+                        value.className = 'sfro-queue-metric-value';
+                        value.textContent = valueText;
+
+                        metric.append(label, value);
+                        return metric;
+                    };
+
+                    const rp = createMetric(
+                        'RP',
+                        item.points.toLocaleString(),
+                        'sfro-queue-rp'
+                    );
+
+                    const duration = createMetric(
+                        'Duration',
+                        `${durationTicks} ticks`,
+                        'sfro-queue-duration'
+                    );
                     duration.title = `${item.points.toLocaleString()} RP ÷ ${researchRate.toLocaleString()} RP/tick = ${durationTicks} ticks`;
 
-                    const complete = ctx.element('span');
-                    complete.className = 'sfro-queue-complete';
-                    complete.textContent = `≈${cumulativeTicks} ticks from now`;
+                    const complete = createMetric(
+                        'From now',
+                        `≈${cumulativeTicks} ticks`,
+                        'sfro-queue-complete'
+                    );
                     complete.title =
                         'Approximate completion from now. Assumes the current RP/tick rate stays constant and conservatively rounds each research item separately; RP carryover between finishing ticks is not assumed.';
 
@@ -8054,7 +8146,7 @@ function registerResearchOptimizer(SFUX) {
                         action = item.removeLink;
                     }
 
-                    row.append(order, main, metrics, action);
+                    row.append(main, metrics, action);
                     list.appendChild(row);
                 });
 
@@ -8101,7 +8193,7 @@ function registerResearchOptimizer(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.5.10-beta.2 | Buildings UX module. */
+/* StarFury UX Suite 2.5.11-beta.1 | Buildings UX module. */
 function registerBuildingsUX(SFUX) {
     SFUX.register({
         id: 'buildings', phase: 'ready',
@@ -11261,9 +11353,9 @@ function registerBuildingsUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.5.10-beta.2 | Ship Power Routing module. */
+/* StarFury UX Suite 2.5.11-beta.1 | Ship Power Routing module. */
 
-/* StarFury UX Suite 2.5.10-beta.2 | Rewards UX module. */
+/* StarFury UX Suite 2.5.11-beta.1 | Rewards UX module. */
 function registerRewardsUX(SFUX) {
     'use strict';
 
@@ -12020,7 +12112,7 @@ function registerRewardsUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.5.10-beta.2 | Attack Room command layout and fleet accounting. */
+/* StarFury UX Suite 2.5.11-beta.1 | Attack Room command layout and fleet accounting. */
 function registerAttackUX(SFUX) {
     'use strict';
 
@@ -12075,6 +12167,21 @@ function registerAttackUX(SFUX) {
             function formatPair(stats) {
                 if (!stats) return '—';
                 return `${formatInteger(stats.current)} / ${formatInteger(stats.maximum)}`;
+            }
+
+            function formatCompactInteger(value) {
+                const number = Number(value);
+                if (!Number.isFinite(number)) return '—';
+                if (Math.abs(number) < 1000) return Math.trunc(number).toLocaleString('en-US');
+
+                const thousands = number / 1000;
+                const decimals = Number.isInteger(thousands) ? 0 : 1;
+                return `${thousands.toFixed(decimals).replace(/\.0$/, '')}K`;
+            }
+
+            function formatCompactPair(stats) {
+                if (!stats) return '—';
+                return `${formatCompactInteger(stats.current)} / ${formatCompactInteger(stats.maximum)}`;
             }
 
             function getRoleKey(row, fallbackRoleClass = null) {
@@ -12462,17 +12569,15 @@ function registerAttackUX(SFUX) {
                         color: rgba(255,255,255,.90);
                     }
 
-                    body.sfux-attack-page .sfux-attack-subtotal-meta,
-                    body.sfux-attack-page .sfux-attack-grand-meta {
-                        margin-left: 6px;
-                        color: rgba(255,255,255,.42);
-                        font-size: 9.5px;
-                        font-weight: 700;
-                    }
-
                     body.sfux-attack-page .sfux-attack-select-count {
                         color: rgba(255,255,255,.92) !important;
                         font-weight: 800 !important;
+                    }
+
+                    body.sfux-attack-page
+                    tr:not(.sfux-attack-group-header):not(.sfux-attack-subtotal):not(.sfux-attack-grand-total)
+                    .sfux-attack-name-column {
+                        font-weight: 800;
                     }
 
                     body.sfux-attack-page .sfux-attack-selection-summary {
@@ -12518,14 +12623,104 @@ function registerAttackUX(SFUX) {
                         margin-top: 2px !important;
                     }
 
+                    body.sfux-attack-page .sfux-attack-mobile-meta,
+                    body.sfux-attack-page .sfux-attack-hp-compact {
+                        display: none;
+                    }
+
                     @media (max-width: ${SFUX.responsive.mobile}px) {
+                        body.sfux-attack-page .sfux-attack-table-wrap {
+                            overflow-x: visible;
+                        }
+
+                        body.sfux-attack-page table.sfux-attack-table {
+                            width: 100% !important;
+                            min-width: 0 !important;
+                            table-layout: fixed;
+                        }
+
                         body.sfux-attack-page
                         table.sfux-attack-table
                         .sfux-attack-hull-column,
                         body.sfux-attack-page
                         table.sfux-attack-table
-                        .sfux-attack-shield-column {
+                        .sfux-attack-shield-column,
+                        body.sfux-attack-page
+                        table.sfux-attack-table
+                        .sfux-attack-class-column,
+                        body.sfux-attack-page
+                        table.sfux-attack-table
+                        .sfux-attack-engine-column {
                             display: none !important;
+                        }
+
+                        body.sfux-attack-page .sfux-attack-hp-full {
+                            display: none;
+                        }
+
+                        body.sfux-attack-page .sfux-attack-hp-compact {
+                            display: inline;
+                        }
+
+                        body.sfux-attack-page .sfux-attack-mobile-meta {
+                            display: block;
+                            margin-top: 3px;
+                            color: rgba(255,255,255,.64);
+                            font-size: 11.5px;
+                            font-weight: 700;
+                            line-height: 1.15;
+                            white-space: normal;
+                        }
+
+                        body.sfux-attack-page .sfux-attack-name-column {
+                            width: 30%;
+                            white-space: normal !important;
+                            line-height: 1.18;
+                        }
+
+                        body.sfux-attack-page .sfux-attack-hp,
+                        body.sfux-attack-page .sfux-attack-hp-header {
+                            width: 27%;
+                        }
+
+                        body.sfux-attack-page .sfux-attack-attack-column,
+                        body.sfux-attack-page .sfux-attack-damage-column {
+                            width: 16%;
+                        }
+
+                        body.sfux-attack-page .sfux-attack-select-column {
+                            width: 11%;
+                            min-width: 40px;
+                            text-align: center !important;
+                        }
+
+                        body.sfux-attack-page table.sfux-attack-table td,
+                        body.sfux-attack-page table.sfux-attack-table .tableheader {
+                            box-sizing: border-box;
+                            padding-right: 4px !important;
+                            padding-left: 4px !important;
+                            font-size: 11.5px;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                        }
+
+                        body.sfux-attack-page .sfux-attack-hp {
+                            font-size: 11.5px !important;
+                        }
+
+                        body.sfux-attack-page
+                        .sfux-attack-select-column input[type="checkbox"] {
+                            width: 20px;
+                            height: 20px;
+                            margin: 0 auto !important;
+                            accent-color: var(--sfux-info);
+                        }
+
+                        body.sfux-attack-page .sfux-attack-role-name,
+                        body.sfux-attack-page .sfux-attack-role-count,
+                        body.sfux-attack-page .sfux-attack-subtotal td,
+                        body.sfux-attack-page .sfux-attack-grand-total td {
+                            font-size: 11px;
                         }
                     }
 
@@ -12534,14 +12729,18 @@ function registerAttackUX(SFUX) {
                             grid-template-columns: 1fr;
                         }
 
+                        /*
+                         * Selected / Attack / Damage remain a compact three-column
+                         * instrument row on mobile rather than stacking vertically.
+                         */
                         body.sfux-attack-page .sfux-attack-selection-summary {
-                            grid-template-columns: 1fr;
+                            grid-template-columns: repeat(3, minmax(0, 1fr));
                         }
 
                         body.sfux-attack-page
                         .sfux-attack-selection-stat + .sfux-attack-selection-stat {
-                            border-top: 1px solid rgba(255,255,255,.06);
-                            border-left: 0;
+                            border-top: 0;
+                            border-left: 1px solid rgba(255,255,255,.06);
                         }
                     }
                 `);
@@ -12714,15 +12913,24 @@ function registerAttackUX(SFUX) {
                     'sfux-attack-shield-column'
                 );
 
+                headerRow.cells[0]?.classList.add('sfux-attack-name-column');
+                headerRow.cells[1]?.classList.add('sfux-attack-class-column');
+
                 const hpHeader = ctx.element('td');
-                hpHeader.className = 'tableheader';
+                hpHeader.className = 'tableheader sfux-attack-hp-header';
                 hpHeader.textContent = 'HP';
                 headerRow.insertBefore(hpHeader, headerRow.cells[4]);
 
-                // After HP insertion: Damage is column index 7.
-                if (headerRow.cells[7]) {
-                    headerRow.cells[7].classList.add('sfux-attack-damage-header');
-                }
+                // After HP insertion:
+                // 0 Name, 1 Class, 2 Hull, 3 Shields, 4 HP,
+                // 5 Engines, 6 Attack, 7 Damage, 8 Select.
+                headerRow.cells[5]?.classList.add('sfux-attack-engine-column');
+                headerRow.cells[6]?.classList.add('sfux-attack-attack-column');
+                headerRow.cells[7]?.classList.add(
+                    'sfux-attack-damage-header',
+                    'sfux-attack-damage-column'
+                );
+                headerRow.cells[8]?.classList.add('sfux-attack-select-column');
 
                 const groups = [];
                 const groupMap = new Map();
@@ -12759,12 +12967,16 @@ function registerAttackUX(SFUX) {
 
                     const hpCell = ctx.element('td');
                     hpCell.className = 'sfux-attack-hp';
-                    hpCell.textContent = formatPair(hp);
 
-                    // After HP insertion: Damage is column index 7.
-                    if (row.cells[7]) {
-                        row.cells[7].classList.add('sfux-attack-damage');
-                    }
+                    const hpFull = ctx.element('span');
+                    hpFull.className = 'sfux-attack-hp-full';
+                    hpFull.textContent = formatPair(hp);
+
+                    const hpCompact = ctx.element('span');
+                    hpCompact.className = 'sfux-attack-hp-compact';
+                    hpCompact.textContent = formatCompactPair(hp);
+
+                    hpCell.append(hpFull, hpCompact);
 
                     if (hull && shield) {
                         hpCell.title =
@@ -12772,6 +12984,26 @@ function registerAttackUX(SFUX) {
                     }
 
                     row.insertBefore(hpCell, row.cells[4]);
+
+                    row.cells[0]?.classList.add('sfux-attack-name-column');
+                    row.cells[1]?.classList.add('sfux-attack-class-column');
+                    row.cells[5]?.classList.add('sfux-attack-engine-column');
+                    row.cells[6]?.classList.add('sfux-attack-attack-column');
+                    row.cells[7]?.classList.add(
+                        'sfux-attack-damage',
+                        'sfux-attack-damage-column'
+                    );
+                    row.cells[8]?.classList.add('sfux-attack-select-column');
+
+                    const mobileMeta = ctx.element('span');
+                    mobileMeta.className = 'sfux-attack-mobile-meta';
+                    const classText = String(row.cells[1]?.textContent || '').trim();
+                    const engineText = String(row.cells[5]?.textContent || '').trim();
+                    mobileMeta.textContent = [
+                        classText,
+                        engineText ? `E${engineText}` : ''
+                    ].filter(Boolean).join(' · ');
+                    row.cells[0]?.appendChild(mobileMeta);
 
                     const checkbox = row.querySelector('input[name="shipid[]"][type="checkbox"]');
                     const attack = SFUX.format.number(
@@ -12899,34 +13131,43 @@ function registerAttackUX(SFUX) {
                         : 'sfux-attack-subtotal-label';
                     label.textContent = grand
                         ? 'Fleet total'
-                        : `${group.config.label} subtotal`;
+                        : 'Dock Subtotal';
 
-                    const meta = ctx.element('span');
-                    meta.className = grand
-                        ? 'sfux-attack-grand-meta'
-                        : 'sfux-attack-subtotal-meta';
-                    meta.textContent =
-                        `· ${group.count} ${group.count === 1 ? 'ship' : 'ships'}`;
+                    labelCell.appendChild(label);
 
-                    labelCell.append(label, meta);
-
-                    const hpCell = ctx.element('td');
-                    hpCell.textContent = formatPair({
+                    const hpStats = {
                         current: group.hpCurrent,
                         maximum: group.hpMaximum
-                    });
+                    };
+
+                    const hpCell = ctx.element('td');
+                    hpCell.className = 'sfux-attack-hp';
+
+                    const hpFull = ctx.element('span');
+                    hpFull.className = 'sfux-attack-hp-full';
+                    hpFull.textContent = formatPair(hpStats);
+
+                    const hpCompact = ctx.element('span');
+                    hpCompact.className = 'sfux-attack-hp-compact';
+                    hpCompact.textContent = formatCompactPair(hpStats);
+
+                    hpCell.append(hpFull, hpCompact);
 
                     const enginesCell = ctx.element('td');
+                    enginesCell.className = 'sfux-attack-engine-column';
                     enginesCell.textContent = '—';
 
                     const attackCell = ctx.element('td');
+                    attackCell.className = 'sfux-attack-attack-column';
                     attackCell.textContent = formatInteger(group.attack);
 
                     const damageCell = ctx.element('td');
+                    damageCell.className = 'sfux-attack-damage-column';
                     damageCell.textContent = formatInteger(group.damage);
 
                     const selectCell = ctx.element('td');
-                    selectCell.className = 'sfux-attack-select-count';
+                    selectCell.className =
+                        'sfux-attack-select-count sfux-attack-select-column';
                     selectCell.textContent = `0 / ${group.count}`;
                     selectCell.title = 'Selected / available';
 
@@ -12984,7 +13225,7 @@ function registerAttackUX(SFUX) {
                         .querySelectorAll('.sfux-attack-group-header > td')
                         .forEach(cell => {
                             cell.colSpan = isMobile
-                                ? totalColumns - 2
+                                ? 5
                                 : totalColumns;
                         });
 
@@ -12994,7 +13235,7 @@ function registerAttackUX(SFUX) {
                             '.sfux-attack-grand-total > td:first-child'
                         )
                         .forEach(cell => {
-                            cell.colSpan = isMobile ? 2 : 4;
+                            cell.colSpan = isMobile ? 1 : 4;
                         });
                 };
 
@@ -13143,7 +13384,7 @@ function registerAttackUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.5.10-beta.2 | Raid roster density, mercenary selection, and payout accounting. */
+/* StarFury UX Suite 2.5.11-beta.1 | Raid roster density, mercenary selection, and payout accounting. */
 function registerRaidUX(SFUX) {
     'use strict';
 
@@ -13601,7 +13842,9 @@ function registerRaidUX(SFUX) {
                             grid-area: empire;
                             align-self: end;
                             padding-bottom: 1px;
-                            font-size: 12px;
+                            font-size: 13px;
+                            font-weight: 800;
+                            line-height: 1.2;
                         }
 
                         body.sfux-raid-page
@@ -13609,15 +13852,19 @@ function registerRaidUX(SFUX) {
                         .sfux-raid-fleet-cell {
                             grid-area: fleet;
                             align-self: start;
-                            padding-top: 1px;
-                            color: rgba(255,255,255,.62);
-                            font-size: 10px;
+                            padding-top: 2px;
+                            color: rgba(255,255,255,.68);
+                            font-size: 11.5px;
+                            line-height: 1.25;
                         }
 
                         body.sfux-raid-page
                         table.sfux-raid-roster
                         .sfux-raid-fleet-cell p + p {
-                            font-size: 9px;
+                            margin-top: 3px;
+                            color: rgba(255,255,255,.58);
+                            font-size: 11px;
+                            line-height: 1.2;
                         }
 
                         body.sfux-raid-page
@@ -13625,6 +13872,10 @@ function registerRaidUX(SFUX) {
                         .sfux-raid-payout-cell {
                             grid-area: payout;
                             align-self: end;
+                            color: rgba(255,255,255,.92);
+                            font-size: 12px;
+                            font-weight: 800;
+                            line-height: 1.2;
                             text-align: center;
                         }
 
@@ -13633,8 +13884,9 @@ function registerRaidUX(SFUX) {
                         .sfux-raid-status-cell {
                             grid-area: status;
                             align-self: start;
-                            color: rgba(255,255,255,.58);
-                            font-size: 10px;
+                            color: rgba(255,255,255,.66);
+                            font-size: 11.5px;
+                            line-height: 1.2;
                             text-align: center;
                         }
 
@@ -13680,6 +13932,8 @@ function registerRaidUX(SFUX) {
                             width: 100% !important;
                             min-height: 0;
                             padding: 8px 10px !important;
+                            font-size: 11px;
+                            line-height: 1.2;
                         }
 
                         body.sfux-raid-page table.sfux-raid-merc-table,
@@ -13732,7 +13986,8 @@ function registerRaidUX(SFUX) {
                         body.sfux-raid-page
                         table.sfux-raid-merc-table .sfux-raid-merc-loadout {
                             grid-area: loadout;
-                            font-size: 11px;
+                            font-size: 11.5px;
+                            line-height: 1.25;
                         }
 
                         body.sfux-raid-page
@@ -13763,7 +14018,8 @@ function registerRaidUX(SFUX) {
                         }
 
                         body.sfux-raid-page .sfux-raid-payout-label {
-                            font-size: 8px;
+                            font-size: 11px;
+                            line-height: 1.1;
                         }
 
                         body.sfux-raid-page .sfux-raid-payout-value {
@@ -13771,7 +14027,8 @@ function registerRaidUX(SFUX) {
                         }
 
                         body.sfux-raid-page .sfux-raid-payout-detail {
-                            font-size: 9px;
+                            font-size: 11.5px;
+                            line-height: 1.25;
                         }
                     }
                 `);
@@ -23714,13 +23971,146 @@ function registerShipPowerRouting(SFUX) {
     });
 }
 
+/* StarFury UX Suite 2.5.11-beta.1 | Quick Login Asteroids interstitial. */
+function registerQuickLoginAsteroids(SFUX) {
+    SFUX.register({
+        id: 'quicklogin', phase: 'ready',
+        matches(path) { return path === '/quicklogin.php'; },
+        create(ctx) {
+            function init() {
+  if (!document.body || document.getElementById('sfql-asteroids')) return;
+
+  // Read the real empire and sector before hiding any of the game's content.
+  const nativeEmpire = [...document.querySelectorAll('p strong')]
+    .find(node => /^.+?\s*\(\s*(?:\d+|\*)\s*:\s*(?:\d+|\*)\s*\)$/.test(node.textContent.trim()));
+  const match = nativeEmpire?.textContent.trim().match(/^(.+?)\s*\(\s*(\d+|\*)\s*:\s*(\d+|\*)\s*\)$/);
+  if (!match) return;
+
+  // The browser's existing meta refresh remains the ONLY redirect mechanism.
+  const refreshSeconds = Number.parseFloat(document.querySelector('meta[http-equiv="refresh" i]')?.content ?? '5');
+  const duration = Number.isFinite(refreshSeconds) && refreshSeconds > 0 ? refreshSeconds * 1000 : 5000;
+  const nativeLink = document.querySelector('.container a[href], p a[href]');
+  let fallback = new URL('overview.php', location.href);
+  try {
+    const link = new URL(nativeLink?.getAttribute('href') || 'overview.php', location.href);
+    if (link.origin === location.origin && link.protocol === 'https:') fallback = link;
+  } catch (_) { /* Keep the safe same-origin fallback. */ }
+
+  const host = document.createElement('div');
+  host.id = 'sfql-asteroids';
+  const ui = host.attachShadow({ mode: 'open' });
+  ui.innerHTML = `
+<style>
+  :host{position:fixed;inset:0;z-index:2147483647;display:block;overflow:auto;overscroll-behavior:contain}
+  *,*::before,*::after{box-sizing:border-box}
+  .stage{min-height:100vh;min-height:100svh;display:grid;place-items:center;padding:18px;color:#d7f2ff;font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;background:transparent}
+  .terminal{width:min(860px,100%);border:1px solid #2f4b58;background:rgba(9,9,9,.94);box-shadow:0 18px 50px #000}
+  .top,.foot{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 14px;color:#78909c;font-size:12px;line-height:1.25;letter-spacing:.04em;text-transform:uppercase}
+  .top{border-bottom:1px solid #24343b}.foot{border-top:1px solid #24343b}
+  .body{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:20px}
+  .eyebrow{color:#8bdcff;font-size:12px;line-height:1.3;letter-spacing:.1em;text-transform:uppercase}
+  h1{margin:8px 0 2px;font-size:clamp(28px,5vw,44px);line-height:1.1;overflow-wrap:anywhere}
+  .sector{color:#c7d4da;font-size:14px}
+  .status{margin-top:22px;display:grid;gap:8px;font-size:12.5px;line-height:1.25}
+  .status div{display:flex;justify-content:space-between;gap:16px;color:#78909c}
+  .status b{color:#98ffb8}
+  .progress{margin-top:20px}
+  .progress-head{display:flex;justify-content:space-between;margin-bottom:6px;color:#78909c;font-size:12px;line-height:1.25;letter-spacing:.1em;text-transform:uppercase}
+  .track{height:7px;border:1px solid #38515d;background:#020202;overflow:hidden}
+  .fill{width:0;height:100%;background:#8bdcff;animation:fill 5s linear forwards}
+  @keyframes fill{to{width:100%}}
+  .game{height:240px;border:1px solid #24343b;background:#000;overflow:hidden}
+  svg{display:block;width:100%;height:100%}
+  .wire{fill:none;stroke:#f4f4f4;stroke-width:2;vector-effect:non-scaling-stroke;stroke-linecap:round;stroke-linejoin:round}
+  .rock{stroke:#9aa6ab}
+  .ship{transform-box:view-box;transform-origin:84px 120px;animation:ship 2.2s ease-in-out infinite}
+  @keyframes ship{0%,100%{transform:translateY(-3px) rotate(-2deg)}50%{transform:translateY(4px) rotate(2deg)}}
+  /* Absolute SVG-space positions prevent the rocks from animating at (0,0). */
+  .r1{animation:r1 5.4s linear infinite -1.3s}.r2{animation:r2 4.6s linear infinite -2.2s}.r3{animation:r3 5s linear infinite}
+  @keyframes r1{from{transform:translate(450px,49px) rotate(0)}to{transform:translate(-45px,51px) rotate(210deg)}}
+  @keyframes r2{from{transform:translate(450px,188px) rotate(0)}to{transform:translate(-40px,185px) rotate(-260deg)}}
+  @keyframes r3{0%{transform:translate(465px,120px);opacity:1}50%{transform:translate(214px,120px) rotate(125deg);opacity:1}51%,99%{transform:translate(210px,120px) rotate(130deg);opacity:0}100%{transform:translate(465px,120px);opacity:0}}
+  .bullet{fill:white;opacity:0;animation:bullet 1.55s linear infinite}.bullet.second{animation-delay:.77s}
+  @keyframes bullet{0%,54%{opacity:0;transform:translateX(0)}55%{opacity:1;transform:translateX(0)}75%{opacity:1;transform:translateX(210px)}76%,100%{opacity:0;transform:translateX(210px)}}
+  .burst{opacity:0;animation:burst 5s linear infinite}
+  @keyframes burst{0%,50%{opacity:0;transform:scale(.5)}51%{opacity:1;transform:scale(.65)}56%{opacity:1;transform:scale(1.15)}63%,100%{opacity:0;transform:scale(1.35)}}
+  .count{color:#e9f7ff;font-weight:800}
+  a{color:#8bdcff;text-decoration:none}a:hover,a:focus-visible{text-decoration:underline}
+  @media(max-width:700px){.stage{padding:10px}.top{flex-wrap:wrap}.body{grid-template-columns:1fr;padding:15px;gap:14px}.game{height:196px}.foot{flex-direction:column;align-items:flex-start;gap:7px}}
+  @media(max-width:420px) and (max-height:640px){.stage{padding:7px}.top,.foot{padding:8px 10px}.body{padding:12px;gap:11px}h1{font-size:clamp(25px,8vw,34px)}.status{margin-top:13px;gap:6px}.progress{margin-top:12px}.game{height:154px}}
+  @media(prefers-reduced-motion:reduce){.fill{animation:none;width:100%}.ship{animation:none}.r1{animation:none;transform:translate(315px,60px)}.r2{animation:none;transform:translate(275px,180px)}.r3{animation:none;transform:translate(190px,120px)}.bullet,.burst{animation:none;opacity:0}}
+</style>
+<div class="stage"><main class="terminal">
+  <div class="top"><span>STAR FURY</span><span>LINK ACTIVE</span></div>
+  <div class="body"><section>
+    <div class="eyebrow">ESTABLISHING AUTHORIZATION</div>
+    <h1 id="name"></h1><div class="sector" id="sector"></div>
+    <div class="status"><div><span>Authentication</span><b>OK</b></div><div><span>Empire telemetry</span><b>OK</b></div><div><span>Strategic interface</span><b id="state">...</b></div></div>
+    <div class="progress"><div class="progress-head"><span>Loading</span><span id="percent">0%</span></div><div class="track"><div class="fill"></div></div></div>
+  </section><section class="game" aria-label="Asteroids-style loading animation">
+    <svg viewBox="0 0 420 240" role="img" aria-label="Wireframe ship shooting asteroids">
+      <g class="ship wire"><path d="M112 120 L69 103 L77 120 L69 137 Z M69 113 L59 107 M69 127 L59 133"/></g>
+      <circle class="bullet" cx="113" cy="120" r="2.2"/><circle class="bullet second" cx="113" cy="120" r="2.2"/>
+      <g class="r1 wire rock"><path d="M-24 -16 L-7 -28 L16 -23 L28 -5 L19 19 L2 28 L-20 19 L-30 -2 Z"/></g>
+      <g class="r2 wire rock"><path d="M-18 -12 L-4 -22 L16 -17 L24 -1 L13 18 L-8 20 L-23 6 Z"/></g>
+      <g class="r3 wire rock"><path d="M-30 -16 L-11 -32 L17 -28 L34 -7 L24 21 L2 34 L-25 24 L-37 2 Z"/></g>
+      <g transform="translate(210 120)"><g class="burst wire"><path d="M0 -14 L0 14 M-14 0 L14 0 M-10 -10 L10 10 M10 -10 L-10 10"/></g></g>
+    </svg>
+  </section></div>
+  <div class="foot"><span>Automatic transfer in <span class="count" id="count"></span></span><span>Not redirecting? <a id="enter">Enter Command</a></span></div>
+</main></div>`;
+
+  ui.getElementById('name').textContent = match[1].trim();
+  ui.getElementById('sector').textContent = `Sector ${match[2]}:${match[3]}`;
+  ui.getElementById('enter').href = fallback.href;
+  const counter = ui.getElementById('count');
+  const percent = ui.getElementById('percent');
+  const state = ui.getElementById('state');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  ui.querySelector('.fill').style.animationDuration = `${duration}ms`;
+  counter.textContent = `${(duration / 1000).toFixed(1)}s`;
+  if (reduced) percent.textContent = 'LINK ACTIVE';
+
+  // Mount before hiding the original login card; preserve body.background.
+  document.body.append(host);
+  const nativeCard = nativeEmpire.closest('.container') ?? nativeEmpire.closest('.row');
+  const oldNativeDisplay = nativeCard?.style.display ?? '';
+  if (nativeCard && !nativeCard.contains(host)) nativeCard.style.display = 'none';
+
+  const began = performance.now();
+  const update = () => {
+    const remaining = Math.max(0, duration - (performance.now() - began));
+    counter.textContent = `${(remaining / 1000).toFixed(1)}s`;
+    if (!reduced) percent.textContent = `${Math.round((1 - remaining / duration) * 100)}%`;
+    if (remaining === 0) {
+      state.textContent = 'READY';
+      clearInterval(timer);
+    }
+  };
+  // The displayed clock only has 0.1s precision; a 60fps loop is unnecessary.
+  const timer = setInterval(update, reduced ? 1000 : 100);
+  ctx.cleanups.add(() => {
+    clearInterval(timer);
+    host.remove();
+    if (nativeCard) nativeCard.style.display = oldNativeDisplay;
+  });
+            }
+            return { init, destroy: ctx.destroy };
+        }
+    });
+}
+
 const SFUX = createSFUX();
-registerGlobalUX(SFUX);
-registerResearchOptimizer(SFUX);
-registerBuildingsUX(SFUX);
-registerRewardsUX(SFUX);
-registerAttackUX(SFUX);
-registerRaidUX(SFUX);
-registerShipPowerRouting(SFUX);
+if (SFUX.path === '/quicklogin.php') {
+    registerQuickLoginAsteroids(SFUX);
+} else {
+    registerGlobalUX(SFUX);
+    registerResearchOptimizer(SFUX);
+    registerBuildingsUX(SFUX);
+    registerRewardsUX(SFUX);
+    registerAttackUX(SFUX);
+    registerRaidUX(SFUX);
+    registerShipPowerRouting(SFUX);
+}
 SFUX.boot();
 })();
