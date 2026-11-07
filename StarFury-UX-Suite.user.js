@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         StarFury UX Suite
 // @namespace    starfuryx.com
-// @version      2.5.10
+// @version      2.5.11
 // @author       Zathman
 // @license      MIT
 // @homepageURL  https://github.com/Katorthoma/star-fury-scripts
@@ -21,10 +21,10 @@
 
 (() => {
 'use strict';
-/* StarFury UX Suite 2.5.10 | Shared runtime. No globals are published by the bundle. */
+/* StarFury UX Suite 2.5.11 | Shared runtime. No globals are published by the bundle. */
 function createSFUX() {
     'use strict';
-    const SFUX = { version: '2.5.10', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
+    const SFUX = { version: '2.5.11', modules: new Map(), dom: {}, format: {}, storage: {}, observe: {}, ui: {} };
     // UI ASSUMPTION: dense building columns and nine navigation items need earlier stacking.
     SFUX.responsive = Object.freeze({ mobile: 640, navigation: 768, buildings: 800, phone: 430, narrowHeader: 460, tinyHud: 360 });
     SFUX.page = new URL(window.location.href);
@@ -390,7 +390,8 @@ function createSFUX() {
     };
     SFUX.boot = () => {
         const core = createContext('core');
-        core.find('head', () => core.style('sfux-core-style', SFUX.css));
+        // Quick Login uses its own Shadow DOM and Star Fury's native background.
+        if (SFUX.path !== '/quicklogin.php') core.find('head', () => core.style('sfux-core-style', SFUX.css));
         for (const module of SFUX.modules.values()) if (module.phase === 'early') SFUX.start(module.id);
         core.ready(() => { for (const module of SFUX.modules.values()) if (module.phase !== 'early') SFUX.start(module.id); });
         // A bfcache document is suspended, not destroyed, and resumes with its listeners.
@@ -567,7 +568,7 @@ html body input[type="button"].button-primary:not(.sf-raze-submit):disabled {
     return SFUX;
 }
 
-/* StarFury UX Suite 2.5.10 | Global UX module. */
+/* StarFury UX Suite 2.5.11 | Global UX module. */
 function registerGlobalUX(SFUX) {
     SFUX.register({
         id: 'global', phase: 'early',
@@ -5471,7 +5472,7 @@ function registerGlobalUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.5.10 | Research Optimizer module. */
+/* StarFury UX Suite 2.5.11 | Research Optimizer module. */
 function registerResearchOptimizer(SFUX) {
     SFUX.register({
         id: 'research', phase: 'ready',
@@ -8192,7 +8193,7 @@ function registerResearchOptimizer(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.5.10 | Buildings UX module. */
+/* StarFury UX Suite 2.5.11 | Buildings UX module. */
 function registerBuildingsUX(SFUX) {
     SFUX.register({
         id: 'buildings', phase: 'ready',
@@ -11352,9 +11353,9 @@ function registerBuildingsUX(SFUX) {
     });
 }
 
-/* StarFury UX Suite 2.5.10 | Ship Power Routing module. */
+/* StarFury UX Suite 2.5.11 | Ship Power Routing module. */
 
-/* StarFury UX Suite 2.5.10 | Rewards UX module. */
+/* StarFury UX Suite 2.5.11 | Rewards UX module. */
 function registerRewardsUX(SFUX) {
     'use strict';
 
@@ -12111,7 +12112,7 @@ function registerRewardsUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.5.10 | Attack Room command layout and fleet accounting. */
+/* StarFury UX Suite 2.5.11 | Attack Room command layout and fleet accounting. */
 function registerAttackUX(SFUX) {
     'use strict';
 
@@ -13383,7 +13384,7 @@ function registerAttackUX(SFUX) {
 }
 
 
-/* StarFury UX Suite 2.5.10 | Raid roster density, mercenary selection, and payout accounting. */
+/* StarFury UX Suite 2.5.11 | Raid roster density, mercenary selection, and payout accounting. */
 function registerRaidUX(SFUX) {
     'use strict';
 
@@ -23970,13 +23971,146 @@ function registerShipPowerRouting(SFUX) {
     });
 }
 
+/* StarFury UX Suite 2.5.11 | Quick Login Asteroids interstitial. */
+function registerQuickLoginAsteroids(SFUX) {
+    SFUX.register({
+        id: 'quicklogin', phase: 'ready',
+        matches(path) { return path === '/quicklogin.php'; },
+        create(ctx) {
+            function init() {
+  if (!document.body || document.getElementById('sfql-asteroids')) return;
+
+  // Read the real empire and sector before hiding any of the game's content.
+  const nativeEmpire = [...document.querySelectorAll('p strong')]
+    .find(node => /^.+?\s*\(\s*(?:\d+|\*)\s*:\s*(?:\d+|\*)\s*\)$/.test(node.textContent.trim()));
+  const match = nativeEmpire?.textContent.trim().match(/^(.+?)\s*\(\s*(\d+|\*)\s*:\s*(\d+|\*)\s*\)$/);
+  if (!match) return;
+
+  // The browser's existing meta refresh remains the ONLY redirect mechanism.
+  const refreshSeconds = Number.parseFloat(document.querySelector('meta[http-equiv="refresh" i]')?.content ?? '5');
+  const duration = Number.isFinite(refreshSeconds) && refreshSeconds > 0 ? refreshSeconds * 1000 : 5000;
+  const nativeLink = document.querySelector('.container a[href], p a[href]');
+  let fallback = new URL('overview.php', location.href);
+  try {
+    const link = new URL(nativeLink?.getAttribute('href') || 'overview.php', location.href);
+    if (link.origin === location.origin && link.protocol === 'https:') fallback = link;
+  } catch (_) { /* Keep the safe same-origin fallback. */ }
+
+  const host = document.createElement('div');
+  host.id = 'sfql-asteroids';
+  const ui = host.attachShadow({ mode: 'open' });
+  ui.innerHTML = `
+<style>
+  :host{position:fixed;inset:0;z-index:2147483647;display:block;overflow:auto;overscroll-behavior:contain}
+  *,*::before,*::after{box-sizing:border-box}
+  .stage{min-height:100vh;min-height:100svh;display:grid;place-items:center;padding:18px;color:#d7f2ff;font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;background:transparent}
+  .terminal{width:min(860px,100%);border:1px solid #2f4b58;background:rgba(9,9,9,.94);box-shadow:0 18px 50px #000}
+  .top,.foot{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 14px;color:#78909c;font-size:12px;line-height:1.25;letter-spacing:.04em;text-transform:uppercase}
+  .top{border-bottom:1px solid #24343b}.foot{border-top:1px solid #24343b}
+  .body{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:20px}
+  .eyebrow{color:#8bdcff;font-size:12px;line-height:1.3;letter-spacing:.1em;text-transform:uppercase}
+  h1{margin:8px 0 2px;font-size:clamp(28px,5vw,44px);line-height:1.1;overflow-wrap:anywhere}
+  .sector{color:#c7d4da;font-size:14px}
+  .status{margin-top:22px;display:grid;gap:8px;font-size:12.5px;line-height:1.25}
+  .status div{display:flex;justify-content:space-between;gap:16px;color:#78909c}
+  .status b{color:#98ffb8}
+  .progress{margin-top:20px}
+  .progress-head{display:flex;justify-content:space-between;margin-bottom:6px;color:#78909c;font-size:12px;line-height:1.25;letter-spacing:.1em;text-transform:uppercase}
+  .track{height:7px;border:1px solid #38515d;background:#020202;overflow:hidden}
+  .fill{width:0;height:100%;background:#8bdcff;animation:fill 5s linear forwards}
+  @keyframes fill{to{width:100%}}
+  .game{height:240px;border:1px solid #24343b;background:#000;overflow:hidden}
+  svg{display:block;width:100%;height:100%}
+  .wire{fill:none;stroke:#f4f4f4;stroke-width:2;vector-effect:non-scaling-stroke;stroke-linecap:round;stroke-linejoin:round}
+  .rock{stroke:#9aa6ab}
+  .ship{transform-box:view-box;transform-origin:84px 120px;animation:ship 2.2s ease-in-out infinite}
+  @keyframes ship{0%,100%{transform:translateY(-3px) rotate(-2deg)}50%{transform:translateY(4px) rotate(2deg)}}
+  /* Absolute SVG-space positions prevent the rocks from animating at (0,0). */
+  .r1{animation:r1 5.4s linear infinite -1.3s}.r2{animation:r2 4.6s linear infinite -2.2s}.r3{animation:r3 5s linear infinite}
+  @keyframes r1{from{transform:translate(450px,49px) rotate(0)}to{transform:translate(-45px,51px) rotate(210deg)}}
+  @keyframes r2{from{transform:translate(450px,188px) rotate(0)}to{transform:translate(-40px,185px) rotate(-260deg)}}
+  @keyframes r3{0%{transform:translate(465px,120px);opacity:1}50%{transform:translate(214px,120px) rotate(125deg);opacity:1}51%,99%{transform:translate(210px,120px) rotate(130deg);opacity:0}100%{transform:translate(465px,120px);opacity:0}}
+  .bullet{fill:white;opacity:0;animation:bullet 1.55s linear infinite}.bullet.second{animation-delay:.77s}
+  @keyframes bullet{0%,54%{opacity:0;transform:translateX(0)}55%{opacity:1;transform:translateX(0)}75%{opacity:1;transform:translateX(210px)}76%,100%{opacity:0;transform:translateX(210px)}}
+  .burst{opacity:0;animation:burst 5s linear infinite}
+  @keyframes burst{0%,50%{opacity:0;transform:scale(.5)}51%{opacity:1;transform:scale(.65)}56%{opacity:1;transform:scale(1.15)}63%,100%{opacity:0;transform:scale(1.35)}}
+  .count{color:#e9f7ff;font-weight:800}
+  a{color:#8bdcff;text-decoration:none}a:hover,a:focus-visible{text-decoration:underline}
+  @media(max-width:700px){.stage{padding:10px}.top{flex-wrap:wrap}.body{grid-template-columns:1fr;padding:15px;gap:14px}.game{height:196px}.foot{flex-direction:column;align-items:flex-start;gap:7px}}
+  @media(max-width:420px) and (max-height:640px){.stage{padding:7px}.top,.foot{padding:8px 10px}.body{padding:12px;gap:11px}h1{font-size:clamp(25px,8vw,34px)}.status{margin-top:13px;gap:6px}.progress{margin-top:12px}.game{height:154px}}
+  @media(prefers-reduced-motion:reduce){.fill{animation:none;width:100%}.ship{animation:none}.r1{animation:none;transform:translate(315px,60px)}.r2{animation:none;transform:translate(275px,180px)}.r3{animation:none;transform:translate(190px,120px)}.bullet,.burst{animation:none;opacity:0}}
+</style>
+<div class="stage"><main class="terminal">
+  <div class="top"><span>STAR FURY</span><span>LINK ACTIVE</span></div>
+  <div class="body"><section>
+    <div class="eyebrow">ESTABLISHING AUTHORIZATION</div>
+    <h1 id="name"></h1><div class="sector" id="sector"></div>
+    <div class="status"><div><span>Authentication</span><b>OK</b></div><div><span>Empire telemetry</span><b>OK</b></div><div><span>Strategic interface</span><b id="state">...</b></div></div>
+    <div class="progress"><div class="progress-head"><span>Loading</span><span id="percent">0%</span></div><div class="track"><div class="fill"></div></div></div>
+  </section><section class="game" aria-label="Asteroids-style loading animation">
+    <svg viewBox="0 0 420 240" role="img" aria-label="Wireframe ship shooting asteroids">
+      <g class="ship wire"><path d="M112 120 L69 103 L77 120 L69 137 Z M69 113 L59 107 M69 127 L59 133"/></g>
+      <circle class="bullet" cx="113" cy="120" r="2.2"/><circle class="bullet second" cx="113" cy="120" r="2.2"/>
+      <g class="r1 wire rock"><path d="M-24 -16 L-7 -28 L16 -23 L28 -5 L19 19 L2 28 L-20 19 L-30 -2 Z"/></g>
+      <g class="r2 wire rock"><path d="M-18 -12 L-4 -22 L16 -17 L24 -1 L13 18 L-8 20 L-23 6 Z"/></g>
+      <g class="r3 wire rock"><path d="M-30 -16 L-11 -32 L17 -28 L34 -7 L24 21 L2 34 L-25 24 L-37 2 Z"/></g>
+      <g transform="translate(210 120)"><g class="burst wire"><path d="M0 -14 L0 14 M-14 0 L14 0 M-10 -10 L10 10 M10 -10 L-10 10"/></g></g>
+    </svg>
+  </section></div>
+  <div class="foot"><span>Automatic transfer in <span class="count" id="count"></span></span><span>Not redirecting? <a id="enter">Enter Command</a></span></div>
+</main></div>`;
+
+  ui.getElementById('name').textContent = match[1].trim();
+  ui.getElementById('sector').textContent = `Sector ${match[2]}:${match[3]}`;
+  ui.getElementById('enter').href = fallback.href;
+  const counter = ui.getElementById('count');
+  const percent = ui.getElementById('percent');
+  const state = ui.getElementById('state');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  ui.querySelector('.fill').style.animationDuration = `${duration}ms`;
+  counter.textContent = `${(duration / 1000).toFixed(1)}s`;
+  if (reduced) percent.textContent = 'LINK ACTIVE';
+
+  // Mount before hiding the original login card; preserve body.background.
+  document.body.append(host);
+  const nativeCard = nativeEmpire.closest('.container') ?? nativeEmpire.closest('.row');
+  const oldNativeDisplay = nativeCard?.style.display ?? '';
+  if (nativeCard && !nativeCard.contains(host)) nativeCard.style.display = 'none';
+
+  const began = performance.now();
+  const update = () => {
+    const remaining = Math.max(0, duration - (performance.now() - began));
+    counter.textContent = `${(remaining / 1000).toFixed(1)}s`;
+    if (!reduced) percent.textContent = `${Math.round((1 - remaining / duration) * 100)}%`;
+    if (remaining === 0) {
+      state.textContent = 'READY';
+      clearInterval(timer);
+    }
+  };
+  // The displayed clock only has 0.1s precision; a 60fps loop is unnecessary.
+  const timer = setInterval(update, reduced ? 1000 : 100);
+  ctx.cleanups.add(() => {
+    clearInterval(timer);
+    host.remove();
+    if (nativeCard) nativeCard.style.display = oldNativeDisplay;
+  });
+            }
+            return { init, destroy: ctx.destroy };
+        }
+    });
+}
+
 const SFUX = createSFUX();
-registerGlobalUX(SFUX);
-registerResearchOptimizer(SFUX);
-registerBuildingsUX(SFUX);
-registerRewardsUX(SFUX);
-registerAttackUX(SFUX);
-registerRaidUX(SFUX);
-registerShipPowerRouting(SFUX);
+if (SFUX.path === '/quicklogin.php') {
+    registerQuickLoginAsteroids(SFUX);
+} else {
+    registerGlobalUX(SFUX);
+    registerResearchOptimizer(SFUX);
+    registerBuildingsUX(SFUX);
+    registerRewardsUX(SFUX);
+    registerAttackUX(SFUX);
+    registerRaidUX(SFUX);
+    registerShipPowerRouting(SFUX);
+}
 SFUX.boot();
 })();
